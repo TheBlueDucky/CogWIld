@@ -1,0 +1,595 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cogwild</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #141a2e; --panel: rgba(20, 27, 48, 0.9); --panel2: #222c4d; --line: #34416b;
+    --text: #eef2ff; --muted: #9aa6cc; --accent: #ffc43d; --accent2: #3a86ff; --bad: #ff5d5d; --good: #7bc950;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: 'Nunito', system-ui, sans-serif; }
+  #app { position: fixed; inset: 0; }
+  #gl { position: absolute; inset: 0; display: block; }
+  .hidden { display: none !important; }
+  button { font-family: inherit; cursor: pointer; }
+  h1, h2, .title-font { font-family: 'Lilita One', 'Nunito', sans-serif; font-weight: 400; letter-spacing: 1px; }
+
+  /* ---------- menu ---------- */
+  .screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 16px; }
+  #menu { background: linear-gradient(180deg, rgba(10, 16, 40, 0.15), rgba(10, 16, 40, 0.65)); }
+  .logo { font-family: 'Lilita One'; font-size: clamp(64px, 12vw, 140px); line-height: 0.9; color: var(--accent); text-shadow: 0 6px 0 #b8741a, 0 12px 30px rgba(0,0,0,.5); letter-spacing: 3px; }
+  .logo span { color: #fff; text-shadow: 0 6px 0 #2c63c9, 0 12px 30px rgba(0,0,0,.5); }
+  .logo .cog { display: inline-block; animation: spin 6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .tag-line { font-size: 20px; font-weight: 800; text-shadow: 0 2px 6px rgba(0,0,0,.6); text-align: center; }
+  .menu-btns { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+  .btn { background: var(--panel2); color: var(--text); border: 2px solid var(--line); border-radius: 14px; padding: 12px 22px; font-size: 18px; font-weight: 800; box-shadow: 0 4px 0 #0c1124; transition: transform .08s; }
+  .btn:hover { transform: translateY(-2px); border-color: var(--accent2); }
+  .btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #0c1124; }
+  .btn.big { font-family: 'Lilita One'; font-weight: 400; font-size: 30px; padding: 14px 48px; background: var(--accent); color: #3b2500; border-color: #ffd97a; box-shadow: 0 6px 0 #b8741a; }
+  .btn.primary { background: var(--accent2); border-color: #6fa7ff; box-shadow: 0 4px 0 #1f4fa8; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+  .profile { background: var(--panel); border: 2px solid var(--line); border-radius: 16px; padding: 14px 18px; width: min(560px, 100%); }
+  .profile .row1 { display: flex; justify-content: space-between; align-items: baseline; font-size: 18px; }
+  .xpbar { height: 10px; background: #0d1226; border-radius: 6px; overflow: hidden; margin: 8px 0 4px; }
+  .xpbar i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), #ff8c42); }
+  .small { font-size: 13px; color: var(--muted); }
+  #rankCards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+  .rank-card { background: #10162b; border: 2px solid var(--line); border-radius: 12px; padding: 8px; text-align: center; opacity: .6; }
+  .rank-card.open { opacity: 1; border-color: var(--accent); }
+  .rk-name { font-family: 'Lilita One'; font-size: 20px; color: var(--accent); }
+  .rk-desc { font-size: 12px; color: var(--muted); }
+  .rk-lvl { font-size: 12px; margin-top: 4px; }
+  .check { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px; color: var(--muted); }
+
+  /* ---------- modes ---------- */
+  #modes, #picker { background: rgba(10, 16, 40, 0.78); }
+  .mode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; width: min(920px, 100%); }
+  .mode-card { background: var(--panel); border: 3px solid var(--line); border-radius: 18px; padding: 18px; text-align: left; color: var(--text); position: relative; transition: transform .1s, border-color .1s; }
+  .mode-card[data-mode]:hover { transform: translateY(-4px); border-color: var(--accent); }
+  .mode-card .mc-name { font-family: 'Lilita One'; font-size: 30px; color: var(--accent); }
+  .mode-card .mc-fmt { font-weight: 800; }
+  .mode-card .mc-desc { color: var(--muted); font-size: 14px; margin-top: 6px; }
+  .mode-card.locked { opacity: .5; cursor: default; }
+  .tod-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
+  .tod-btn { background: var(--panel); color: var(--text); border: 2px solid var(--line); border-radius: 10px; padding: 6px 12px; font-weight: 800; }
+  .tod-btn.sel { border-color: var(--accent); color: var(--accent); }
+  .mode-grid.two { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .big-mode { cursor: default; display: flex; flex-direction: column; gap: 4px; }
+  .big-mode.rush { border-color: #ff8c42; }
+  .big-mode.clash { border-color: var(--accent2); }
+  .big-mode.survival { border-color: #e63946; }
+  .fmt-row.two { grid-template-columns: repeat(2, 1fr); }
+  .fmt-row.one { grid-template-columns: 1fr; }
+  #modes { justify-content: flex-start; overflow-y: auto; padding-top: 24px; }
+  .mode-grid.modes7 { grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); width: min(1180px, 100%); }
+  .mc-top { display: flex; align-items: center; gap: 12px; }
+  .mc-top .mc-icon { font-size: 38px; }
+  .mc-top .mc-name { font-size: 26px; }
+  .boss-bar { display: inline-block; width: 160px; height: 10px; background: #2b0000; border-radius: 6px; overflow: hidden; vertical-align: middle; }
+  .boss-bar i { display: block; height: 100%; background: linear-gradient(90deg, #ff3b5c, #ff8c42); }
+  .mode-grid.two { width: min(1150px, 100%); }
+  .mc-icon { font-size: 40px; }
+  .fmt-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+  .fmt-btn { background: #10162b; color: var(--text); border: 2px solid var(--line); border-radius: 12px; padding: 8px 4px; display: flex; flex-direction: column; align-items: center; gap: 2px; transition: transform .08s, border-color .08s; }
+  .fmt-btn b { font-family: 'Lilita One'; font-weight: 400; font-size: 18px; color: var(--accent); }
+  .fmt-btn span { font-size: 11px; color: var(--muted); }
+  .fmt-btn:hover { border-color: var(--accent); transform: translateY(-2px); }
+  #pickerList { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; width: min(900px, 100%); max-height: 55vh; overflow-y: auto; padding: 4px; }
+  .pick-card { background: var(--panel); border: 3px solid var(--line); border-radius: 14px; padding: 10px 12px; text-align: left; color: var(--text); }
+  .pick-card:hover { border-color: #6fa7ff; }
+  .pick-card.sel { border-color: var(--accent); background: #2a2a1a; }
+  .pick-card.bad { opacity: .55; }
+  .pc-tag { font-size: 11px; color: var(--muted); }
+  .pc-name { font-family: 'Lilita One'; font-size: 20px; }
+  .pc-meta { font-size: 12px; margin-top: 4px; }
+  .pc-err { font-size: 11px; color: var(--bad); margin-top: 4px; }
+  #testBar { position: absolute; top: 56px; left: 50%; transform: translateX(-50%); pointer-events: auto; }
+  #testBar .btn { font-size: 14px; padding: 6px 14px; }
+  .team-pill { display: inline-block; min-width: 22px; text-align: center; border-radius: 8px; padding: 0 6px; margin: 0 2px; color: #10162b; font-weight: 800; }
+  .tag.ally .tag-bar i { background: var(--good); }
+  .soon { position: absolute; top: 12px; right: 12px; background: #3c4a7a; border-radius: 8px; padding: 2px 8px; font-size: 12px; }
+
+  /* ---------- workshop ---------- */
+  #workshopUI { position: absolute; inset: 0; pointer-events: none; }
+  #workshopUI > * { pointer-events: auto; }
+  .ws-top { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: var(--panel); border: 2px solid var(--line); border-radius: 14px; padding: 8px 12px; }
+  #wsTitle { font-family: 'Lilita One'; font-size: 24px; color: var(--accent); }
+  #wsName { background: #0d1226; color: var(--text); border: 2px solid var(--line); border-radius: 10px; padding: 6px 10px; font: inherit; font-weight: 800; width: 170px; }
+  .bolts { display: flex; align-items: center; gap: 8px; font-weight: 800; }
+  .bolt-bar { width: 120px; height: 10px; background: #0d1226; border-radius: 6px; overflow: hidden; }
+  .bolt-bar i { display: block; height: 100%; background: var(--accent); }
+  .bolt-bar i.over { background: var(--bad); }
+  .chip { display: inline-block; border-radius: 8px; padding: 2px 8px; font-size: 12px; font-weight: 800; color: #10162b; margin-right: 4px; }
+  .chip.off { background: #2a3458; color: #66739c; }
+  .dom-count { font-weight: 800; margin-left: 4px; }
+  .dom-count.bad, .bad { color: var(--bad); }
+  .good { color: var(--good); }
+  .ws-btn { background: var(--panel2); color: var(--text); border: 2px solid var(--line); border-radius: 10px; padding: 6px 10px; font-weight: 800; font-size: 13px; }
+  .ws-btn:hover { border-color: var(--accent2); }
+  .ws-btn.on { border-color: var(--accent); color: var(--accent); }
+  .spacer { flex: 1; }
+  .ws-left { position: absolute; top: 76px; left: 10px; bottom: 60px; width: 210px; overflow-y: auto; background: var(--panel); border: 2px solid var(--line); border-radius: 14px; padding: 8px; }
+  .pal-cat { font-family: 'Lilita One'; color: var(--muted); font-size: 15px; margin: 8px 4px 4px; display: flex; align-items: center; gap: 6px; }
+  .dom-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 2px; }
+  .pal-item { width: 100%; display: flex; align-items: center; gap: 8px; background: #10162b; color: var(--text); border: 2px solid transparent; border-radius: 10px; padding: 6px 8px; margin-bottom: 4px; font-weight: 800; font-size: 14px; }
+  .pal-item:hover { border-color: var(--line); }
+  .pal-item.sel { border-color: var(--accent); background: #2a2a1a; }
+  .pal-item .sw { width: 16px; height: 16px; border-radius: 4px; border: 1px solid rgba(255,255,255,.3); }
+  .pal-item .nm { flex: 1; text-align: left; }
+  .pal-item .cost { color: var(--accent); font-size: 12px; }
+  .pal-item.locked { opacity: .45; }
+  .pal-item .key { width: 14px; font-size: 10px; color: #66739c; }
+  .pal-item .cnt { font-size: 11px; color: var(--good); }
+  .ws-btn:disabled { opacity: .35; cursor: default; }
+  .ws-btn.test { border-color: var(--good); color: var(--good); }
+  .ws-tools { position: absolute; left: 230px; right: 290px; bottom: 96px; display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+  .ws-tools .ws-btn { background: var(--panel); }
+  #wsPaint { display: flex; flex-wrap: wrap; gap: 6px; }
+  .paint { width: 26px; height: 26px; border-radius: 8px; border: 3px solid transparent; box-shadow: 0 0 0 1px rgba(255,255,255,.2) inset; }
+  .paint.sel { border-color: #fff; }
+  #wsHover { font-size: 12px; color: #fff; min-height: 16px; }
+  .rush-note { color: var(--accent); font-weight: 800; }
+  .ws-right { position: absolute; top: 76px; right: 10px; bottom: 60px; width: 270px; overflow-y: auto; background: var(--panel); border: 2px solid var(--line); border-radius: 14px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .ws-right h3 { font-family: 'Lilita One'; font-weight: 400; margin: 4px 0 0; color: var(--accent); font-size: 18px; }
+  #wsStats .row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 3px 0; border-bottom: 1px solid #263055; }
+  #wsStats .row span:first-child { color: var(--muted); white-space: nowrap; }
+  #wsStats .row span:last-child { text-align: right; }
+  #wsWarn .err { color: var(--bad); font-size: 13px; font-weight: 800; }
+  #wsWarn .warn { color: #ffcf6e; font-size: 13px; }
+  .bp-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .bp-row { display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #10162b; border-radius: 8px; margin-bottom: 4px; cursor: pointer; font-size: 13px; border: 2px solid transparent; }
+  .bp-row:hover { border-color: var(--line); }
+  .bp-name { flex: 1; font-weight: 800; }
+  .bp-meta { color: var(--muted); font-size: 12px; }
+  .bp-del { background: none; border: none; color: var(--muted); font-size: 13px; }
+  .bp-del:hover { color: var(--bad); }
+  .bp-empty { color: var(--muted); font-size: 12px; padding: 4px 8px; }
+  .ws-bottom { position: absolute; left: 230px; right: 290px; bottom: 10px; background: var(--panel); border: 2px solid var(--line); border-radius: 14px; padding: 8px 12px; font-size: 13px; }
+  #wsInfo .desc { color: var(--muted); }
+  #wsRush { position: absolute; top: 76px; left: 50%; transform: translateX(-50%); background: var(--panel); border: 3px solid var(--accent); border-radius: 16px; padding: 8px 16px; display: flex; align-items: center; gap: 14px; }
+  #wsTimer { font-family: 'Lilita One'; font-size: 34px; color: var(--accent); min-width: 70px; text-align: center; }
+  #wsTimer.urgent { color: var(--bad); animation: pulse .5s infinite alternate; }
+  @keyframes pulse { to { transform: scale(1.12); } }
+  .rush-info { font-size: 13px; }
+  .rush-info b { font-family: 'Lilita One'; font-weight: 400; font-size: 18px; }
+
+  /* ---------- HUD ---------- */
+  #hud { position: absolute; inset: 0; pointer-events: none; }
+  #crosshair { position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; transform: translate(-50%, -50%); }
+  #crosshair::before, #crosshair::after { content: ''; position: absolute; background: #fff; box-shadow: 0 0 3px #000; }
+  #crosshair::before { left: 12px; top: 2px; width: 2px; height: 22px; }
+  #crosshair::after { top: 12px; left: 2px; height: 2px; width: 22px; }
+  #crosshair.hit::before, #crosshair.hit::after { background: var(--bad); transform: rotate(45deg); }
+  #topInfo { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); background: var(--panel); border: 2px solid var(--line); border-radius: 12px; padding: 6px 14px; font-size: 15px; }
+  #feed { position: absolute; top: 12px; left: 12px; display: flex; flex-direction: column; gap: 4px; max-width: 46vw; }
+  .feed-item { background: var(--panel); border-left: 4px solid var(--line); border-radius: 8px; padding: 4px 10px; font-size: 13px; font-weight: 800; animation: slide .25s; }
+  .feed-item.good { border-color: var(--good); }
+  .feed-item.bad { border-color: var(--bad); }
+  @keyframes slide { from { transform: translateX(-20px); opacity: 0; } }
+  #minimap { position: absolute; top: 12px; right: 12px; width: 170px; height: 170px; border-radius: 14px; border: 3px solid var(--line); background: #000; }
+  #status { position: absolute; left: 12px; bottom: 44px; width: min(380px, calc(100vw - 24px)); background: var(--panel); border: 2px solid var(--line); border-radius: 14px; padding: 10px 12px; font-size: 13px; }
+  .st-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 15px; }
+  .medium { border-radius: 8px; padding: 2px 8px; color: #10162b; font-weight: 800; font-size: 12px; }
+  .st-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+  .st-row span { width: 70px; color: var(--muted); }
+  .bar { flex: 1; height: 10px; background: #0d1226; border-radius: 6px; overflow: hidden; }
+  .bar i { display: block; height: 100%; transition: width .1s; }
+  .st-foot { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; color: var(--muted); align-items: center; }
+  #hint { position: absolute; left: 12px; right: 12px; bottom: 10px; text-align: center; font-size: 12px; color: #fff; text-shadow: 0 1px 3px #000; }
+  #countdown { position: absolute; left: 50%; top: 32%; transform: translate(-50%, -50%); font-family: 'Lilita One'; font-size: 110px; color: var(--accent); text-shadow: 0 6px 0 #b8741a, 0 10px 30px rgba(0,0,0,.5); }
+  #big { position: absolute; left: 50%; top: 24%; transform: translate(-50%, -50%) scale(.8); text-align: center; opacity: 0; transition: opacity .2s, transform .2s; }
+  #big.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  #bigTitle { font-family: 'Lilita One'; font-size: 54px; color: #fff; text-shadow: 0 4px 0 #2c63c9, 0 8px 24px rgba(0,0,0,.6); }
+  #bigSub { font-weight: 800; text-shadow: 0 2px 4px #000; }
+  #vignette { position: absolute; inset: 0; box-shadow: inset 0 0 160px 40px rgba(255, 30, 30, .8); opacity: 0; }
+  #tags { position: absolute; inset: 0; overflow: hidden; }
+  .tag { position: absolute; left: 0; top: 0; text-align: center; transform-origin: 50% 100%; }
+  .tag-name { font-weight: 800; font-size: 13px; text-shadow: 0 1px 2px #000, 0 0 4px #000; white-space: nowrap; }
+  .tag-bar { width: 70px; height: 6px; background: rgba(0,0,0,.6); border-radius: 4px; overflow: hidden; margin: 2px auto 0; }
+  .tag-bar i { display: block; height: 100%; background: var(--accent); }
+  .tag-bar i.foot { background: #ff5d8f; }
+
+  /* ---------- results / pause / modal ---------- */
+  #results, #pause { background: rgba(10, 16, 40, 0.75); }
+  #resTitle { font-family: 'Lilita One'; font-size: clamp(60px, 10vw, 110px); }
+  #resTitle.win { color: var(--accent); text-shadow: 0 6px 0 #b8741a; }
+  #resTitle.lose { color: #ff8fab; text-shadow: 0 6px 0 #a1304f; }
+  #resPlace { font-family: 'Lilita One'; font-size: 32px; }
+  #resStats { display: grid; grid-template-columns: repeat(4, minmax(90px, 1fr)); gap: 10px; width: min(560px, 100%); }
+  #resStats div { background: var(--panel); border: 2px solid var(--line); border-radius: 12px; padding: 10px; text-align: center; display: flex; flex-direction: column; }
+  #resStats b { font-family: 'Lilita One'; font-weight: 400; font-size: 28px; color: var(--accent); }
+  #resStats span { font-size: 12px; color: var(--muted); }
+  #resExtra { font-weight: 800; text-align: center; max-width: 560px; }
+  #modal { position: absolute; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .modal-box { background: var(--panel2); border: 2px solid var(--line); border-radius: 16px; padding: 16px; width: min(480px, 100%); display: flex; flex-direction: column; gap: 10px; }
+  .modal-box h2 { margin: 0; color: var(--accent); }
+  #modalText { width: 100%; height: 110px; background: #0d1226; color: var(--text); border: 2px solid var(--line); border-radius: 10px; padding: 8px; font-family: monospace; font-size: 12px; resize: none; }
+  #toast { position: absolute; left: 50%; bottom: 70px; transform: translateX(-50%) translateY(20px); background: #10162b; border: 2px solid var(--accent); border-radius: 12px; padding: 8px 16px; font-weight: 800; opacity: 0; transition: .2s; pointer-events: none; z-index: 10; }
+  #toast.show { opacity: 1; transform: translateX(-50%); }
+
+  #loading { position: absolute; inset: 0; z-index: 50; background: radial-gradient(circle at 50% 40%, #24305a, #0b1024); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; transition: opacity .5s; }
+  #loading.done { opacity: 0; pointer-events: none; }
+  #loadingText { font-weight: 800; color: var(--muted); text-align: center; }
+  .load-bar { width: min(320px, 70vw); height: 10px; background: #0d1226; border-radius: 6px; overflow: hidden; }
+  .load-bar i { display: block; height: 100%; width: 40%; background: var(--accent); border-radius: 6px; animation: loadbar 1.1s ease-in-out infinite; }
+  @keyframes loadbar { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
+  #crash { position: absolute; inset: 0; z-index: 40; background: rgba(5,8,20,.8); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  #crashText { background: #0d1226; border-radius: 10px; padding: 10px; font-size: 11px; max-height: 200px; overflow: auto; white-space: pre-wrap; }
+  button:focus-visible, .pad-focus { outline: 3px solid var(--accent) !important; outline-offset: 2px; }
+  #dmgDir { position: absolute; left: 50%; top: 50%; width: 0; height: 0; opacity: 0; transition: opacity .25s; pointer-events: none; }
+  #dmgDir i { position: absolute; left: -60px; top: -190px; width: 120px; height: 30px; border-top: 8px solid rgba(255, 50, 70, .9); border-radius: 50% 50% 0 0 / 100% 100% 0 0; filter: drop-shadow(0 0 6px rgba(255,0,40,.8)); }
+  #recDot { position: absolute; right: 12px; top: 212px; font-size: 11px; font-weight: 800; color: #ff4d6d; background: var(--panel); border-radius: 8px; padding: 2px 8px; }
+  #clipFlash { position: absolute; inset: 0; border: 6px solid #fff; opacity: 0; pointer-events: none; }
+  #clipFlash.show { animation: clipflash .5s ease-out; }
+  @keyframes clipflash { 0% { opacity: 1; } 100% { opacity: 0; } }
+  #tut { position: absolute; left: 50%; top: 62px; transform: translateX(-50%); width: min(520px, 92vw); background: rgba(16, 22, 43, .94); border: 3px solid var(--accent); border-radius: 16px; padding: 10px 14px; pointer-events: auto; }
+  .tut-head { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--muted); }
+  #tutTitle { font-family: 'Lilita One'; font-size: 26px; color: var(--accent); }
+  #tutText { font-size: 15px; margin: 4px 0 8px; }
+  #tutText b { color: var(--accent); }
+  .first-run { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 8; width: min(440px, 92vw); text-align: center; }
+  .res-chest { display: flex; align-items: center; gap: 12px; background: var(--panel); color: var(--text); border: 3px solid var(--line); border-radius: 16px; padding: 8px 18px; font-weight: 800; font-size: 16px; }
+  .res-chest.common { border-color: #9c6b3c; }
+  .res-chest.rare { border-color: #3a86ff; box-shadow: 0 0 18px rgba(58,134,255,.5); }
+  .res-chest.epic { border-color: #ffc43d; box-shadow: 0 0 24px rgba(255,196,61,.7); }
+  .res-chest .rc-icon { font-size: 40px; }
+  .res-chest .rc-text { text-align: left; }
+  .res-chest:not(.open) { animation: bob 1.6s ease-in-out infinite; }
+  .res-chest.opening { animation: chestShake .12s linear infinite; }
+  @keyframes chestShake { 0% { transform: rotate(-6deg) scale(1.05); } 50% { transform: rotate(6deg) scale(1.1); } 100% { transform: rotate(-6deg) scale(1.05); } }
+  #fps { position: absolute; left: 8px; bottom: 4px; font-size: 11px; color: #fff; text-shadow: 0 1px 2px #000; z-index: 6; pointer-events: none; }
+  /* ---------- new menu ---------- */
+  #menu { position: absolute; inset: 0; overflow-y: auto; padding: 16px; background: linear-gradient(90deg, rgba(10,16,40,.75) 0%, rgba(10,16,40,.35) 55%, rgba(10,16,40,.7) 100%); }
+  .menu-top { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+  .mt-chip { background: var(--panel); border: 2px solid var(--line); border-radius: 12px; padding: 6px 12px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+  .mt-chip.coins { border-color: var(--accent); color: var(--accent); }
+  .xpbar.mini { width: 90px; height: 8px; margin: 0; }
+  .menu-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr); gap: 24px; max-width: 1150px; margin: 10px auto 0; align-items: start; }
+  .menu-left { display: flex; flex-direction: column; gap: 14px; padding-top: 2vh; }
+  .menu-left .logo { font-size: clamp(56px, 9vw, 120px); }
+  .menu-left .tag-line { text-align: left; }
+  .play-btn { align-self: flex-start; font-size: 40px !important; padding: 14px 64px !important; animation: bob 2.4s ease-in-out infinite; }
+  @keyframes bob { 50% { transform: translateY(-4px); } }
+  .menu-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; max-width: 600px; }
+  .play-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .quick-btn { font-size: 20px !important; border-color: #ff8c42 !important; }
+  .name-chip input { background: transparent; border: none; color: var(--text); font: inherit; font-weight: 800; width: 120px; outline: none; }
+  .ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-top: 10px; }
+  .ach { background: #10162b; border: 2px solid var(--line); border-radius: 12px; padding: 10px; opacity: .55; }
+  .ach.got { opacity: 1; border-color: var(--accent); }
+  .ach b { display: block; }
+  .ach-pop { background: linear-gradient(90deg, #3a2a00, #10162b); border: 2px solid var(--accent); border-radius: 12px; padding: 6px 12px; margin: 4px 0; font-size: 14px; }
+  .news li { margin: 6px 0; color: #c8d0ea; }
+  .tile { position: relative; background: var(--panel); color: var(--text); border: 2px solid var(--line); border-radius: 16px; padding: 12px 8px; font-weight: 800; font-size: 15px; display: flex; flex-direction: column; align-items: center; gap: 4px; box-shadow: 0 4px 0 #0c1124; transition: transform .08s, border-color .08s; }
+  .tile span { font-size: 28px; }
+  .tile:hover { transform: translateY(-3px); border-color: var(--accent); }
+  .badge { position: absolute; top: -6px; right: -6px; background: var(--bad); color: #fff; font-style: normal; border-radius: 10px; min-width: 22px; padding: 2px 6px; font-size: 12px; animation: pulse .6s infinite alternate; }
+  .menu-right { display: flex; flex-direction: column; gap: 12px; }
+  .card { background: var(--panel); border: 2px solid var(--line); border-radius: 16px; padding: 12px 14px; }
+  .card h3 { margin: 0 0 8px; font-family: 'Lilita One'; font-weight: 400; color: var(--accent); }
+  .daily { background: #2a3458; color: var(--muted); border: 2px solid var(--line); border-radius: 16px; padding: 12px; font-size: 18px; font-weight: 800; }
+  .daily.ready { background: linear-gradient(90deg, #ffc43d, #ff8c42); color: #3b2500; border-color: #ffd97a; animation: pulse .7s infinite alternate; }
+  .ch-row { margin: 6px 0; }
+  .ch-text { font-size: 13px; font-weight: 800; }
+  .ch-bar { height: 8px; background: #0d1226; border-radius: 5px; overflow: hidden; margin: 3px 0; }
+  .ch-bar i { display: block; height: 100%; background: linear-gradient(90deg, #3a86ff, #06d6a0); }
+  .ch-row.done .ch-bar i { background: var(--good); }
+  .ch-meta { font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .claimed-row { opacity: .5; }
+  .claimed { color: var(--good); font-weight: 800; }
+  .menu-stats { display: flex; gap: 12px; flex-wrap: wrap; font-weight: 800; font-size: 13px; }
+  .tip { margin-top: 8px; font-size: 13px; color: var(--muted); }
+  .version a { color: var(--muted); }
+  .version { text-align: center; color: var(--muted); font-size: 11px; margin-top: 18px; }
+  #panel { position: absolute; inset: 0; background: rgba(5, 8, 20, .7); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 5; }
+  .panel-box { background: var(--panel2); border: 2px solid var(--line); border-radius: 18px; width: min(820px, 100%); max-height: 88vh; overflow-y: auto; padding: 16px 18px; }
+  .panel-head { display: flex; justify-content: space-between; align-items: center; }
+  .panel-head h2 { margin: 0; color: var(--accent); font-size: 30px; }
+  .panel-box h3 { font-family: 'Lilita One'; font-weight: 400; color: var(--accent); margin: 14px 0 6px; }
+  .shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .shop-item { background: #10162b; border: 2px solid var(--line); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+  .swatch { width: 100%; height: 34px; border-radius: 8px; }
+  .owned { color: var(--good); font-weight: 800; font-size: 13px; }
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 10px; }
+  .stat-grid div { background: #10162b; border-radius: 12px; padding: 10px; display: flex; flex-direction: column; }
+  .stat-grid b { font-family: 'Lilita One'; font-weight: 400; font-size: 26px; color: var(--accent); }
+  .stat-grid span { font-size: 12px; color: var(--muted); }
+  .set-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #2a3458; }
+  .set-row.chk { justify-content: flex-start; }
+  .set-row select { background: #0d1226; color: var(--text); border: 2px solid var(--line); border-radius: 8px; padding: 4px 8px; font: inherit; }
+  .set-row input[type=range] { width: 200px; }
+  .howto { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+  .howto div { background: #10162b; border-radius: 12px; padding: 4px 12px; }
+  .howto p { font-size: 13px; color: #c8d0ea; }
+  /* ---------- match juice ---------- */
+  #camBadge { position: absolute; right: 12px; top: 190px; font-size: 12px; background: var(--panel); border-radius: 8px; padding: 3px 8px; }
+  #scoreboard { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); background: rgba(16, 22, 43, .94); border: 2px solid var(--line); border-radius: 16px; padding: 12px 16px; min-width: min(640px, 92vw); }
+  .sb-title { font-family: 'Lilita One'; font-size: 22px; color: var(--accent); margin-bottom: 6px; }
+  #scoreboard table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  #scoreboard th { text-align: left; color: var(--muted); font-size: 12px; padding: 4px 6px; }
+  #scoreboard td { padding: 5px 6px; border-top: 1px solid #263055; }
+  #scoreboard tr.me td { color: var(--accent); font-weight: 800; }
+  #scoreboard tr.out td { opacity: .45; }
+  .dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; }
+  .buffs { display: flex; gap: 6px; margin: 4px 0; }
+  .buff { border-radius: 8px; padding: 1px 8px; font-size: 12px; font-weight: 800; color: #10162b; animation: pulse .5s infinite alternate; }
+  .buff.oc { background: #ffd23f; }
+  .buff.tb { background: #ff8c42; }
+  #edgeWarn { position: absolute; left: 50%; top: 22%; transform: translateX(-50%); background: rgba(10, 40, 70, .8); border: 2px solid #9be7ff; color: #9be7ff; border-radius: 12px; padding: 6px 16px; font-weight: 800; animation: pulse .5s infinite alternate; }
+  #camLost { position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(255,255,255,.03) 0 2px, transparent 2px 4px); animation: flicker .15s infinite; }
+  @keyframes flicker { 50% { opacity: .6; } }
+  .dash-ready { font-style: normal; font-size: 11px; width: 44px; text-align: right; font-weight: 800; color: #ff9f1c; }
+  #dmgNums { position: absolute; inset: 0; overflow: hidden; }
+  .dmg { position: absolute; font-family: 'Lilita One'; font-size: 20px; color: #fff; text-shadow: 0 2px 0 #000, 0 0 6px #000; transform: translate(-50%, -50%); animation: dmgUp .7s ease-out forwards; }
+  .dmg.big { font-size: 30px; color: var(--accent); }
+  @keyframes dmgUp { from { opacity: 1; margin-top: 0; } to { opacity: 0; margin-top: -50px; } }
+  #announce { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); text-align: center; opacity: 0; }
+  #announce.show { animation: announce 1.6s ease-out; }
+  @keyframes announce { 0% { opacity: 0; transform: translate(-50%, -50%) scale(2.2); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 75% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -60%) scale(1); } }
+  .an-title { font-family: 'Lilita One'; font-size: 58px; color: var(--accent); text-shadow: 0 5px 0 #b8741a, 0 10px 30px rgba(0,0,0,.6); }
+  .an-sub { font-weight: 800; font-size: 18px; text-shadow: 0 2px 4px #000; }
+  #resChallenges { width: min(560px, 100%); background: var(--panel); border-radius: 14px; padding: 6px 12px; }
+  #resStats { grid-template-columns: repeat(3, minmax(90px, 1fr)) !important; }
+  #confetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  #confetti i { position: absolute; top: -20px; width: 10px; height: 16px; border-radius: 2px; animation: fall linear forwards; }
+  @keyframes fall { to { top: 110%; transform: rotate(720deg) translateX(60px); } }
+
+  @media (max-width: 860px) {
+    .menu-grid { grid-template-columns: 1fr; }
+    .play-btn { align-self: stretch; }
+  }
+  @media (max-width: 760px) {
+    .ws-left { width: 150px; }
+    .ws-right { display: none; }
+    .ws-bottom { left: 170px; right: 10px; }
+    #minimap { width: 110px; height: 110px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- LOADING -->
+  <div id="loading">
+    <div class="logo">C<span class="cog">⚙</span>G<span>WILD</span></div>
+    <div id="loadingText">Building the arena…</div>
+    <div class="load-bar"><i></i></div>
+  </div>
+
+  <!-- CRASH PANEL -->
+  <div id="crash" class="hidden">
+    <div class="panel-box">
+      <h2 class="title-font" style="color:var(--bad);margin:0">Oops, something broke 🔧</h2>
+      <p class="small">The game caught an error instead of freezing. You can go back to the menu and keep playing. Sending this report to the developer helps fix it.</p>
+      <pre id="crashText"></pre>
+      <div class="menu-btns"><button id="crashCopy" class="ws-btn">📋 Copy report</button><button id="crashMenu" class="ws-btn on">Back to menu</button></div>
+    </div>
+  </div>
+
+  <!-- MENU -->
+  <div id="menu" class="hidden">
+    <div class="menu-top">
+      <div class="mt-chip name-chip">🧑‍✈️ <input id="pName" maxlength="16" spellcheck="false" placeholder="Pilot name"></div>
+      <div class="mt-chip">⭐ Level <b id="pLevel">1</b><div class="xpbar mini"><i id="pXp"></i></div></div>
+      <div class="mt-chip">🏅 <b id="pRank">Mono</b></div>
+      <div class="mt-chip coins">🪙 <b id="pCoins">0</b></div>
+    </div>
+    <div class="menu-grid">
+      <div class="menu-left">
+        <div class="logo">C<span class="cog">⚙</span>G<span>WILD</span></div>
+        <div class="tag-line">Build any mech. Rule the land, water and sky.</div>
+        <div class="play-row">
+          <button id="btnPlay" class="btn big play-btn">▶ PLAY</button>
+          <button id="btnQuick" class="btn quick-btn" title="Random mode, size and time of day">⚡ Quick Play</button>
+          <button id="btnTutorial" class="btn" title="Learn the basics in 3 minutes">🎓 Tutorial</button>
+        </div>
+        <div class="menu-tiles">
+          <button id="btnWorkshop" class="tile"><span>🔧</span>Workshop</button>
+          <button id="btnChallenges" class="tile"><span>🎯</span>Challenges<i id="badgeChallenges" class="badge hidden">0</i></button>
+          <button id="btnAch" class="tile"><span>🏆</span>Achievements</button>
+          <button id="btnShop" class="tile"><span>🛒</span>Shop</button>
+          <button id="btnStats" class="tile"><span>📊</span>Stats</button>
+          <button id="btnSettings" class="tile"><span>⚙</span>Settings</button>
+          <button id="btnHowto" class="tile"><span>❓</span>How to play</button>
+          <button id="btnNews" class="tile"><span>📰</span>What's new</button>
+        </div>
+      </div>
+      <div class="menu-right">
+        <button id="btnDaily" class="daily"></button>
+        <div class="card">
+          <h3>🎯 Today's challenges</h3>
+          <div id="menuChallenges"></div>
+        </div>
+        <div class="card">
+          <h3>🏅 Ranks</h3>
+          <div class="small" id="pXpText"></div>
+          <div id="rankCards"></div>
+          <label class="check"><input type="checkbox" id="unlockAll"> Prototype testing: unlock all ranks now</label>
+        </div>
+        <div class="card small-card"><div id="menuStats" class="menu-stats"></div><div id="menuTip" class="tip"></div></div>
+      </div>
+    </div>
+    <div class="version"><span id="versionText">Cogwild · single-player vs bots</span> · <a href="privacy.html" target="_blank" rel="noopener">Privacy</a></div>
+    <div id="firstRun" class="card first-run hidden">
+      <h3>👋 New to Cogwild?</h3>
+      <p>Learn to drive, shoot, dash and wreck mechs in a 3-minute tutorial. You get <b>+150 🪙</b> for finishing it.</p>
+      <div class="menu-btns"><button id="firstYes" class="btn big" style="font-size:22px;padding:10px 26px">🎓 Play tutorial</button><button id="firstNo" class="ws-btn">I know how to play</button></div>
+    </div>
+  </div>
+
+  <!-- GENERIC PANEL (challenges, shop, stats, settings, how-to) -->
+  <div id="panel" class="hidden">
+    <div class="panel-box">
+      <div class="panel-head"><h2 class="title-font" id="panelTitle"></h2><button id="panelClose" class="ws-btn">✕ Close</button></div>
+      <div id="panelBody"></div>
+    </div>
+  </div>
+
+  <!-- MODES -->
+  <div id="modes" class="screen hidden">
+    <h1 class="title-font" style="font-size:48px;margin:0;color:var(--accent)">Choose a game mode</h1>
+    <div class="small">Pick a mode, then how many players.</div>
+    <div class="tod-row" id="arenaRow"></div>
+    <div class="tod-row" id="todRow"></div>
+    <div class="mode-grid modes7" id="modeGrid"></div>
+    <button id="modesBack" class="btn">← Back</button>
+  </div>
+
+  <!-- MECH PICKER (Workshop Clash) -->
+  <div id="picker" class="screen hidden">
+    <h1 class="title-font" id="pickerTitle" style="font-size:40px;margin:0;color:var(--accent)"></h1>
+    <div class="small">Choose the mech you'll bring. You can't change it during the match.</div>
+    <div id="pickerList"></div>
+    <div class="menu-btns">
+      <button id="pickerBack" class="btn">← Back</button>
+      <button id="pickerEdit" class="btn">🔧 Edit in Workshop</button>
+      <button id="pickerGo" class="btn big">FIGHT ▶</button>
+    </div>
+  </div>
+
+  <!-- WORKSHOP -->
+  <div id="workshopUI" class="hidden">
+    <div class="ws-top">
+      <button id="wsBack" class="ws-btn">← Back</button>
+      <span id="wsTitle">WORKSHOP</span>
+      <input id="wsName" maxlength="24" spellcheck="false">
+      <div class="bolts">🔩 Bolts <div class="bolt-bar"><i id="wsBoltBar"></i></div><span id="wsBolts"></span></div>
+      <div id="wsDomains"></div>
+      <span id="wsRank" class="small"></span>
+      <span class="spacer"></span>
+      <button id="wsTest" class="ws-btn test" title="Drive your mech in the arena (T)">🏁 Test drive</button>
+    </div>
+    <div class="ws-tools">
+      <button id="wsUndo" class="ws-btn" title="Undo (Ctrl+Z)">↶ Undo</button>
+      <button id="wsRedo" class="ws-btn" title="Redo (Ctrl+Y)">↷ Redo</button>
+      <button id="wsMirror" class="ws-btn on" title="Mirror building (M)">Mirror: ON</button>
+      <button id="wsView" class="ws-btn" title="Reset camera (F)">⌖ View</button>
+      <button id="wsClear" class="ws-btn">🗑 Clear</button>
+    </div>
+    <div id="wsRush" class="hidden">
+      <div id="wsTimer">0:45</div>
+      <div class="rush-info"><b>RUSH BUILD</b><br><span id="wsRushMode"></span> · Arena: <b style="font-size:13px">Canyon Lake</b> (⛰ land · 🌊 lake + river · ☁ sky)<div id="wsRushNote" class="rush-note"></div></div>
+      <button id="wsReady" class="btn primary">READY ▶</button>
+    </div>
+    <div class="ws-left" id="wsPalette"></div>
+    <div class="ws-right">
+      <h3>Stats</h3>
+      <div id="wsStats"></div>
+      <div id="wsWarn"></div>
+      <h3>Paint</h3>
+      <div id="wsPaint"></div>
+      <div id="wsBpSection">
+        <h3>Blueprints</h3>
+        <div class="bp-btns">
+          <button id="wsSave" class="ws-btn">💾 Save</button>
+          <button id="wsSaveNew" class="ws-btn">Save copy</button>
+          <button id="wsCopy" class="ws-btn">📋 Share code</button>
+          <button id="wsPaste" class="ws-btn">📥 Paste code</button>
+        </div>
+        <div id="wsBpList"></div>
+      </div>
+    </div>
+    <div class="ws-bottom">
+      <div id="wsInfo"></div>
+      <div id="wsHover"></div>
+      <div class="small" style="margin-top:4px">Left-click a face to attach · Right-click a part to remove · Drag to rotate · Shift/middle-drag to pan · Wheel zoom · Q/E turn · F reset view · M mirror · Ctrl+Z undo · 1–0 pick part · Yellow arrow = front</div>
+    </div>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div id="vignette"></div>
+    <div id="tags"></div>
+    <div id="crosshair"></div>
+    <div id="topInfo"></div>
+    <div id="feed"></div>
+    <canvas id="minimap" width="170" height="170"></canvas>
+    <div id="status"></div>
+    <div id="hint"></div>
+    <div id="countdown"></div>
+    <div id="testBar" class="hidden"><button id="testBack" class="btn">← Back to Workshop (T)</button></div>
+    <div id="camBadge"></div>
+    <div id="edgeWarn" class="hidden"></div>
+    <div id="dmgDir"><i></i></div>
+    <div id="recDot" class="hidden">● REC · F8 save clip</div>
+    <div id="clipFlash"></div>
+    <div id="scoreboard" class="hidden"></div>
+    <div id="camLost" class="hidden"></div>
+    <div id="dmgNums"></div>
+    <div id="announce"></div>
+    <div id="big"><div id="bigTitle"></div><div id="bigSub"></div></div>
+    <div id="tut" class="hidden">
+      <div class="tut-head"><span id="tutStep"></span><button id="tutSkip" class="ws-btn">Skip tutorial</button></div>
+      <div id="tutTitle"></div>
+      <div id="tutText"></div>
+      <div class="ch-bar"><i id="tutBar"></i></div>
+    </div>
+  </div>
+
+  <!-- RESULTS -->
+  <div id="results" class="screen hidden">
+    <div id="resTitle"></div>
+    <div id="resPlace"></div>
+    <div id="resStats"></div>
+    <div id="resExtra"></div>
+    <button id="resChest" class="res-chest"></button>
+    <button id="resDouble" class="btn hidden"></button>
+    <div id="resAch"></div>
+    <div id="resChallenges"></div>
+    <div id="confetti"></div>
+    <div class="menu-btns">
+      <button id="resAgain" class="btn big">PLAY AGAIN</button>
+      <button id="resWorkshop" class="btn">🔧 Workshop</button>
+      <button id="resMenu" class="btn">Menu</button>
+    </div>
+  </div>
+
+  <!-- PAUSE -->
+  <div id="pause" class="screen hidden">
+    <h1 class="title-font" style="font-size:60px;margin:0;color:var(--accent)">Paused</h1>
+    <div class="menu-btns">
+      <button id="pauseResume" class="btn big">RESUME</button>
+      <button id="pauseRestart" class="btn">↻ Restart</button>
+      <button id="pauseSettings" class="btn">⚙ Settings</button>
+      <button id="pauseQuit" class="btn">Quit match</button>
+    </div>
+  </div>
+
+  <!-- MODAL -->
+  <div id="modal" class="hidden">
+    <div class="modal-box">
+      <h2 class="title-font" id="modalTitle"></h2>
+      <div class="small" id="modalDesc"></div>
+      <textarea id="modalText" spellcheck="false"></textarea>
+      <div class="menu-btns" style="justify-content:flex-end">
+        <button id="modalCancel" class="ws-btn">Cancel</button>
+        <button id="modalOk" class="ws-btn on">Done</button>
+      </div>
+    </div>
+  </div>
+  <div id="toast"></div>
+  <div id="fps" class="hidden"></div>
+</div>
+
+<!-- three.js: use a local copy if present (needed for desktop/offline builds), otherwise the CDN -->
+<script src="js/vendor/three.min.js"></script>
+<script>window.THREE || document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');</script>
+<script src="js/parts.js?v=6"></script>
+<script src="js/platform.js?v=6"></script>
+<script src="js/world.js?v=6"></script>
+<script src="js/entities.js?v=6"></script>
+<script src="js/meta.js?v=6"></script>
+<script src="js/extras.js?v=6"></script>
+<script src="js/modes.js?v=6"></script>
+<script src="js/tutorial.js?v=6"></script>
+<script src="js/clips.js?v=6"></script>
+<script src="js/gamepad.js?v=6"></script>
+<script src="js/workshop.js?v=6"></script>
+<script src="js/game.js?v=6"></script>
+</body>
+</html>
