@@ -7,6 +7,7 @@
   // wrap an angle to -PI..PI (no loops, so a bad value can never hang the game)
   const wrap = (a) => (Number.isFinite(a) ? ((((a + Math.PI) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)) - Math.PI : 0);
   const hex = (c) => '#' + c.toString(16).padStart(6, '0');
+  const esc = CW.esc;
   const store = {
     get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* ignore */ } },
@@ -420,7 +421,7 @@
         const card = document.createElement('button');
         card.className = 'pick-card' + (v.ok ? '' : ' bad');
         const dots = [...s.domains].map((d) => `<span class="chip" style="background:${CW.DOMAINS[d].color}">${CW.DOMAINS[d].icon}</span>`).join('');
-        card.innerHTML = `<div class="pc-tag">${e.tag}</div><div class="pc-name">${e.bp.name}</div><div class="pc-meta">${dots} 🔩${s.cost} · ❤${s.hp} · 💥${Math.round(s.dps)}/s</div>${v.ok ? '' : `<div class="pc-err">${v.errors[0]}</div>`}`;
+        card.innerHTML = `<div class="pc-tag">${e.tag}</div><div class="pc-name">${esc(e.bp.name)}</div><div class="pc-meta">${dots} 🔩${s.cost} · ❤${s.hp} · 💥${Math.round(s.dps)}/s</div>${v.ok ? '' : `<div class="pc-err">${v.errors[0]}</div>`}`;
         card.onclick = () => {
           if (!v.ok) return this.toast(v.errors[0]);
           this.pickerSel = e.bp;
@@ -1861,10 +1862,10 @@
 
     renderScoreboard() {
       const rows = this.combatants.slice().sort((a, b) => a.team - b.team || b.wrecks + b.kills - (a.wrecks + a.kills));
-      const name = (c) => (c.isPlayer ? this.profile.name || 'You' : c.name);
+      const name = (c) => esc(c.isPlayer ? this.profile.name || 'You' : c.name);
       $('scoreboard').innerHTML = `<div class="sb-title">${MODES[this.modeId].name} · ${FORMATS[this.formatId].name} ${FORMATS[this.formatId].label}</div>
         <table><tr><th></th><th>Pilot</th><th>Mech</th><th>💥 Wrecks</th><th>☠ Elims</th>${this.obj ? '<th>🎯 Objective</th>' : ''}<th>Status</th></tr>
-        ${rows.map((c) => `<tr class="${c.isPlayer ? 'me' : ''} ${c.alive ? '' : 'out'}"><td><i class="dot" style="background:${hex(c.color)}"></i></td><td>${name(c)}${this.teamMode && TEAMS[c.team] ? ` <span class="small">${TEAMS[c.team].name}</span>` : ''}</td><td>${c.mech.name}</td><td>${c.wrecks}</td><td>${c.kills}</td>${this.obj ? `<td>${this.obj.summary(c)}</td>` : ''}<td>${!c.alive ? '❌ Out' : c.respawnT !== undefined ? `⏳ ${Math.ceil(c.respawnT)}s` : c.mech.alive ? '🤖 Mech' : '🧍 On foot'}</td></tr>`).join('')}</table>`;
+        ${rows.map((c) => `<tr class="${c.isPlayer ? 'me' : ''} ${c.alive ? '' : 'out'}"><td><i class="dot" style="background:${hex(c.color)}"></i></td><td>${name(c)}${this.teamMode && TEAMS[c.team] ? ` <span class="small">${TEAMS[c.team].name}</span>` : ''}</td><td>${esc(c.mech.name)}</td><td>${c.wrecks}</td><td>${c.kills}</td>${this.obj ? `<td>${this.obj.summary(c)}</td>` : ''}<td>${!c.alive ? '❌ Out' : c.respawnT !== undefined ? `⏳ ${Math.ceil(c.respawnT)}s` : c.mech.alive ? '🤖 Mech' : '🧍 On foot'}</td></tr>`).join('')}</table>`;
     }
 
     confetti() {
@@ -1962,14 +1963,14 @@
         st.innerHTML = `<div class="st-head"><b>Wrecked!</b><span class="medium" style="background:#ff8fab">⏳ RESPAWN</span></div><div class="st-foot">Back in <b>${Math.ceil(p.respawnT)}</b> s${p.lives !== undefined ? ` · ❤ ${p.lives} lives left` : ''}</div>`;
         $('hint').textContent = 'Respawning…';
       } else if (view && view !== p) {
-        st.innerHTML = `<div class="st-head"><b>Spectating ${view.name}</b><span class="medium" style="background:${hex(view.color)}">👁 SPECTATE</span></div><div class="st-foot">You're out. ${this.teamMode ? 'Cheer on your team!' : ''}</div>`;
+        st.innerHTML = `<div class="st-head"><b>Spectating ${esc(view.name)}</b><span class="medium" style="background:${hex(view.color)}">👁 SPECTATE</span></div><div class="st-foot">You're out. ${this.teamMode ? 'Cheer on your team!' : ''}</div>`;
         $('hint').textContent = 'Esc pause';
       } else if (p.mech && p.mech.alive && p.mech.occupied) {
         const m = p.mech;
         const dom = ['land', 'water', 'air'].filter((d) => m.domains.has(d)).map((d) => `<span class="chip" style="background:${CW.DOMAINS[d].color}">${CW.DOMAINS[d].icon}</span>`).join('');
         const med = CW.DOMAINS[m.medium];
         st.innerHTML = `
-          <div class="st-head"><b>${m.name}</b><span class="medium" style="background:${med.color}">${med.icon} ${med.label.toUpperCase()}</span></div>
+          <div class="st-head"><b>${esc(m.name)}</b><span class="medium" style="background:${med.color}">${med.icon} ${med.label.toUpperCase()}</span></div>
           <div class="st-row"><span>Core</span><div class="bar"><i style="width:${(m.core.hp / m.core.maxHp) * 100}%;background:#ffc43d"></i></div></div>
           <div class="st-row"><span>Integrity</span><div class="bar"><i style="width:${m.integrity() * 100}%;background:#7bc950"></i></div></div>
           ${m.shieldMax ? `<div class="st-row"><span>Shield</span><div class="bar"><i style="width:${(m.shield / m.shieldMax) * 100}%;background:#4cc9f0"></i></div></div>` : ''}

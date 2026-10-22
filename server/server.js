@@ -41,6 +41,9 @@ const seatsOf = (room) => (room.auto ? SEATS[room.settings.format] || MAX_PLAYER
 const BOT_NAMES = ['Rustbucket', 'Gearhead', 'Sprocket', 'Clunker', 'Torque', 'Widget', 'Ratchet', 'Piston', 'Cogsworth', 'Bolt'];
 const MAX_MSG = 256 * 1024; // bytes per message
 const RATE = 90; // messages per second allowed (with a burst allowance)
+const BYTE_RATE = 512 * 1024; // bytes per second a player may send (burst: 4 seconds' worth)
+const MAX_PER_IP = parseInt(process.env.MAX_PER_IP || '24', 10); // open connections from one address
+const perIp = new Map(); // ip -> open connections
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
 
 // ======================= static files =======================
@@ -53,36 +56,50 @@ const MIME = {
 };
 const PUBLIC = new Set(['index.html', 'privacy.html', 'terms.html', 'credits.html', 'favicon.svg', 'download.html', 'manifest.webmanifest', 'sw.js']); // top-level files that may be served
 
+// sent with every page and file: no framing by other sites, no inline/foreign scripts, no sniffing
+const SECURITY = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'SAMEORIGIN',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Strict-Transport-Security': 'max-age=15552000',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+  'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'",
+};
+function reply(res, code, text) { res.writeHead(code, Object.assign({ 'Content-Type': 'text/plain; charset=utf-8' }, SECURITY)); res.end(text); }
+
 function serveStatic(req, res) {
-  let url = decodeURIComponent((req.url || '/').split('?')[0]);
+  if (req.method !== 'GET' && req.method !== 'HEAD') return reply(res, 405, 'Method not allowed');
+  let url;
+  try { url = decodeURIComponent((req.url || '/').split('?')[0]); } catch (e) { return reply(res, 400, 'Bad request'); }
   if (url === '/') url = '/index.html';
   if (url === '/favicon.ico') url = '/favicon.svg';
   if (url === '/download' || url === '/app') url = '/download.html';
   if (url === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    res.writeHead(200, Object.assign({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, SECURITY));
     return res.end(JSON.stringify({ ok: true, version: NET_VERSION, rooms: rooms.size, players: clients.size }));
   }
   const rel = url.replace(/^\/+/, '');
   // only the game files: index/privacy/favicon/download at the top, everything under js/, and the app downloads
   const allowed = PUBLIC.has(rel) || rel.startsWith('js/') || rel.startsWith('fonts/') || rel.startsWith('img/') || /^downloads\/[\w.-]+\.(exe|apk|zip)$/.test(rel);
   const file = path.resolve(ROOT, rel);
-  if (!allowed || !file.startsWith(ROOT + path.sep) || rel.includes('..')) { res.writeHead(404); return res.end('Not found'); }
+  if (!allowed || !file.startsWith(ROOT + path.sep) || rel.includes('..') || rel.includes('\0')) return reply(res, 404, 'Not found');
   fs.stat(file, (err, st) => {
-    if (err || !st.isFile()) { res.writeHead(404); return res.end('Not found'); }
+    if (err || !st.isFile()) return reply(res, 404, 'Not found');
     const ext = path.extname(file).toLowerCase();
     // browsers re-check every file (cheap 304s), so an update reaches players on their next page load
     const lastMod = st.mtime.toUTCString();
-    if (req.headers['if-modified-since'] === lastMod) { res.writeHead(304); return res.end(); }
+    if (req.headers['if-modified-since'] === lastMod) { res.writeHead(304, SECURITY); return res.end(); }
     const headers = {
+      ...SECURITY,
       'Content-Type': MIME[ext] || 'application/octet-stream',
       'Content-Length': st.size,
       'Last-Modified': lastMod,
       'Cache-Control': 'no-cache',
-      'X-Content-Type-Options': 'nosniff',
     };
     if (rel.startsWith('downloads/')) headers['Content-Disposition'] = `attachment; filename="${path.basename(file)}"`;
     res.writeHead(200, headers);
-    fs.createReadStream(file).pipe(res);
+    if (req.method === 'HEAD') return res.end();
+    fs.createReadStream(file).on('error', () => res.destroy()).pipe(res);
   });
 }
 
@@ -239,7 +256,13 @@ function leaveRoom(c, reason) {
   if (room.hostId === c.id) {
     room.hostId = [...room.players][0];
     // the match was running on the old host's game: everyone goes back to the lobby
-    if (room.state === 'playing') { room.state = 'lobby'; broadcast(room, { t: 'hostLeft' }); for (const id of room.players) clients.get(id).ready = false; }
+    if (room.state === 'playing') {
+      room.state = 'lobby';
+      for (const id of room.players) clients.get(id).ready = false;
+      // matchmaking: whoever is left gets a fresh search (and new bots) instead of a room that never starts
+      if (room.auto) { room.bots = []; room.autoAt = 0; room.searchEnds = Date.now() + SEARCH; }
+      broadcast(room, { t: 'hostLeft' });
+    }
   }
   sendRoom(room);
   accounts.roomChanged(c);
@@ -276,6 +299,12 @@ function publicRooms() {
 
 // accounts, friends, parties and trophies (server/accounts.js)
 const accounts = new Accounts({ clients, rooms, joinRoom, maxPlayers: MAX_PLAYERS });
+
+// mech parts from players: only short part names and small whole-number positions are relayed
+const coord = (v) => Math.max(-64, Math.min(64, v | 0));
+function cleanParts(parts) {
+  return parts.slice(0, 120).filter((p) => p && typeof p.t === 'string' && /^[a-z][a-z0-9_]{0,23}$/.test(p.t)).map((p) => ({ t: p.t, x: coord(p.x), y: coord(p.y), z: coord(p.z) }));
+}
 
 function handle(c, data) {
   let m;
@@ -317,7 +346,7 @@ function handle(c, data) {
     case 'ready':
       if (!room || room.state !== 'lobby') break;
       c.ready = !!m.ready;
-      c.bp = m.bp && Array.isArray(m.bp.parts) && m.bp.parts.length <= 120 ? { name: clean(m.bp.name, 24), color: m.bp.color | 0, parts: m.bp.parts.slice(0, 120) } : null;
+      c.bp = m.bp && Array.isArray(m.bp.parts) && m.bp.parts.length <= 120 ? { name: clean(m.bp.name, 24), color: m.bp.color & 0xffffff, parts: cleanParts(m.bp.parts) } : null;
       sendRoom(room);
       break;
     case 'kick':
@@ -343,7 +372,7 @@ function handle(c, data) {
       break;
     case 'end':
       if (!isHost || room.state !== 'playing') break;
-      accounts.matchResult(room, m.res, m.n); // Quick Match placings move trophies
+      accounts.matchResult(room, m.res, Math.min(m.n | 0, seatsOf(room))); // Quick Match placings move trophies
       room.state = 'lobby';
       for (const id of room.players) clients.get(id).ready = false;
       // matchmaking rooms: whoever stays gets a fresh search (players' games leave for a new search on "Play again")
@@ -371,26 +400,39 @@ server.on('upgrade', (req, sock) => {
     sock.write('HTTP/1.1 403 Forbidden\r\n\r\n');
     return sock.destroy();
   }
+  // behind nginx/Caddy the player's address comes in X-Forwarded-For (set by the proxy, used for limits)
+  const ip = String(req.headers['x-forwarded-for'] || sock.remoteAddress || '').split(',')[0].trim();
+  if ((perIp.get(ip) || 0) >= MAX_PER_IP) {
+    sock.write('HTTP/1.1 429 Too Many Requests\r\n\r\n');
+    return sock.destroy();
+  }
+  perIp.set(ip, (perIp.get(ip) || 0) + 1);
   sock.write(['HTTP/1.1 101 Switching Protocols', 'Upgrade: websocket', 'Connection: Upgrade', `Sec-WebSocket-Accept: ${acceptKey(req.headers['sec-websocket-key'])}`, '', ''].join('\r\n'));
   sock.setNoDelay(true);
   const ws = new Socket(sock);
-  // behind nginx/Caddy the player's address comes in X-Forwarded-For (used for sign-up limits)
-  const ip = String(req.headers['x-forwarded-for'] || sock.remoteAddress || '').split(',')[0].trim();
-  const c = { id: nextId++, ws, ip, name: 'Pilot', room: null, ready: false, bp: null, tokens: RATE * 2, last: Date.now() };
+  const c = { id: nextId++, ws, ip, name: 'Pilot', room: null, ready: false, bp: null, tokens: RATE * 2, bytes: BYTE_RATE * 4, last: Date.now() };
   ws.lastPong = Date.now();
   clients.set(c.id, c);
   ws.send({ t: 'welcome', id: c.id, ver: NET_VERSION });
   ws.onmessage = (data) => {
     // token-bucket rate limit: spammy clients get messages dropped, then disconnected
     const now = Date.now();
-    c.tokens = Math.min(RATE * 2, c.tokens + ((now - c.last) / 1000) * RATE);
+    const dt = (now - c.last) / 1000;
+    c.tokens = Math.min(RATE * 2, c.tokens + dt * RATE);
+    c.bytes = Math.min(BYTE_RATE * 4, c.bytes + dt * BYTE_RATE);
     c.last = now;
-    if (c.tokens < 1) { c.strikes = (c.strikes || 0) + 1; if (c.strikes > 500) ws.close(1008); return; }
+    if (c.tokens < 1 || c.bytes < data.length) { c.strikes = (c.strikes || 0) + 1; if (c.strikes > 500) ws.close(1008); return; }
     c.tokens -= 1;
+    c.bytes -= data.length;
     if (c.strikes) c.strikes--;
     try { handle(c, data); } catch (e) { console.error('message error', e); }
   };
-  ws.onclose = () => { leaveRoom(c, 'disconnected'); accounts.onClose(c); clients.delete(c.id); };
+  ws.onclose = () => {
+    if (!clients.has(c.id)) return;
+    const n = (perIp.get(ip) || 1) - 1;
+    if (n > 0) perIp.set(ip, n); else perIp.delete(ip);
+    leaveRoom(c, 'disconnected'); accounts.onClose(c); clients.delete(c.id);
+  };
 });
 
 // heartbeats, idle cleanup, quick-match bots and auto start

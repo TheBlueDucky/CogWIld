@@ -19,6 +19,13 @@ function start() {
 }
 function stop() { return new Promise((res) => { server.once('exit', res); server.kill('SIGTERM'); }); }
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+function get(url, method = 'GET') {
+  return new Promise((res) => {
+    const req = require('http').request({ host: '127.0.0.1', port: PORT, path: url, method }, (r) => { r.resume(); r.on('end', () => res({ status: r.statusCode, headers: r.headers })); });
+    req.on('error', () => res({ status: 0, headers: {} }));
+    req.end();
+  });
+}
 function check(ok, what) { console.log(`${ok ? '  ok  ' : ' FAIL '} ${what}`); if (!ok) failed++; }
 
 // a player: a socket plus a log of everything it received
@@ -179,6 +186,56 @@ async function main() {
   check(gr.room.players.length === 2, 'a guest joins a running search');
   const started = await hi.next('room', (m) => m.room.bots.length > 0, 6000);
   check(started.room.settings.difficulty === 'normal' && started.room.settings.format === 'squads', `bots match the room's trophies (${started.room.settings.difficulty}) in a 3v3`);
+
+  console.log('security');
+  const bad = await get('/%E0%A4%A');
+  check(bad.status === 400, `a broken URL gets 400, not a crash (${bad.status})`);
+  check((await get('/health')).status === 200, 'server still up after the broken URL');
+  const home = await get('/');
+  check(/script-src 'self'/.test(home.headers['content-security-policy'] || '') && home.headers['x-frame-options'] === 'SAMEORIGIN', 'pages carry security headers');
+  check((await get('/', 'POST')).status === 405, 'POST is refused');
+  check((await get('/js/../server/accounts.js')).status === 404 && (await get('/data/db.json')).status === 404 && (await get('/%2e%2e/server/server.js')).status === 404, 'server code and the database are not served');
+  const proto = await player();
+  proto.send({ t: 'acctRegister', name: '__proto__', pass: 'proto1234' });
+  check((await proto.next('acctOk')).me.name === '__proto__', 'a player called __proto__ is just a name');
+  proto.send({ t: 'friendAdd', name: 'constructor' });
+  check(!!(await proto.next('acctErr')), 'adding a friend called constructor finds nobody');
+  check((await get('/health')).status === 200, 'server still up');
+  // wrong passwords: the account locks for a while, even across new connections
+  for (let i = 0; i < 3; i++) {
+    const t = await player();
+    for (let j = 0; j < 4; j++) { t.send({ t: 'acctLogin', name: 'Newbie', pass: 'nope' + j }); await t.next('acctErr'); }
+    t.ws.close();
+  }
+  const lk = await player();
+  lk.send({ t: 'acctLogin', name: 'Newbie', pass: 'newbie123' });
+  check(/Too many wrong/.test((await lk.next('acctErr')).msg), 'many wrong passwords lock the account for a while');
+  // mech parts from a player are cleaned before anyone else sees them
+  const mk = await player();
+  mk.send({ t: 'create', pub: false, settings: {} });
+  await mk.next('room');
+  mk.send({ t: 'ready', ready: true, bp: { name: '<b>x</b>', color: 123, parts: [{ t: 'core', x: 1e9, y: 0, z: 0 }, { t: '__proto__' }, { t: 'constructor', x: 'a' }, null, { t: 'wheel<script>' }] } });
+  const rb = (await mk.next('room', (m) => m.room.players.some((p) => p.bp))).room.players[0].bp;
+  check(rb && rb.name === 'bx/b' && rb.parts.length === 2 && rb.parts[0].x === 64 && rb.parts[1].t === 'constructor' && rb.parts[1].x === 0, 'mech parts are cleaned (bad names dropped, positions clamped)');
+  // the host quits a PLAY match: the others get a fresh search and a new match
+  const h1 = await player(), h2 = await player();
+  h1.send({ t: 'quick', mode: 'race', arena: 'swamp' });
+  await h1.next('room');
+  h2.send({ t: 'quick', mode: 'race', arena: 'swamp' });
+  await h2.next('room', (m) => m.room.players.length === 2);
+  await h1.next('autostart', null, 6000);
+  h1.send({ t: 'begin', payload: { arena: 'swamp' } });
+  await h2.next('begin');
+  h1.ws.close();
+  await h2.next('hostLeft');
+  check(!!(await h2.next('autostart', null, 6000).catch(() => null)), 'when the host quits, the rest get a new match');
+  h2.ws.close();
+  // connections from one address are capped
+  const many = [];
+  for (let i = 0; i < 30; i++) many.push(player().then((p) => p, () => null));
+  const opened = (await Promise.race([Promise.all(many), wait(4000).then(() => [])])).filter(Boolean);
+  check(opened.length > 0 && opened.length < 30, `too many connections from one address are refused (${opened.length} of 30 got in)`);
+  for (const p of opened) p.ws.close();
 
   await stop();
   fs.rmSync(DATA, { recursive: true, force: true });

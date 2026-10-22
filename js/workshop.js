@@ -525,7 +525,7 @@
         row.className = 'bp-row';
         const dots = [...s.domains].map((d) => `<span class="dom-dot" style="background:${CW.DOMAINS[d].color}"></span>`).join('');
         const locked = s.domains.size > allowed;
-        row.innerHTML = `<span class="bp-name">${bp.name}</span><span class="bp-meta">${dots}${locked ? ' 🔒' : ''} ${s.cost}</span>`;
+        row.innerHTML = `<span class="bp-name">${CW.esc(bp.name)}</span><span class="bp-meta">${dots}${locked ? ' 🔒' : ''} ${s.cost}</span>`;
         row.title = bp.desc || '';
         row.onclick = () => { this.load(bp); this.game.toast(`Loaded "${bp.name}"`); };
         if (kind === 'saved') {

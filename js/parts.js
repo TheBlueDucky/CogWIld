@@ -2,7 +2,9 @@
 (function () {
   const CW = (window.CW = window.CW || {});
 
-  CW.VERSION = 'v1.2';
+  CW.VERSION = 'v1.2.1';
+  // escape text before it goes into innerHTML (mech/player names can come from pasted save codes)
+  CW.esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   CW.SAVE_VERSION = 2;
   CW.WATER_Y = 0;
   CW.GRAV = 22;

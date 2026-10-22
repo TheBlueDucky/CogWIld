@@ -211,7 +211,7 @@
     challengeRow(c, compact) {
       const pct = Math.round((c.progress / c.target) * 100);
       const done = c.progress >= c.target;
-      const btn = compact ? '' : c.claimed ? '<span class="claimed">✔ Claimed</span>' : done ? `<button class="ws-btn on claim" data-ch="${c.text}">Claim +${c.reward}🪙</button>` : `<span class="small">+${c.reward}🪙</span>`;
+      const btn = compact ? '' : c.claimed ? '<span class="claimed">✔ Claimed</span>' : done ? `<button class="ws-btn on claim" data-ch="${CW.esc(c.text)}">Claim +${c.reward}🪙</button>` : `<span class="small">+${c.reward}🪙</span>`;
       return `<div class="ch-row ${done ? 'done' : ''} ${c.claimed ? 'claimed-row' : ''}"><div class="ch-text">${done ? '✅' : '🎯'} ${c.text}</div><div class="ch-bar"><i style="width:${pct}%"></i></div><div class="ch-meta">${c.progress} / ${c.target} ${btn}</div></div>`;
     }
 
@@ -349,7 +349,7 @@
         const keyRows = CW.KEY_ACTIONS.map((a) => `<div class="set-row"><span>${a.label}</span><button class="ws-btn key-btn" data-key="${a.id}">${CW.keyName((s.keys || {})[a.id] || a.def)}</button></div>`).join('');
         body.innerHTML = `
           <h3>👤 Account</h3>
-          <div class="set-row"><span>${acct && acct.loggedIn ? `Logged in as <b>${acct.me.name}</b> · progress backed up to the cloud` : 'Playing as a guest (progress saved on this device only)'}</span><button class="ws-btn on" id="setAcct">${acct && acct.loggedIn ? 'Profile' : 'Log in / Sign up'}</button></div>
+          <div class="set-row"><span>${acct && acct.loggedIn ? `Logged in as <b>${CW.esc(acct.me.name)}</b> · progress backed up to the cloud` : 'Playing as a guest (progress saved on this device only)'}</span><button class="ws-btn on" id="setAcct">${acct && acct.loggedIn ? 'Profile' : 'Log in / Sign up'}</button></div>
           <h3>🖥 Display</h3>
           <label class="set-row"><span>Graphics quality</span><select id="setGfx"><option value="auto">Auto (recommended)</option><option value="low">Low (fast, for older laptops and phones)</option><option value="medium">Medium</option><option value="high">High (shadows + max detail)</option></select></label>
           <label class="set-row"><span>Field of view <b id="setFovV"></b></span><input type="range" id="setFov" min="60" max="105" step="1"></label>
@@ -453,6 +453,7 @@
         body.innerHTML = `<div class="small">${n} / ${CW.ACHIEVEMENTS.length} unlocked. Each one pays coins.</div><div class="ach-grid">${CW.ACHIEVEMENTS.map((a) => `<div class="ach ${got[a.id] ? 'got' : ''}"><b>${got[a.id] ? '🏆' : '🔒'} ${a.name}</b><span class="small">${a.desc}</span><div class="small">+${a.reward} 🪙</div></div>`).join('')}</div>`;
       } else if (k === 'news') {
         body.innerHTML = `<ul class="news">
+          <li><b>v1.2.1</b>: 🛡 Safety and stability update: stronger protection for accounts and the server, and if the host quits a PLAY match, everyone else is put straight into a new search instead of getting stuck.</li>
           <li><b>v1.2</b>: ⭐ <b>Supers!</b> Deal damage to charge your super, then press X / right-click / ⭐: Shield Dome, Turbo Ram, Missile Barrage or EMP Shockwave, depending on what your mech is built from (the Workshop shows which).</li>
           <li>🗓 <b>Featured event every day</b>: one mode on one arena gives 2× coins and +50% trophies. Tap the purple chip above PLAY to play it.</li>
           <li>🏆 Matchmaking now puts you with players near your trophies, and bots get tougher in higher-trophy matches.</li>

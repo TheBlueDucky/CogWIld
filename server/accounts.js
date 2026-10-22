@@ -23,6 +23,9 @@ const QUICK_MIN_SECS = parseFloat(process.env.TROPHY_MIN_SECS || '40');
 const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
 const scrypt = (pass, salt) => new Promise((res, rej) => crypto.scrypt(pass, salt, 32, { N: 16384, r: 8, p: 1 }, (e, k) => (e ? rej(e) : res(k))));
 const key = (name) => String(name || '').toLowerCase();
+const same = (a, b) => typeof a === 'string' && typeof b === 'string' && a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+// wrong passwords allowed per 15 minutes, per account and per network
+const FAIL_WINDOW = 15 * 60000, FAILS_PER_NAME = 10, FAILS_PER_IP = 40;
 
 // trophies for a placing: 1st of 8 gets +8, last loses a few (nothing to lose below 50 trophies)
 function trophyDelta(place, n, trophies, streak) {
@@ -47,6 +50,14 @@ class Accounts {
     this.parties = new Map(); // party id -> { id, leader, members: [keys] }
     this.partyOf = new Map(); // user key -> party id
     this.regByIp = new Map(); // ip -> [timestamps] (sign-up spam limit)
+    this.fails = new Map(); // 'n:'+name / 'i:'+ip -> [timestamps] of wrong passwords
+    // forget old sign-up and wrong-password records so the maps stay small
+    setInterval(() => {
+      const now = Date.now();
+      for (const [m, win] of [[this.regByIp, 3600000], [this.fails, FAIL_WINDOW]]) {
+        for (const [k, list] of m) { const keep = list.filter((x) => now - x < win); if (keep.length) m.set(k, keep); else m.delete(k); }
+      }
+    }, 600000).unref();
     this.topCache = null;
     this.load();
   }
@@ -62,7 +73,8 @@ class Accounts {
       try { fs.renameSync(DB_FILE, DB_FILE + '.broken-' + Date.now()); } catch (e2) { /* ignore */ }
       this.db = { users: {} };
     }
-    this.db.users = this.db.users || {};
+    // no prototype: a player called __proto__ or constructor is just a name
+    this.db.users = Object.assign(Object.create(null), this.db.users || {});
     for (const [k, u] of Object.entries(this.db.users)) for (const t of u.tokens || []) this.byToken.set(t, k);
     console.log(`accounts: ${Object.keys(this.db.users).length} players in ${DB_FILE}`);
   }
@@ -93,7 +105,7 @@ class Accounts {
     const old = fs.readdirSync(dir).filter((f) => /^db-\d{4}-\d\d-\d\d\.json$/.test(f)).sort().slice(0, -14);
     for (const f of old) fs.unlinkSync(path.join(dir, f));
   }
-  user(name) { return this.db.users[key(name)] || null; }
+  user(name) { return this.db.users[key(name)] || null; } // users has no prototype, so only real players come back
 
   // ======================= helpers =======================
   send(c, m) { if (c && c.ws) c.ws.send(m); }
@@ -109,6 +121,7 @@ class Accounts {
   }
   // sign in this socket as user k (one live session per player: the older one is signed out)
   attach(c, k, token) {
+    if (c.user && c.user !== k) this.detach(c); // switching accounts on one connection
     const old = this.online.get(k);
     if (old && old !== c) { this.detach(old); this.send(old, { t: 'acctOut', reason: 'You logged in somewhere else' }); }
     c.user = k;
@@ -144,6 +157,18 @@ class Accounts {
     c.authTries = (c.authTries || []).filter((t) => now - t < 60000);
     if (c.authTries.length >= 8) { this.err(c, 'Too many tries. Wait a minute and try again.'); return true; }
     c.authTries.push(now);
+    return false;
+  }
+  recentFails(id) { const now = Date.now(); return (this.fails.get(id) || []).filter((t) => now - t < FAIL_WINDOW); }
+  failed(c, name) {
+    for (const id of ['n:' + key(name), 'i:' + c.ip]) this.fails.set(id, this.recentFails(id).concat(Date.now()));
+  }
+  // too many wrong passwords for this account or from this network lately
+  locked(c, name) {
+    if (this.recentFails('n:' + key(name)).length >= FAILS_PER_NAME || this.recentFails('i:' + c.ip).length >= FAILS_PER_IP) {
+      this.err(c, 'Too many wrong passwords. Wait 15 minutes and try again.');
+      return true;
+    }
     return false;
   }
 
@@ -187,12 +212,12 @@ class Accounts {
     this.attach(c, k, this.addToken(k));
   }
   async login(c, m) {
-    if (this.slowDown(c)) return;
+    if (this.slowDown(c) || this.locked(c, m.name)) return;
     const u = this.user(m.name);
     const pass = String(m.pass || '');
     // same work and same message whether or not the name exists, so names can't be probed
     const hash = (await scrypt(pass.slice(0, 72), u ? u.salt : 'nobody')).toString('hex');
-    if (!u || !crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(u.hash, 'hex'))) return this.err(c, 'Wrong username or password');
+    if (!u || !same(hash, u.hash)) { this.failed(c, m.name); return this.err(c, 'Wrong username or password'); }
     this.attach(c, key(u.name), this.addToken(key(u.name)));
   }
   auth(c, m) {
@@ -207,9 +232,9 @@ class Accounts {
   }
   async changePass(c, m) {
     const u = this.me(c);
-    if (!u || this.slowDown(c)) return;
+    if (!u || this.slowDown(c) || this.locked(c, u.name)) return;
     const old = (await scrypt(String(m.old || '').slice(0, 72), u.salt)).toString('hex');
-    if (old !== u.hash) return this.err(c, 'Your current password is wrong');
+    if (!same(old, u.hash)) { this.failed(c, u.name); return this.err(c, 'Your current password is wrong'); }
     const pass = String(m.pass || '');
     if (pass.length < 6 || pass.length > 72) return this.err(c, 'Passwords need 6 to 72 characters');
     u.salt = crypto.randomBytes(16).toString('hex');
@@ -223,10 +248,11 @@ class Accounts {
   }
   async remove(c, m) {
     const u = this.me(c);
-    if (!u || this.slowDown(c)) return;
+    if (!u || this.slowDown(c) || this.locked(c, u.name)) return;
     const h = (await scrypt(String(m.pass || '').slice(0, 72), u.salt)).toString('hex');
-    if (h !== u.hash) return this.err(c, 'Wrong password');
+    if (!same(h, u.hash)) { this.failed(c, u.name); return this.err(c, 'Wrong password'); }
     const k = c.user;
+    if (!this.db.users[k]) return; // deleted meanwhile (two delete requests at once)
     this.detach(c);
     for (const f of u.friends.concat(u.reqIn, u.reqOut)) {
       const o = this.db.users[f];
