@@ -1,0 +1,506 @@
+// Cogwild accounts: usernames + passwords, cloud saves, profiles, friends, parties, trophies, leaderboard.
+// Zero dependencies. Everything lives in one JSON file (DATA_DIR/db.json), written atomically a moment
+// after each change. Passwords are scrypt hashes; sessions are random tokens (only their hash is stored).
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+
+const DATA_DIR = process.env.DATA_DIR || path.resolve(__dirname, '..', 'data');
+const DB_FILE = path.join(DATA_DIR, 'db.json');
+const NAME_RE = /^[A-Za-z0-9_]{3,16}$/;
+// names kids shouldn't see (substring match, case-insensitive) and names that pretend to be staff
+const BLOCKED = ['fuck', 'shit', 'bitch', 'cunt', 'nigg', 'fag', 'dick', 'cock', 'pussy', 'whore', 'slut', 'rape', 'nazi', 'hitler', 'porn', 'sexy', 'penis', 'vagina', 'retard', 'admin', 'moderator', 'official', 'cogwild'];
+const MAX_FRIENDS = 100;
+const PARTY_MAX = 4;
+const MAX_SAVE = 200 * 1024; // bytes of cloud save per player
+const AVATARS = 40; // the client has the emoji list (24 free + 16 from the Shop)
+const TOKENS_KEPT = 5; // devices that can stay logged in at once
+// shorter Quick Matches don't move trophies (no farming by quitting early)
+const QUICK_MIN_SECS = parseFloat(process.env.TROPHY_MIN_SECS || '40');
+
+const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
+const scrypt = (pass, salt) => new Promise((res, rej) => crypto.scrypt(pass, salt, 32, { N: 16384, r: 8, p: 1 }, (e, k) => (e ? rej(e) : res(k))));
+const key = (name) => String(name || '').toLowerCase();
+
+// trophies for a placing: 1st of 8 gets +8, last loses a few (nothing to lose below 50 trophies)
+function trophyDelta(place, n, trophies, streak) {
+  const f = n > 1 ? (place - 1) / (n - 1) : 0;
+  let d = Math.round(8 - 12 * f);
+  if (d > 0) {
+    if (trophies >= 1000) d = Math.max(2, d - 2);
+    if (place === 1) d += Math.min(3, streak); // win streak bonus
+  } else if (d < 0) {
+    d = trophies < 50 ? 0 : Math.round(d * (1 + Math.min(trophies, 2000) / 1000));
+  }
+  return Math.max(-trophies, d);
+}
+
+class Accounts {
+  // hooks: { clients, rooms, joinRoom(c, room), maxPlayers }
+  constructor(hooks) {
+    this.h = hooks;
+    this.db = { users: {} };
+    this.byToken = new Map(); // token hash -> user key
+    this.online = new Map(); // user key -> client
+    this.parties = new Map(); // party id -> { id, leader, members: [keys] }
+    this.partyOf = new Map(); // user key -> party id
+    this.regByIp = new Map(); // ip -> [timestamps] (sign-up spam limit)
+    this.topCache = null;
+    this.load();
+  }
+
+  // ======================= storage =======================
+  load() {
+    try {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+      if (fs.existsSync(DB_FILE)) this.db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+    } catch (e) {
+      console.error('accounts: could not read', DB_FILE, e.message);
+      // keep the damaged file for a human to look at, start fresh
+      try { fs.renameSync(DB_FILE, DB_FILE + '.broken-' + Date.now()); } catch (e2) { /* ignore */ }
+      this.db = { users: {} };
+    }
+    this.db.users = this.db.users || {};
+    for (const [k, u] of Object.entries(this.db.users)) for (const t of u.tokens || []) this.byToken.set(t, k);
+    console.log(`accounts: ${Object.keys(this.db.users).length} players in ${DB_FILE}`);
+  }
+  dirty() {
+    this.topCache = null;
+    if (this.saveT) return;
+    this.saveT = setTimeout(() => this.flush(), 1500);
+  }
+  flush() {
+    clearTimeout(this.saveT);
+    this.saveT = null;
+    try {
+      const tmp = DB_FILE + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(this.db));
+      fs.renameSync(tmp, DB_FILE);
+      this.dailyBackup();
+    } catch (e) { console.error('accounts: save failed', e.message); }
+  }
+  // one copy per day in DATA_DIR/backups, the last 14 days are kept
+  dailyBackup() {
+    const day = new Date().toISOString().slice(0, 10);
+    if (this.backedUp === day) return;
+    const dir = path.join(DATA_DIR, 'backups');
+    fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, `db-${day}.json`);
+    if (!fs.existsSync(file)) fs.copyFileSync(DB_FILE, file);
+    this.backedUp = day;
+    const old = fs.readdirSync(dir).filter((f) => /^db-\d{4}-\d\d-\d\d\.json$/.test(f)).sort().slice(0, -14);
+    for (const f of old) fs.unlinkSync(path.join(dir, f));
+  }
+  user(name) { return this.db.users[key(name)] || null; }
+
+  // ======================= helpers =======================
+  send(c, m) { if (c && c.ws) c.ws.send(m); }
+  err(c, msg, extra) { this.send(c, Object.assign({ t: 'acctErr', msg }, extra || {})); }
+  me(c) { return c.user ? this.db.users[c.user] : null; }
+  status(c) {
+    const room = c.room && this.h.rooms.get(c.room);
+    if (room) return room.state === 'playing' ? 'match' : 'lobby';
+    return c.busy ? 'solo' : 'menu';
+  }
+  publicCard(u) {
+    return { name: u.name, av: u.av | 0, tro: u.tro | 0, best: u.best | 0, lv: u.lv | 0, wins: u.wins | 0, played: u.played | 0 };
+  }
+  // sign in this socket as user k (one live session per player: the older one is signed out)
+  attach(c, k, token) {
+    const old = this.online.get(k);
+    if (old && old !== c) { this.detach(old); this.send(old, { t: 'acctOut', reason: 'You logged in somewhere else' }); }
+    c.user = k;
+    const u = this.db.users[k];
+    c.name = u.name;
+    u.seen = Date.now();
+    this.online.set(k, c);
+    this.dirty();
+    this.send(c, { t: 'acctOk', token, me: this.publicCard(u), created: u.created, save: u.save || null, claimed: u.claimed || [] });
+    this.sendFriends(c);
+    this.sendParty(k);
+    this.friendsChanged(k);
+  }
+  detach(c) {
+    const k = c.user;
+    if (!k) return;
+    this.leaveParty(k);
+    if (this.online.get(k) === c) this.online.delete(k);
+    c.user = null;
+    this.friendsChanged(k);
+  }
+  addToken(k) {
+    const token = crypto.randomBytes(32).toString('hex');
+    const u = this.db.users[k];
+    u.tokens = (u.tokens || []).concat(sha(token));
+    while (u.tokens.length > TOKENS_KEPT) this.byToken.delete(u.tokens.shift());
+    this.byToken.set(sha(token), k);
+    return token;
+  }
+  slowDown(c) {
+    // no more than 8 password tries a minute per connection
+    const now = Date.now();
+    c.authTries = (c.authTries || []).filter((t) => now - t < 60000);
+    if (c.authTries.length >= 8) { this.err(c, 'Too many tries. Wait a minute and try again.'); return true; }
+    c.authTries.push(now);
+    return false;
+  }
+
+  // ======================= messages =======================
+  // returns true when the message was an account message
+  handle(c, m) {
+    const t = m.t;
+    if (!/^(acct|friend|party|invite|top|profile|save|status)/.test(t)) return false;
+    const fn = {
+      acctRegister: () => this.register(c, m), acctLogin: () => this.login(c, m), acctAuth: () => this.auth(c, m),
+      acctLogout: () => this.logout(c), acctPass: () => this.changePass(c, m), acctDelete: () => this.remove(c, m),
+      save: () => this.saveData(c, m), profileSet: () => this.setProfile(c, m), profile: () => this.showProfile(c, m),
+      friendAdd: () => this.friendAdd(c, m), friendAccept: () => this.friendAccept(c, m), friendDecline: () => this.friendDecline(c, m), friendRemove: () => this.friendRemove(c, m),
+      partyInvite: () => this.partyInvite(c, m), partyAccept: () => this.partyAccept(c, m), partyLeave: () => c.user && this.leaveParty(c.user), partyKick: () => this.partyKick(c, m),
+      invite: () => this.inviteRoom(c, m), top: () => this.top(c), status: () => { c.busy = !!m.busy; if (c.user) this.friendsChanged(c.user); },
+    }[t];
+    if (!fn) return true;
+    const r = fn();
+    if (r && r.catch) r.catch((e) => { console.error('accounts', t, e); this.err(c, 'Something went wrong. Try again.'); });
+    return true;
+  }
+
+  async register(c, m) {
+    if (this.slowDown(c)) return;
+    const name = String(m.name || '').trim(), pass = String(m.pass || '');
+    if (!NAME_RE.test(name)) return this.err(c, 'Usernames are 3-16 letters, numbers or _');
+    if (BLOCKED.some((b) => key(name).includes(b))) return this.err(c, 'Please pick a different username');
+    if (pass.length < 6 || pass.length > 72) return this.err(c, 'Passwords need 6 to 72 characters');
+    if (pass.toLowerCase() === key(name)) return this.err(c, "Your password can't be your username");
+    if (this.user(name)) return this.err(c, 'That username is taken');
+    const now = Date.now();
+    const recent = (this.regByIp.get(c.ip) || []).filter((x) => now - x < 3600000);
+    if (recent.length >= 5) return this.err(c, 'Too many new accounts from your network. Try again later.');
+    const salt = crypto.randomBytes(16).toString('hex');
+    const hash = (await scrypt(pass, salt)).toString('hex');
+    if (this.user(name)) return this.err(c, 'That username is taken'); // someone was faster during the hash
+    recent.push(now);
+    this.regByIp.set(c.ip, recent);
+    const k = key(name);
+    this.db.users[k] = { name, salt, hash, created: now, seen: now, av: Math.floor(Math.random() * AVATARS), tro: 0, best: 0, wins: 0, played: 0, streak: 0, lv: 1, friends: [], reqIn: [], reqOut: [], claimed: [], tokens: [] };
+    this.attach(c, k, this.addToken(k));
+  }
+  async login(c, m) {
+    if (this.slowDown(c)) return;
+    const u = this.user(m.name);
+    const pass = String(m.pass || '');
+    // same work and same message whether or not the name exists, so names can't be probed
+    const hash = (await scrypt(pass.slice(0, 72), u ? u.salt : 'nobody')).toString('hex');
+    if (!u || !crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(u.hash, 'hex'))) return this.err(c, 'Wrong username or password');
+    this.attach(c, key(u.name), this.addToken(key(u.name)));
+  }
+  auth(c, m) {
+    const k = this.byToken.get(sha(String(m.token || '')));
+    if (!k || !this.db.users[k]) return this.send(c, { t: 'acctOut', reason: 'Please log in again' });
+    this.attach(c, k, String(m.token));
+  }
+  // tokens are per device: the client forgets its own (other devices stay logged in)
+  logout(c) {
+    this.detach(c);
+    this.send(c, { t: 'acctOut' });
+  }
+  async changePass(c, m) {
+    const u = this.me(c);
+    if (!u || this.slowDown(c)) return;
+    const old = (await scrypt(String(m.old || '').slice(0, 72), u.salt)).toString('hex');
+    if (old !== u.hash) return this.err(c, 'Your current password is wrong');
+    const pass = String(m.pass || '');
+    if (pass.length < 6 || pass.length > 72) return this.err(c, 'Passwords need 6 to 72 characters');
+    u.salt = crypto.randomBytes(16).toString('hex');
+    u.hash = (await scrypt(pass, u.salt)).toString('hex');
+    // every other device is signed out; this one gets a fresh token
+    for (const t of u.tokens || []) this.byToken.delete(t);
+    u.tokens = [];
+    const token = this.addToken(c.user);
+    this.dirty();
+    this.send(c, { t: 'acctPassOk', token });
+  }
+  async remove(c, m) {
+    const u = this.me(c);
+    if (!u || this.slowDown(c)) return;
+    const h = (await scrypt(String(m.pass || '').slice(0, 72), u.salt)).toString('hex');
+    if (h !== u.hash) return this.err(c, 'Wrong password');
+    const k = c.user;
+    this.detach(c);
+    for (const f of u.friends.concat(u.reqIn, u.reqOut)) {
+      const o = this.db.users[f];
+      if (!o) continue;
+      for (const list of ['friends', 'reqIn', 'reqOut']) o[list] = o[list].filter((x) => x !== k);
+      const oc = this.online.get(f);
+      if (oc) this.sendFriends(oc);
+    }
+    for (const t of u.tokens || []) this.byToken.delete(t);
+    delete this.db.users[k];
+    this.dirty();
+    this.send(c, { t: 'acctOut', reason: 'Account deleted' });
+  }
+
+  // ---------------- cloud save + profile ----------------
+  saveData(c, m) {
+    const u = this.me(c);
+    if (!u) return;
+    const s = JSON.stringify(m.data || null);
+    if (s.length > MAX_SAVE) return this.err(c, 'Your save is too big to back up');
+    u.save = { at: Date.now(), data: m.data };
+    if (m.lv) u.lv = Math.max(1, Math.min(999, m.lv | 0));
+    if (Array.isArray(m.claimed)) u.claimed = m.claimed.filter((x) => Number.isInteger(x)).slice(0, 200);
+    this.dirty();
+    this.send(c, { t: 'saved', at: u.save.at });
+  }
+  setProfile(c, m) {
+    const u = this.me(c);
+    if (!u) return;
+    if (m.av !== undefined) u.av = Math.max(0, Math.min(AVATARS - 1, m.av | 0));
+    if (m.lv) u.lv = Math.max(1, Math.min(999, m.lv | 0));
+    this.dirty();
+    this.send(c, { t: 'acctMe', me: this.publicCard(u) });
+    this.friendsChanged(c.user);
+  }
+  showProfile(c, m) {
+    const u = this.user(m.name);
+    if (!u) return this.err(c, 'No player with that name');
+    const card = this.publicCard(u);
+    card.created = u.created;
+    card.online = this.online.has(key(u.name));
+    card.rank = this.rankOf(u);
+    this.send(c, { t: 'profile', p: card });
+  }
+
+  // ---------------- friends ----------------
+  friendView(k) {
+    const u = this.db.users[k];
+    if (!u) return null;
+    const oc = this.online.get(k);
+    const v = this.publicCard(u);
+    v.on = !!oc;
+    if (oc) {
+      v.st = this.status(oc);
+      const room = oc.room && this.h.rooms.get(oc.room);
+      // friends can hop into your room while it's waiting in the lobby
+      if (room && room.state === 'lobby' && room.players.size < this.h.maxPlayers) v.room = room.code;
+    }
+    v.party = this.partyOf.get(k) || null;
+    return v;
+  }
+  sendFriends(c) {
+    const u = this.me(c);
+    if (!u) return;
+    const list = u.friends.map((k) => this.friendView(k)).filter(Boolean);
+    const name = (k) => (this.db.users[k] ? this.db.users[k].name : k);
+    this.send(c, { t: 'friends', list, reqIn: u.reqIn.map(name), reqOut: u.reqOut.map(name) });
+  }
+  // tell every online friend of k that k's state changed
+  friendsChanged(k) {
+    const u = this.db.users[k];
+    if (!u) return;
+    for (const f of u.friends) { const oc = this.online.get(f); if (oc) this.sendFriends(oc); }
+  }
+  friendAdd(c, m) {
+    const u = this.me(c);
+    if (!u) return this.err(c, 'Log in to add friends');
+    const o = this.user(m.name);
+    if (!o) return this.err(c, 'No player with that name');
+    const k = c.user, ok = key(o.name);
+    if (ok === k) return this.err(c, "That's you!");
+    if (u.friends.includes(ok)) return this.err(c, `${o.name} is already your friend`);
+    if (u.friends.length >= MAX_FRIENDS) return this.err(c, `You can have up to ${MAX_FRIENDS} friends`);
+    if (u.reqIn.includes(ok)) return this.friendAccept(c, { name: o.name }); // they already asked you
+    if (u.reqOut.includes(ok)) return this.err(c, 'Request already sent');
+    if (o.reqIn.length >= 50) return this.err(c, `${o.name} has too many requests right now`);
+    u.reqOut.push(ok);
+    o.reqIn.push(k);
+    this.dirty();
+    this.sendFriends(c);
+    const oc = this.online.get(ok);
+    if (oc) { this.sendFriends(oc); this.send(oc, { t: 'note', kind: 'friendReq', from: u.name }); }
+    this.send(c, { t: 'note', kind: 'info', msg: `Friend request sent to ${o.name}` });
+  }
+  friendAccept(c, m) {
+    const u = this.me(c);
+    const o = this.user(m.name);
+    if (!u || !o) return;
+    const k = c.user, ok = key(o.name);
+    if (!u.reqIn.includes(ok)) return;
+    u.reqIn = u.reqIn.filter((x) => x !== ok);
+    o.reqOut = o.reqOut.filter((x) => x !== k);
+    if (!u.friends.includes(ok)) u.friends.push(ok);
+    if (!o.friends.includes(k)) o.friends.push(k);
+    this.dirty();
+    this.sendFriends(c);
+    const oc = this.online.get(ok);
+    if (oc) { this.sendFriends(oc); this.send(oc, { t: 'note', kind: 'info', msg: `${u.name} accepted your friend request!` }); }
+  }
+  friendDecline(c, m) {
+    const u = this.me(c);
+    const o = this.user(m.name);
+    if (!u || !o) return;
+    const k = c.user, ok = key(o.name);
+    u.reqIn = u.reqIn.filter((x) => x !== ok);
+    u.reqOut = u.reqOut.filter((x) => x !== ok); // also cancels a request you sent
+    o.reqOut = o.reqOut.filter((x) => x !== k);
+    o.reqIn = o.reqIn.filter((x) => x !== k);
+    this.dirty();
+    this.sendFriends(c);
+    const oc = this.online.get(ok);
+    if (oc) this.sendFriends(oc);
+  }
+  friendRemove(c, m) {
+    const u = this.me(c);
+    const o = this.user(m.name);
+    if (!u || !o) return;
+    const k = c.user, ok = key(o.name);
+    u.friends = u.friends.filter((x) => x !== ok);
+    o.friends = o.friends.filter((x) => x !== k);
+    this.dirty();
+    this.sendFriends(c);
+    const oc = this.online.get(ok);
+    if (oc) this.sendFriends(oc);
+  }
+  inviteRoom(c, m) {
+    const u = this.me(c);
+    const o = this.user(m.name);
+    const room = c.room && this.h.rooms.get(c.room);
+    if (!u || !o || !room) return;
+    if (!u.friends.includes(key(o.name))) return this.err(c, 'You can only invite friends');
+    const oc = this.online.get(key(o.name));
+    if (!oc) return this.err(c, `${o.name} is offline`);
+    this.send(oc, { t: 'note', kind: 'roomInvite', from: u.name, code: room.code });
+    this.send(c, { t: 'note', kind: 'info', msg: `Invite sent to ${o.name}` });
+  }
+
+  // ---------------- parties ----------------
+  party(k) { const id = this.partyOf.get(k); return id ? this.parties.get(id) : null; }
+  sendParty(k) {
+    const p = this.party(k);
+    const view = p ? { id: p.id, leader: this.db.users[p.leader].name, members: p.members.map((x) => this.friendView(x)).filter(Boolean) } : null;
+    for (const x of p ? p.members : [k]) { const oc = this.online.get(x); if (oc) this.send(oc, { t: 'party', party: view }); }
+  }
+  partyInvite(c, m) {
+    const u = this.me(c);
+    if (!u) return this.err(c, 'Log in to make a party');
+    const o = this.user(m.name);
+    if (!o || !u.friends.includes(key(o.name))) return this.err(c, 'You can only invite friends to your party');
+    const oc = this.online.get(key(o.name));
+    if (!oc) return this.err(c, `${o.name} is offline`);
+    const p = this.party(c.user);
+    if (p && p.members.length >= PARTY_MAX) return this.err(c, `Parties have up to ${PARTY_MAX} players`);
+    if (p && p.members.includes(key(o.name))) return this.err(c, `${o.name} is already in your party`);
+    oc.partyInv = oc.partyInv || new Map();
+    oc.partyInv.set(c.user, Date.now());
+    this.send(oc, { t: 'note', kind: 'partyInvite', from: u.name });
+    this.send(c, { t: 'note', kind: 'info', msg: `Party invite sent to ${o.name}` });
+  }
+  partyAccept(c, m) {
+    const u = this.me(c);
+    if (!u) return;
+    const from = key(m.from);
+    const at = c.partyInv && c.partyInv.get(from);
+    if (!at || Date.now() - at > 5 * 60000) return this.err(c, 'That invite expired');
+    c.partyInv.delete(from);
+    if (!this.online.has(from)) return this.err(c, `${m.from} went offline`);
+    let p = this.party(from);
+    if (!p) {
+      p = { id: crypto.randomBytes(6).toString('hex'), leader: from, members: [from] };
+      this.parties.set(p.id, p);
+      this.partyOf.set(from, p.id);
+    }
+    if (p.members.includes(c.user)) return;
+    if (p.members.length >= PARTY_MAX) return this.err(c, 'That party is full');
+    this.leaveParty(c.user);
+    p.members.push(c.user);
+    this.partyOf.set(c.user, p.id);
+    this.sendParty(c.user);
+    for (const x of p.members) this.friendsChanged(x);
+    // join the leader if they're waiting in a room
+    const lc = this.online.get(p.leader);
+    const room = lc && lc.room && this.h.rooms.get(lc.room);
+    if (room && room.state === 'lobby' && c.room !== room.code) this.h.joinRoom(c, room);
+  }
+  leaveParty(k) {
+    const p = this.party(k);
+    if (!p) return;
+    p.members = p.members.filter((x) => x !== k);
+    this.partyOf.delete(k);
+    const oc = this.online.get(k);
+    if (oc) this.send(oc, { t: 'party', party: null });
+    if (p.members.length <= 1) {
+      // a party of one isn't a party
+      for (const x of p.members) { this.partyOf.delete(x); const xc = this.online.get(x); if (xc) this.send(xc, { t: 'party', party: null }); }
+      this.parties.delete(p.id);
+    } else {
+      if (p.leader === k) p.leader = p.members[0];
+      this.sendParty(p.members[0]);
+    }
+    this.friendsChanged(k);
+  }
+  partyKick(c, m) {
+    const p = c.user && this.party(c.user);
+    if (!p || p.leader !== c.user) return;
+    const k = key(m.name);
+    if (k === c.user || !p.members.includes(k)) return;
+    this.leaveParty(k);
+    const kc = this.online.get(k);
+    if (kc) this.send(kc, { t: 'note', kind: 'info', msg: 'You were removed from the party' });
+  }
+  // party members who'd come along when the leader joins a room (online, not busy elsewhere)
+  followers(c) {
+    const p = c.user && this.party(c.user);
+    if (!p || p.leader !== c.user) return [];
+    return p.members.filter((k) => k !== c.user).map((k) => this.online.get(k)).filter((oc) => {
+      if (!oc || oc.busy) return false;
+      const r = oc.room && this.h.rooms.get(oc.room);
+      return !(r && r.state === 'playing');
+    });
+  }
+  // the leader went into a room: bring the party along
+  afterJoin(c, room) {
+    for (const oc of this.followers(c)) {
+      if (oc.room === room.code || room.players.size >= this.h.maxPlayers) continue;
+      this.h.joinRoom(oc, room);
+    }
+  }
+  roomChanged(c) { if (c.user) this.friendsChanged(c.user); }
+
+  // ---------------- trophies + leaderboard ----------------
+  // the host's game reports placings: { clientId: place } out of n places
+  matchResult(room, res, n) {
+    if (!room.auto || !res || typeof res !== 'object') return;
+    const secs = (Date.now() - (room.beganAt || Date.now())) / 1000;
+    if (secs < QUICK_MIN_SECS) return;
+    n = Math.max(2, Math.min(16, n | 0));
+    for (const [id, place] of Object.entries(res)) {
+      const c = this.h.clients.get(+id);
+      const pl = place | 0;
+      if (!c || c.room !== room.code || !room.players.has(c.id) || pl < 1 || pl > n) continue;
+      const u = this.me(c);
+      if (!u) continue;
+      const d = trophyDelta(pl, n, u.tro | 0, u.streak | 0);
+      u.tro = Math.max(0, (u.tro | 0) + d);
+      u.best = Math.max(u.best | 0, u.tro);
+      u.played = (u.played | 0) + 1;
+      if (pl === 1) { u.wins = (u.wins | 0) + 1; u.streak = (u.streak | 0) + 1; } else u.streak = 0;
+      this.send(c, { t: 'trophies', d, tro: u.tro, best: u.best, place: pl, n, streak: u.streak });
+      this.friendsChanged(c.user);
+    }
+    this.dirty();
+  }
+  sorted() {
+    if (!this.topCache) this.topCache = Object.values(this.db.users).sort((a, b) => (b.tro | 0) - (a.tro | 0) || (a.created || 0) - (b.created || 0));
+    return this.topCache;
+  }
+  rankOf(u) { return this.sorted().indexOf(u) + 1; }
+  top(c) {
+    const list = this.sorted().slice(0, 50).map((u) => this.publicCard(u));
+    const u = this.me(c);
+    this.send(c, { t: 'top', list, me: u ? { rank: this.rankOf(u), card: this.publicCard(u) } : null, total: Object.keys(this.db.users).length });
+  }
+
+  onClose(c) { this.detach(c); }
+}
+
+module.exports = { Accounts, trophyDelta, PARTY_MAX };

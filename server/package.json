@@ -1,0 +1,11 @@
+{
+  "name": "cogwild-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cogwild game + online multiplayer server (no dependencies)",
+  "main": "server.js",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node server.js"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "appId": "com.cogwild.game",
+  "appName": "Cogwild",
+  "webDir": "www",
+  "android": { "backgroundColor": "#0b1024" }
+}

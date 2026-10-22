@@ -1,0 +1,28 @@
+{
+  "name": "cogwild",
+  "productName": "Cogwild",
+  "version": "1.1.1",
+  "description": "Build any mech, then rule the land, water and sky.",
+  "author": "BlueDucky Games",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "copy-game": "node copy-game.js",
+    "start": "npm run copy-game && electron .",
+    "build": "npm run copy-game && electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^31.7.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.cogwild.game",
+    "productName": "Cogwild",
+    "copyright": "Copyright 2026 BlueDucky Games",
+    "files": ["main.js", "app/**/*"],
+    "directories": { "output": "dist", "buildResources": "build" },
+    "win": { "target": ["nsis", "portable"], "icon": "build/icon.png" },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "artifactName": "Cogwild-Setup-${version}.${ext}", "shortcutName": "Cogwild" },
+    "portable": { "artifactName": "Cogwild-${version}-portable.${ext}" }
+  }
+}

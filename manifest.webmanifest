@@ -1,0 +1,19 @@
+{
+  "name": "Cogwild",
+  "short_name": "Cogwild",
+  "description": "Build any mech, then battle on land, water and sky. Play with friends online.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#0b1024",
+  "theme_color": "#141a2e",
+  "categories": ["games"],
+  "icons": [
+    { "src": "img/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "img/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "img/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

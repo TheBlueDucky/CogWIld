@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Get Cogwild</title>
+<meta name="description" content="Download Cogwild for Windows and Android, or play in your browser.">
+<link rel="icon" href="favicon.svg">
+<style>
+  :root { --bg: #141a2e; --panel: #222c4d; --line: #34416b; --text: #eef2ff; --muted: #9aa6cc; --accent: #ffc43d; --accent2: #3a86ff; --good: #7bc950; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: radial-gradient(circle at 50% 0%, #24305a, #0b1024 70%); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding: 24px 16px 48px; }
+  main { max-width: 880px; margin: 0 auto; }
+  h1 { font-size: clamp(36px, 8vw, 64px); margin: 8px 0 0; letter-spacing: 1px; }
+  h1 span { color: var(--accent); }
+  .tag { color: var(--muted); margin: 4px 0 24px; font-size: 18px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .card { background: var(--panel); border: 2px solid var(--line); border-radius: 18px; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .card h2 { margin: 0; font-size: 22px; }
+  .card .big { font-size: 40px; line-height: 1; }
+  .btn { display: block; text-align: center; text-decoration: none; background: var(--accent); color: #2b1d00; font-weight: 800; border-radius: 12px; padding: 12px 14px; box-shadow: 0 4px 0 #a37a12; }
+  .btn.alt { background: #2a3458; color: var(--text); box-shadow: 0 4px 0 #0c1124; border: 2px solid var(--line); }
+  .btn.blue { background: var(--accent2); color: #fff; box-shadow: 0 4px 0 #1d4f9e; }
+  .btn:active { transform: translateY(3px); box-shadow: none; }
+  .small { color: var(--muted); font-size: 14px; }
+  .how { margin-top: 28px; background: rgba(34, 44, 77, .6); border: 2px solid var(--line); border-radius: 18px; padding: 16px 20px; }
+  .how h3 { margin: 6px 0; color: var(--accent); }
+  .how ol { margin: 4px 0 10px; padding-left: 22px; }
+  .missing { opacity: .55; pointer-events: none; }
+  footer { margin-top: 28px; text-align: center; }
+  a { color: var(--accent2); }
+</style>
+</head>
+<body>
+<main>
+  <h1>C⚙G<span>WILD</span></h1>
+  <div class="tag">Build any mech. Rule the land, water and sky. One account on every device: your progress, trophies and friends come with you.</div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="big">🌐</div>
+      <h2>Play in your browser</h2>
+      <div class="small">Nothing to install. Works on PCs, Macs, Chromebooks, tablets and phones.</div>
+      <a class="btn blue" href="/">▶ Play now</a>
+    </div>
+    <div class="card" data-file="Cogwild-Setup-1.1.1.exe">
+      <div class="big">🪟</div>
+      <h2>Windows</h2>
+      <div class="small">Installer with a Start-menu shortcut. Windows 10 and 11, 64-bit. <span class="size"></span></div>
+      <a class="btn" href="downloads/Cogwild-Setup-1.1.1.exe" download>⬇ Download installer</a>
+      <a class="btn alt" href="downloads/Cogwild-1.1.1-portable.exe" download data-file="Cogwild-1.1.1-portable.exe">⬇ Portable .exe (no install) <span class="size"></span></a>
+    </div>
+    <div class="card" data-file="Cogwild-1.1.1.apk">
+      <div class="big">🤖</div>
+      <h2>Android</h2>
+      <div class="small">Phones and tablets with Android 6 or newer. Touch controls built in. <span class="size"></span></div>
+      <a class="btn" href="downloads/Cogwild-1.1.1.apk" download>⬇ Download APK</a>
+    </div>
+  </div>
+
+  <div class="how">
+    <h3>🪟 Installing on Windows</h3>
+    <ol>
+      <li>Open the file you downloaded.</li>
+      <li>Windows may say <b>"Windows protected your PC"</b> because Cogwild is a new game that isn't code-signed yet. Click <b>More info</b>, then <b>Run anyway</b>.</li>
+      <li>Log in with your Cogwild account to bring your progress along.</li>
+    </ol>
+    <h3>🤖 Installing on Android</h3>
+    <ol>
+      <li>Download the APK on your phone and open it.</li>
+      <li>If Android asks, allow your browser to <b>install unknown apps</b> (only for this install; you can switch it off afterwards).</li>
+      <li>Tap <b>Install</b>, open Cogwild and turn your phone sideways.</li>
+    </ol>
+    <div class="small">Version 1.1.1 · Updates: download the new version and install it over the old one. Your account keeps your progress either way.</div>
+  </div>
+
+  <footer class="small"><a href="/">Play Cogwild</a> · <a href="privacy.html">Privacy</a></footer>
+</main>
+<script>
+  // show each download's size, and grey out any file that isn't on the server yet
+  document.querySelectorAll('[data-file]').forEach(async (el) => {
+    const file = el.dataset.file;
+    try {
+      const r = await fetch('downloads/' + file, { method: 'HEAD' });
+      if (!r.ok) throw new Error('missing');
+      const mb = (+r.headers.get('content-length') / 1048576).toFixed(0);
+      const s = el.querySelector('.size') || (el.matches('a') ? el.querySelector('.size') : null);
+      if (s) s.textContent = `(${mb} MB)`;
+    } catch (e) {
+      (el.matches('a') ? el : el.querySelector('.btn')).classList.add('missing');
+    }
+  });
+</script>
+</body>
+</html>
