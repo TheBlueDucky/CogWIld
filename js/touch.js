@@ -12,7 +12,7 @@
   // [id, label, key, hold?] — hold buttons stay pressed while touched, the others tap once
   const BUTTONS = [
     ['fire', '💥', null, true], ['dash', '💨', 'ShiftLeft', false], ['up', '⬆', 'Space', true], ['down', '⬇', 'KeyC', true],
-    ['exit', '🚪', 'KeyE', false], ['repair', '🔧', 'KeyR', true], ['unstuck', '🆘', 'KeyF', false],
+    ['exit', '🚪', 'KeyE', false], ['repair', '🔧', 'KeyR', true], ['unstuck', '🆘', 'KeyF', false], ['super', '⭐', 'KeyX', false],
   ];
   const SMALL = [['pause', '⏸'], ['cam', '🎥'], ['scores', '📋'], ['chat', '💬']];
 
@@ -142,6 +142,7 @@
     // called every frame: show the controls only while you're playing
     update() {
       const g = this.game;
+      if (this.shown && g.player) this.root.querySelector('.t-super').classList.toggle('ready', (g.player.superCharge || 0) >= 1);
       const show = this.on && g.state === 'match' && !g.paused && !g.ended;
       if (show === this.shown) return;
       this.shown = show;

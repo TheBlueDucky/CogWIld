@@ -155,6 +155,31 @@ async function main() {
   await b2.next('acctOut');
   check(!!(await waitFr), 'deleting Bob removes him from Alice\'s friends');
 
+  console.log('trophy matchmaking');
+  await wait(2000);
+  await stop();
+  // make Alice a 600-trophy player, then a 0-trophy newcomer must not land in her room
+  const dbFile = path.join(DATA, 'db.json');
+  const db = JSON.parse(fs.readFileSync(dbFile, 'utf8'));
+  db.users.alice_1.tro = 600;
+  fs.writeFileSync(dbFile, JSON.stringify(db));
+  await start();
+  const hi = await player(), lo = await player(), gst = await player();
+  hi.send({ t: 'acctLogin', name: 'Alice_1', pass: 'newpass456' });
+  await hi.next('acctOk');
+  lo.send({ t: 'acctRegister', name: 'Newbie', pass: 'newbie123' });
+  await lo.next('acctOk');
+  hi.send({ t: 'quick', mode: 'gold', arena: 'canyon' });
+  const hr = await hi.next('room');
+  lo.send({ t: 'quick', mode: 'gold', arena: 'canyon' });
+  const lr = await lo.next('room');
+  check(hr.room.code !== lr.room.code, '600 and 0 trophies are not matched together');
+  gst.send({ t: 'quick', mode: 'gold', arena: 'canyon' });
+  const gr = await gst.next('room');
+  check(gr.room.players.length === 2, 'a guest joins a running search');
+  const started = await hi.next('room', (m) => m.room.bots.length > 0, 6000);
+  check(started.room.settings.difficulty === 'normal' && started.room.settings.format === 'squads', `bots match the room's trophies (${started.room.settings.difficulty}) in a 3v3`);
+
   await stop();
   fs.rmSync(DATA, { recursive: true, force: true });
   console.log(failed ? `\n${failed} check(s) FAILED` : '\nall checks passed');

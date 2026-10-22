@@ -109,7 +109,7 @@
   CW.KEY_ACTIONS = [
     { id: 'forward', label: 'Drive forward / walk', def: 'KeyW' }, { id: 'back', label: 'Reverse / walk back', def: 'KeyS' },
     { id: 'left', label: 'Turn left / step left', def: 'KeyA' }, { id: 'right', label: 'Turn right / step right', def: 'KeyD' },
-    { id: 'up', label: 'Up / jump', def: 'Space' }, { id: 'down', label: 'Down / dive', def: 'KeyC' }, { id: 'dash', label: 'Dash', def: 'ShiftLeft' },
+    { id: 'up', label: 'Up / jump', def: 'Space' }, { id: 'down', label: 'Down / dive', def: 'KeyC' }, { id: 'dash', label: 'Dash', def: 'ShiftLeft' }, { id: 'super', label: 'Super (also right-click)', def: 'KeyX' },
     { id: 'exit', label: 'Exit / enter mech', def: 'KeyE' }, { id: 'repair', label: 'Repair (hold, on foot)', def: 'KeyR' }, { id: 'unstuck', label: 'Unstuck', def: 'KeyF' },
     { id: 'camera', label: 'Switch camera', def: 'KeyV' }, { id: 'scores', label: 'Scoreboard', def: 'Tab' }, { id: 'clip', label: 'Save clip', def: 'F8' },
   ];
@@ -525,7 +525,9 @@
         const a = g.arenaInfo(id);
         return `<button class="arena-opt ${id === curA ? 'on' : ''}" data-arena="${id}"><span>${a.icon}</span><b>${a.name}</b><small>${a.desc}</small></button>`;
       }).join('');
-      body.innerHTML = `<div class="small">Pick a mode and an arena, then press <b>PLAY</b>. You're matched with players who picked the same; after 30 seconds bots fill the empty seats.</div>
+      const f = CW.FEATURED.today(), fm = CW.MODES[f.mode], fa = CW.ARENAS[f.arena];
+      body.innerHTML = `<button class="feat-card ${f.mode === curM && f.arena === curA ? 'on' : ''}" id="featPick"><span>⭐</span><div><b>Featured today: ${fm.icon} ${fm.name} on ${fa.icon} ${fa.name}</b><small>${CW.FEATURED.COIN_MULT}× coins and +50% trophies · ends in ${g.featuredLeft()}</small></div><em>${f.mode === curM && f.arena === curA ? '✔ Picked' : 'Play it'}</em></button>
+        <div class="small">Pick a mode and an arena, then press <b>PLAY</b>. You're matched with players who picked the same; after 30 seconds bots fill the empty seats.</div>
         <h3>Mode</h3><div class="mode-row">${modes}</div>
         <div class="small" id="modeDesc">${CW.MODES[curM].desc}</div>
         <h3>Arena</h3><div class="arena-grid">${arenas}</div>
@@ -548,6 +550,7 @@
         this.closePanel();
         g.audio.click(1.2);
       }));
+      $('featPick').onclick = () => { this.settings.mmMode = f.mode; this.settings.mmArena = f.arena; this.save(); g.renderArenaCard(); this.closePanel(); g.audio.click(1.3); };
       $('opRoom').onclick = () => { this.closePanel(); g.net.openOnline(); };
       $('opTutorial').onclick = () => { this.closePanel(); g.startTutorial(); };
     }

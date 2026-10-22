@@ -190,7 +190,8 @@
   #crosshair::before, #crosshair::after { content: ''; position: absolute; background: #fff; box-shadow: 0 0 3px #000; }
   #crosshair::before { left: 12px; top: 2px; width: 2px; height: 22px; }
   #crosshair::after { top: 12px; left: 2px; height: 2px; width: 22px; }
-  #crosshair.hit::before, #crosshair.hit::after { background: var(--bad); transform: rotate(45deg); }
+  #crosshair.hit::before, #crosshair.hit::after { background: #fff; transform: rotate(45deg) scale(1.35); box-shadow: 0 0 6px #fff, 0 0 2px #000; }
+  #crosshair.kill::before, #crosshair.kill::after { background: #ff3b3b; transform: rotate(45deg) scale(1.9); box-shadow: 0 0 10px #ff3b3b, 0 0 2px #000; }
   #topInfo { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); background: var(--panel); border: 2px solid var(--line); border-radius: 12px; padding: 6px 14px; font-size: 15px; }
   #feed { position: absolute; top: 12px; left: 12px; display: flex; flex-direction: column; gap: 4px; max-width: 46vw; }
   .feed-item { background: var(--panel); border-left: 4px solid var(--line); border-radius: 8px; padding: 4px 10px; font-size: 13px; font-weight: 800; animation: slide .25s; }
@@ -470,6 +471,8 @@
   .t-btn { width: 100%; height: calc(62px * var(--tsize)); border-radius: 50%; border: 3px solid rgba(255, 255, 255, .35); background: rgba(16, 22, 43, .55); color: #fff; font-size: calc(26px * var(--tsize)); touch-action: none; }
   .t-btn.down { background: rgba(255, 196, 61, .55); border-color: var(--accent); }
   .t-fire { grid-area: fire; height: calc(84px * var(--tsize)); border-radius: 42px; font-size: calc(36px * var(--tsize)); background: rgba(255, 93, 93, .45); border-color: rgba(255, 140, 140, .7); }
+  .t-super { position: absolute; right: calc(100% + 12px); bottom: 0; width: calc(74px * var(--tsize)) !important; height: calc(74px * var(--tsize)) !important; background: rgba(60, 60, 90, .55); filter: grayscale(1); opacity: .6; }
+  .t-super.ready { filter: none; opacity: 1; background: radial-gradient(circle, #ffe27a, #f0a020); border-color: #fff; animation: pulse .5s infinite alternate; }
   .t-up { grid-area: up; } .t-down { grid-area: down; } .t-dash { grid-area: dash; } .t-exit { grid-area: exit; } .t-repair { grid-area: repair; } .t-unstuck { grid-area: unstuck; }
   #tTop { position: absolute; top: calc(8px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); display: flex; gap: 8px; }
   .t-sm { background: rgba(16, 22, 43, .7); color: #fff; border: 2px solid rgba(255, 255, 255, .3); border-radius: 12px; padding: 6px 12px; font-size: 18px; font-weight: 800; touch-action: none; }
@@ -507,6 +510,11 @@
 
   /* ---- in-match HUD in the same style ---- */
   #topInfo { border: 3px solid var(--ink); background: rgba(11, 15, 30, .8); box-shadow: 0 3px 0 var(--ink); font-family: 'Lilita One'; font-size: 17px; letter-spacing: .3px; text-shadow: var(--ol-s); }
+  .super-row .bar i { background: linear-gradient(90deg, #ffd23f, #ff8c42); }
+  .super-row.ready .bar i { background: linear-gradient(90deg, #ffe27a, #fff, #ffe27a); animation: pulse .4s infinite alternate; }
+  .super-row.ready em { color: #ffd23f; font-weight: 800; }
+  .super-row em { font-style: normal; font-size: 12px; min-width: 52px; text-align: right; }
+  .buff.emp { background: #1e6f8a; }
   #status { border: 3px solid var(--ink); background: linear-gradient(180deg, rgba(40, 52, 96, .9), rgba(22, 29, 56, .9)); box-shadow: 0 4px 0 var(--ink); }
   #status b:first-child, #status .st-name { font-family: 'Lilita One'; font-weight: 400; font-size: 18px; text-shadow: var(--ol-s); }
   #minimap { border: 3px solid var(--ink); box-shadow: 0 3px 0 var(--ink); }
@@ -606,6 +614,26 @@
   .av-btn { position: relative; }
   .av-btn.locked { opacity: .45; }
   .av-btn.locked i { position: absolute; right: 2px; bottom: 0; font-size: 13px; font-style: normal; }
+  /* today's featured event */
+  .lb-right { position: relative; }
+  .feat-chip { position: absolute; right: 0; bottom: calc(100% + 10px); display: flex; flex-direction: column; align-items: flex-end; gap: 1px; padding: 7px 14px; border: 3px solid var(--ink); border-radius: 14px; background: linear-gradient(180deg, #7b2cbf, #4a148c); color: #fff; font-size: 15px; white-space: nowrap; box-shadow: 0 4px 0 var(--ink); text-shadow: var(--ol-s); }
+  .feat-chip b { font-family: 'Lilita One'; font-weight: 400; color: #ffd23f; letter-spacing: .5px; }
+  .feat-chip small { font-size: 12px; font-weight: 800; opacity: .9; }
+  .feat-chip.on { background: linear-gradient(180deg, #ffbd3d, #e07b00); }
+  .feat-chip.on b { color: #fff; }
+  .arena-card.featured { background: linear-gradient(180deg, #a35cff, #5a1fa8); box-shadow: 0 6px 0 var(--ink), 0 0 22px rgba(255, 210, 63, .55), inset 0 3px 0 rgba(255, 255, 255, .3); }
+  .arena-card.featured::after { content: '⭐ FEATURED'; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); padding: 2px 10px; border-radius: 10px; background: #ffd23f; color: #3b2500; font-size: 12px; letter-spacing: 1px; text-shadow: none; white-space: nowrap; }
+  .arena-card { position: relative; }
+  .feat-card { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 14px; margin-bottom: 10px; border: 3px solid var(--ink); border-radius: 16px; background: linear-gradient(90deg, #7b2cbf, #4a148c); color: #fff; text-align: left; box-shadow: 0 4px 0 var(--ink); }
+  .feat-card > span { font-size: 34px; }
+  .feat-card div { flex: 1; display: flex; flex-direction: column; }
+  .feat-card b { font-family: 'Lilita One'; font-weight: 400; font-size: 18px; text-shadow: var(--ol-s); }
+  .feat-card small { font-weight: 800; color: #e6d6ff; }
+  .feat-card em { font-style: normal; font-weight: 800; padding: 6px 12px; border-radius: 10px; background: #ffd23f; color: #3b2500; }
+  .feat-card.on { background: linear-gradient(90deg, #ffbd3d, #e07b00); }
+  .tro-feat { padding: 2px 10px; border-radius: 10px; background: #7b2cbf; color: #ffd23f; font-weight: 800; font-size: 14px; }
+  .compact .feat-chip { font-size: 13px; padding: 5px 10px; }
+  .compact .feat-chip small { display: none; }
   .other-play { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
   .mode-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
   .mode-opt { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 8px 4px; border: 3px solid var(--ink); border-radius: 16px; background: linear-gradient(180deg, color-mix(in srgb, var(--mc) 55%, #2a3560), color-mix(in srgb, var(--mc) 25%, #161d3a)); color: #fff; box-shadow: 0 4px 0 var(--ink); }
@@ -768,6 +796,7 @@
         </div>
       </div>
       <div class="lb-right">
+        <button id="featChip" class="feat-chip"></button>
         <button id="arenaCard" class="arena-card" title="Pick the mode and arena you want to play"><span class="ac-icon" id="acIcon">🔧</span><b id="acMode">Workshop Clash</b><small id="acName">🎲 Any arena</small><span class="ac-change">CHANGE</span></button>
         <button id="btnPlay" class="bs-btn play-btn" title="Find a match on your arena">PLAY<small>find a match</small></button>
       </div>
@@ -1025,6 +1054,7 @@
 <script src="js/vendor/three.min.js?v=10"></script>
 <script src="js/parts.js?v=10"></script>
 <script src="js/platform.js?v=10"></script>
+<script src="js/featured.js?v=10"></script>
 <script src="js/world.js?v=10"></script>
 <script src="js/entities.js?v=10"></script>
 <script src="js/meta.js?v=10"></script>
@@ -1038,6 +1068,7 @@
 <script src="js/net.js?v=10"></script>
 <script src="js/account.js?v=10"></script>
 <script src="js/touch.js?v=10"></script>
+<script src="js/supers.js?v=10"></script>
 <script src="js/game.js?v=10"></script>
 </body>
 </html>

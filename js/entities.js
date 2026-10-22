@@ -125,7 +125,7 @@
       if (inWater) F += this.swim + this.drive * (grounded ? 0.35 : 0.08);
       if (!grounded && !inWater) F += this.rotors * 45;
       F += this.thrust * (inWater ? 0.35 : 1);
-      F *= pr * (this.turbo > 0 ? 1.4 : 1);
+      F *= pr * (this.turbo > 0 ? 1.4 : 1) * (this.empT > 0 ? 0.45 : 1); // an EMP slows engines
       const acc = (F * inp.throttle) / this.mass;
       this.vel.x += fx * acc * dt;
       this.vel.z += fz * acc * dt;
@@ -294,6 +294,18 @@
       // --- power-up timers ---
       if (this.overcharge > 0) this.overcharge -= dt;
       if (this.turbo > 0) { this.turbo -= dt; this.dashCd = Math.min(this.dashCd, 0.5); }
+      if (this.domeT > 0) this.domeT -= dt; // a Shield Dome super keeps its protection while you shoot
+      // hit flash: swap every part to a white material for a blink, then put the paint back
+      if (this.flashT > 0 || this.flashOn) {
+        this.flashT -= dt;
+        const on = this.flashT > 0;
+        if (on !== this.flashOn) {
+          this.flashOn = on;
+          const white = CW.matBasic(0xffffff);
+          this.group.traverse((o) => { if (o.isMesh) { if (on) { o.userData.mat0 = o.material; o.material = white; } else if (o.userData.mat0) o.material = o.userData.mat0; } });
+        }
+      }
+      if (this.empT > 0) { this.empT -= dt; if (Math.random() < dt * 14) this.game.fx.burst(this.pos.clone().setY(this.pos.y + 1), { n: 2, color: this.game.fx.colorKey(0x7df9ff), speed: 5, life: 0.25, size: 0.18 }); }
 
       // --- dash ---
       if (this.dashCd > 0) this.dashCd -= dt;
@@ -414,7 +426,8 @@
     dmgMult() { return (this.baseDmg || 1) * (this.overcharge > 0 ? 1.5 : 1); }
 
     fireWeapons(aim) {
-      if (this.protect > 0 && this.weapons.length) this.protect = 0; // shooting ends spawn protection (no free hits)
+      if (this.empT > 0) return; // jammed by an EMP
+      if (this.protect > 0 && this.weapons.length && !(this.domeT > 0)) this.protect = 0; // shooting ends spawn protection (no free hits)
       const rateK = 0.4 + 0.6 * this.pr;
       const mult = this.dmgMult();
       for (const p of this.weapons) {
@@ -450,8 +463,12 @@
     hit(part, dmg, who) {
       if (!this.alive || !part.alive) return;
       if (CW.sameTeam(who, this.combatant)) return;
-      // online: the shooter's game decides what hits; the target's own game applies the damage
       const net = this.game.net;
+      // you see every hit land: the mech flashes white for a moment
+      if (dmg > 0 && !(this.protect > 0)) this.flashT = 0.09;
+      // the game that decides a hit also fills the shooter's super meter
+      if (who && who !== this.combatant && !net.applying && this.game.supers) this.game.supers.charge(who, dmg);
+      // online: the shooter's game decides what hits; the target's own game applies the damage
       if (net.active && !net.applying) {
         if (!net.owns(who || this.combatant)) return;
         if (this.remote) { net.hitMech(this, part, dmg, who); return; }
@@ -549,7 +566,10 @@
     destroy(who) {
       if (!this.alive) return;
       this.alive = false;
-      this.game.fx.explosion(this.pos, 2.2);
+      if (this.flashOn) this.group.traverse((o) => { if (o.isMesh && o.userData.mat0) o.material = o.userData.mat0; });
+      this.game.fx.explosion(this.pos, 2.8);
+      this.game.fx.chunks(this.pos, 14, this.combatant.color);
+      this.game.fx.shockwave(this.pos);
       for (const p of this.parts) if (p.alive) { p.alive = false; this.game.fx.debris(p.obj, this.vel); }
       this.game.scene.remove(this.group);
       this.game.onMechDestroyed(this, who);
@@ -737,7 +757,8 @@
       for (const p of this.particles) this.game.scene.remove(p.mesh);
       for (const d of this.debrisList) this.game.scene.remove(d.obj);
       if (this.beams) for (const b of this.beams) this.game.scene.remove(b.mesh);
-      this.projectiles = []; this.particles = []; this.debrisList = []; if (this.beams) this.beams = [];
+      if (this.rings) for (const r of this.rings) this.game.scene.remove(r.mesh);
+      this.projectiles = []; this.particles = []; this.debrisList = []; this.rings = []; if (this.beams) this.beams = [];
     }
 
     projectile(o) {
@@ -844,6 +865,28 @@
       this.burst(p, { n: Math.round(8 * size + 3), color: 'water', speed: 3, up: 7 * size + 3, life: 0.8, size: 0.3 * size + 0.15, grav: 22 });
     }
 
+    // small metal chunks that fly off a wreck (painted like the mech)
+    chunks(pos, n, color) {
+      if (!this.chunkGeo) this.chunkGeo = new THREE.BoxGeometry(0.35, 0.25, 0.3);
+      for (let i = 0; i < n; i++) {
+        const m = new THREE.Mesh(this.chunkGeo, CW.mat(i % 3 ? color : 0x3a3a3a, null, 'panel'));
+        m.position.copy(pos).add(new V3((Math.random() - 0.5) * 2, Math.random() * 1.5, (Math.random() - 0.5) * 2));
+        m.scale.setScalar(0.6 + Math.random() * 1.2);
+        m.castShadow = true;
+        this.game.scene.add(m);
+        this.debrisList.push({ obj: m, vel: new V3((Math.random() - 0.5) * 22, 8 + Math.random() * 12, (Math.random() - 0.5) * 22), ang: new V3((Math.random() - 0.5) * 14, (Math.random() - 0.5) * 14, (Math.random() - 0.5) * 14), life: 4, s0: m.scale.x });
+      }
+      while (this.debrisList.length > 160) { const d = this.debrisList.shift(); this.game.scene.remove(d.obj); }
+    }
+    // a flat ring that races outward along the ground
+    shockwave(pos) {
+      const mesh = new THREE.Mesh(new THREE.RingGeometry(0.6, 1.1, 40), new THREE.MeshBasicMaterial({ color: 0xffe0a0, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide }));
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.set(pos.x, Math.max(this.game.world.groundAt(pos.x, pos.z), pos.y - 1) + 0.15, pos.z);
+      this.game.scene.add(mesh);
+      (this.rings = this.rings || []).push({ mesh, life: 0.55 });
+    }
+
     debris(obj, baseVel) {
       this.game.scene.attach(obj);
       const v = new V3((Math.random() - 0.5) * 12, 5 + Math.random() * 8, (Math.random() - 0.5) * 12).add(baseVel);
@@ -855,6 +898,13 @@
     update(dt) {
       const game = this.game;
       const world = game.world;
+      if (this.rings) for (let i = this.rings.length - 1; i >= 0; i--) {
+        const r = this.rings[i];
+        r.life -= dt;
+        r.mesh.scale.setScalar(1 + (0.55 - r.life) * 26);
+        r.mesh.material.opacity = Math.max(0, r.life / 0.55) * 0.9;
+        if (r.life <= 0) { game.scene.remove(r.mesh); r.mesh.geometry.dispose(); r.mesh.material.dispose(); this.rings.splice(i, 1); }
+      }
       if (this.beams) {
         for (let i = this.beams.length - 1; i >= 0; i--) {
           const b = this.beams[i];

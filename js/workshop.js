@@ -506,6 +506,7 @@
         ['⛰ Land', land],
         ['🌊 Water', water],
         ['☁ Air', air],
+        ['Super', (() => { const sp = CW.SUPERS && CW.SUPERS[CW.superFor(this.bp.parts)]; return sp ? `<span title="${sp.desc}">${sp.icon} ${sp.name}</span>` : '—'; })()],
       ];
       $('wsStats').innerHTML = rows.map(([k, v]) => `<div class="row"><span>${k}</span><span>${v}</span></div>`).join('');
       $('wsWarn').innerHTML =

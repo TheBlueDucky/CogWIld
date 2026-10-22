@@ -831,6 +831,7 @@
         case 'obj': if (hostMsg && g.obj && g.obj.netApply) g.obj.netApply(e.s); break;
         case 'wave': if (hostMsg) g.netWave(e); break;
         case 'end': if (hostMsg) g.netEnd(e); break;
+        case 'super': g.supers.onRemote(e); break;
       }
     }
 

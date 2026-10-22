@@ -22,6 +22,21 @@ const FULL_START = 3000; // a room that fills up with players starts after this 
 // what PLAY plays in each mode, and how many seats that has (co-op modes: you + 2 teammates)
 const MM_FORMAT = { clash: 'ffa', rush: 'ffa', koth: 'squads', gold: 'squads', race: 'race', boss: 'squad', survival: 'squad' };
 const SEATS = { duel: 2, squads: 6, quads: 8, ffa: 8, race: 6, solo: 1, squad: 3 };
+// trophy matchmaking: rooms within ±150 trophies of you, widening 10 per second the search has run;
+// bot difficulty follows the room's trophies
+const TRO_RANGE = 150, TRO_WIDEN = 10;
+const troOf = (c) => { const u = c && accounts.me(c); return u ? u.tro | 0 : null; };
+function roomTro(room) {
+  const t = [...room.players].map((id) => troOf(clients.get(id))).filter((x) => x !== null);
+  return t.length ? t.reduce((a, b) => a + b, 0) / t.length : null;
+}
+function troFits(room, tro) {
+  const avg = roomTro(room);
+  if (tro === null || avg === null) return true; // guests, and rooms of guests, match with anyone
+  const waited = room.searchEnds ? (SEARCH - Math.max(0, room.searchEnds - Date.now())) / 1000 : 0;
+  return Math.abs(avg - tro) <= TRO_RANGE + waited * TRO_WIDEN;
+}
+const botLevel = (avg) => (avg === null || avg < 250 ? 'easy' : avg < 900 ? 'normal' : 'hard');
 const seatsOf = (room) => (room.auto ? SEATS[room.settings.format] || MAX_PLAYERS : MAX_PLAYERS);
 const BOT_NAMES = ['Rustbucket', 'Gearhead', 'Sprocket', 'Clunker', 'Torque', 'Widget', 'Ratchet', 'Piston', 'Cogsworth', 'Bolt'];
 const MAX_MSG = 256 * 1024; // bytes per message
@@ -203,6 +218,7 @@ function fillAndStart(room) {
     room.bots.push({ id: -(++room.botSeq), name });
   }
   room.searchEnds = 0;
+  room.settings.difficulty = botLevel(roomTro(room)); // tougher bots for higher-trophy rooms
   room.autoAt = Date.now(); // the timer loop nudges the host until the match begins
   sendRoom(room);
 }
@@ -289,7 +305,8 @@ function handle(c, data) {
       const mode = MM_FORMAT[m.mode] ? m.mode : 'clash';
       const arena = /^[a-z]{1,16}$/.test(m.arena) ? m.arena : 'random';
       const need = 1 + accounts.followers(c).length;
-      const open = [...rooms.values()].filter((r) => r.pub && r.auto && r.state === 'lobby' && !r.autoAt && r.code !== c.room && r.settings.mode === mode
+      const tro = troOf(c);
+      const open = [...rooms.values()].filter((r) => r.pub && r.auto && r.state === 'lobby' && !r.autoAt && r.code !== c.room && r.settings.mode === mode && troFits(r, tro)
         && (arena === 'random' || r.settings.arena === arena) && r.players.size + need <= seatsOf(r)).sort((a, b) => b.players.size - a.players.size)[0];
       if (open) joinRoom(c, open);
       else createRoom(c, true, { mode, format: MM_FORMAT[mode], arena, tod: 'random', difficulty: 'normal', teams: 'split' }, true);
@@ -319,6 +336,8 @@ function handle(c, data) {
       room.autoAt = 0;
       room.searchEnds = 0;
       room.beganAt = Date.now();
+      // the arena the host's game actually picked ("any arena" resolves when the match begins)
+      if (m.payload && /^[a-z]{1,16}$/.test(m.payload.arena)) room.playedArena = m.payload.arena;
       broadcast(room, { t: 'begin', payload: m.payload }, c.id);
       for (const id of room.players) accounts.roomChanged(clients.get(id));
       break;

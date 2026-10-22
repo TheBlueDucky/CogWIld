@@ -194,6 +194,7 @@
       this.net = new CW.Net(this);
       this.account = new CW.Account(this);
       this.touch = new CW.Touch(this);
+      this.supers = new CW.Supers(this);
       this.bindInput();
       this.bindMenus();
       this.bindShowcase();
@@ -445,6 +446,9 @@
       $('firstRun').classList.toggle('hidden', !!this.settings.tutorialDone);
     }
     // ---------------- PLAY: matchmaking on one arena ----------------
+    // today's featured event (same mode + arena for everyone): 2× coins, bigger trophy gains
+    inFeatured() { return !!CW.FEATURED && !['tutorial', 'test'].includes(this.modeId) && !this.isPractice() && CW.FEATURED.is(this.modeId, this.world.arena.id); }
+    featuredLeft() { const m = Math.max(1, Math.ceil((CW.FEATURED.today().endsAt - Date.now()) / 60000)); return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; }
     arenaChoice() { const a = this.settings.mmArena; return CW.ARENAS[a] ? a : 'random'; }
     modeChoice() { const m = this.settings.mmMode; return CW.MM_FORMAT[m] ? m : 'clash'; }
     arenaInfo(id) { return CW.ARENAS[id] ? CW.ARENAS[id] : { id: 'random', icon: '🎲', name: 'Any arena', desc: 'The fastest match: join a search on any arena.' }; }
@@ -454,6 +458,12 @@
       $('acIcon').textContent = m.icon;
       $('acMode').textContent = m.name;
       $('acName').textContent = `${a.icon} ${a.name}`;
+      // the featured chip above PLAY, and a badge when your pick is today's featured event
+      const f = CW.FEATURED.today(), fm = MODES[f.mode], fa = CW.ARENAS[f.arena];
+      $('featChip').innerHTML = `⭐ <b>Featured today</b> ${fm.icon} ${fm.name} · ${fa.icon} ${fa.name}<small>${CW.FEATURED.COIN_MULT}× coins · +50% trophies · ends in ${this.featuredLeft()}</small>`;
+      const on = f.mode === this.modeChoice() && f.arena === this.arenaChoice();
+      $('arenaCard').classList.toggle('featured', on);
+      $('featChip').classList.toggle('on', on);
     }
     play() {
       this.audio.ensure();
@@ -484,6 +494,9 @@
       // the one PLAY button: matchmaking on the arena from the arena card (bots fill the seats after 30 s)
       $('btnPlay').onclick = () => this.play();
       $('arenaCard').onclick = () => this.meta.openPanel('arenas');
+      // one tap on the featured chip picks today's event
+      $('featChip').onclick = () => { const f = CW.FEATURED.today(); this.settings.mmMode = f.mode; this.settings.mmArena = f.arena; this.saveProfile(); this.renderArenaCard(); this.audio.click(1.3); };
+      setInterval(() => { if (this.state === 'menu') this.renderArenaCard(); }, 30000);
       this.renderArenaCard();
       $('firstYes').onclick = () => { $('firstRun').classList.add('hidden'); this.startTutorial(); };
       $('firstNo').onclick = () => { $('firstRun').classList.add('hidden'); this.settings.tutorialDone = true; this.saveProfile(); };
@@ -603,6 +616,7 @@
         this.audio.ensure();
         if (this.paused) return;
         if (e.button === 0) this.mouse.left = true;
+        if (e.button === 2 && document.pointerLockElement === cv) this.pressed.KeyX = true; // right-click = super
         if (document.pointerLockElement !== cv && cv.requestPointerLock) {
           try { const r = cv.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (err) { /* no lock */ }
         }
@@ -650,6 +664,7 @@
       this.net.byId.clear();
       this.netSeq = 0;
       this.fx.clear();
+      this.supers.clear();
       this.pickups.clear();
       this.chests.clear();
       $('tags').innerHTML = '';
@@ -686,6 +701,7 @@
       this.endTimer = 0;
       this.matchTime = 0;
       this.paused = false;
+      this.slowmo = 0; this.slowmoDone = false;
       this.hadLock = false;
       this.suddenDeath = false;
       this.respawns = [];
@@ -975,7 +991,7 @@
 
     addCombatant(o) {
       const c = {
-        name: o.name, isPlayer: o.isPlayer, color: o.color, team: o.team, kills: 0, wrecks: 0, alive: true, place: 0, pilotHp: 60, mech: null, pilot: null,
+        name: o.name, isPlayer: o.isPlayer, color: o.color, team: o.team, kills: 0, wrecks: 0, superCharge: 0, alive: true, place: 0, pilotHp: 60, mech: null, pilot: null,
         // online: which player's game runs it (bots: the host), its id in network messages, and how many mechs it has had
         owner: o.owner ?? this.net.id, human: o.human ?? !!o.isPlayer, netId: o.netId ?? this.netSeq, life: 0,
         ai: { style: o.ai || 'ground', retarget: 0, target: null, stuck: 0, wander: 0, wanderYaw: 0, last: new V3(), pref: 18 + Math.random() * 14, alt: 8 + Math.random() * 8, jitter: 1.1 + Math.random() * 1.0, t: Math.random() * 10, waypoint: null },
@@ -1116,6 +1132,7 @@
         if (manualTurn && this.lastMechYaw !== undefined) this.cam.yaw += wrap(m.yaw - this.lastMechYaw);
         this.lastMechYaw = m.yaw;
         if (ePressed && !locked) this.exitMech(c);
+        if (this.pressed.KeyX && !locked) this.supers.activate(c);
         // stuck detection: trying to move but not getting anywhere (or sitting in liquid without water parts)
         const hs = Math.hypot(m.vel.x, m.vel.z);
         const helpless = m.medium === 'water' && m.swim === 0 && m.buoy < m.mass * 0.65;
@@ -1421,6 +1438,7 @@
     who(c, you) { return c ? (c.isPlayer ? you : c.name) : 'The arena'; }
 
     onMechDestroyed(mech, who) {
+      if (who && who.isPlayer && mech.combatant !== who) { this.killMarker = 0.6; this.cam.shake = Math.min(1.5, this.cam.shake + 0.5); }
       this.net.mechDestroyed(mech, who);
       const c = mech.combatant;
       if (who && !CW.sameTeam(who, c)) who.wrecks++;
@@ -1512,7 +1530,7 @@
     }
 
     onPlayerHit(point, dmg, quiet) {
-      this.hitMarker = 0.15;
+      this.hitMarker = Math.max(this.hitMarker || 0, 0.15);
       if (this.tutorial.active) this.tutorial.onHit();
       if (!quiet || Math.random() < 0.25) this.audio.hit();
       if (point && dmg && this.settings.dmgNumbers) this.damageNumber(point, dmg);
@@ -1562,7 +1580,7 @@
       this.fx.burst(mech.pos, { n: 10, color: this.trailMat(c), speed: 6, life: 0.5, size: 0.5 });
     }
     onPartBroken(mech, who) {
-      if (who && who.isPlayer && mech.combatant !== who) this.meta.track('parts');
+      if (who && who.isPlayer && mech.combatant !== who) { this.meta.track('parts'); this.killMarker = 0.3; this.audio.tone(220, 0.08, 'square', 0.12, 0.6); }
     }
 
     // floating damage numbers (pooled DOM elements)
@@ -1606,6 +1624,7 @@
     checkEnd(dt) {
       if (this.isPractice()) return;
       if (this.ended) {
+        if (!this.slowmoDone) { this.slowmoDone = true; this.slowmo = 1.5; }
         this.endTimer -= dt;
         if (this.endTimer <= 0 && this.state === 'match') this.showResults();
         return;
@@ -1722,7 +1741,8 @@
       const rankUp = this.rankIndex() > beforeRank;
       // coins, stats, challenges
       const levelBonus = lvUp ? (this.level() - beforeLv) * 100 : 0;
-      const coins = Math.round(xp / 2) + this.bonusCoins + levelBonus;
+      const featured = this.inFeatured();
+      const coins = (Math.round(xp / 2) + this.bonusCoins) * (featured ? CW.FEATURED.COIN_MULT : 1) + levelBonus;
       this.meta.addCoins(coins);
       const st = this.profile.stats;
       st.matches++;
@@ -1793,6 +1813,7 @@
       if (lvUp) extra = `⬆ Level up! You are now level ${this.level()} (+${levelBonus} 🪙)`;
       if (rankUp) extra += ` · 🎉 New rank: ${CW.RANKS[this.rankIndex()].name}! You can now combine ${CW.RANKS[this.rankIndex()].domains} movement types.`;
       if (unlocked.length) extra += ` · 🔓 New parts: ${unlocked.join(', ')}`;
+      if (featured) extra = `⭐ Featured event: ${CW.FEATURED.COIN_MULT}× coins! · ` + extra;
       $('resExtra').textContent = extra;
       this.setupMatchChest(p.place, sv ? 3 : nTeams);
       $('resAch').innerHTML = achieved.map((a) => `<div class="ach-pop">🏆 <b>${a.name}</b> · ${a.desc} · +${a.reward} 🪙</div>`).join('');
@@ -1954,8 +1975,10 @@
           ${m.shieldMax ? `<div class="st-row"><span>Shield</span><div class="bar"><i style="width:${(m.shield / m.shieldMax) * 100}%;background:#4cc9f0"></i></div></div>` : ''}
           ${m.overcharge > 0 || m.turbo > 0 ? `<div class="buffs">${m.overcharge > 0 ? `<span class="buff oc">⚡ Overcharge ${Math.ceil(m.overcharge)}s</span>` : ''}${m.turbo > 0 ? `<span class="buff tb">💨 Turbo ${Math.ceil(m.turbo)}s</span>` : ''}</div>` : ''}
           <div class="st-row"><span>Dash ⇧</span><div class="bar"><i style="width:${m.dashCd > 0 ? (1 - m.dashCd / (m.dashMax || 1)) * 100 : 100}%;background:${m.dashCd > 0 ? '#8d99ae' : '#ff9f1c'}"></i></div><em class="dash-ready">${m.dashCd > 0 ? m.dashCd.toFixed(1) + 's' : 'READY'}</em></div>
+          ${(() => { const sp = CW.SUPERS[this.supers.type(p)], k = p.superCharge || 0; return `<div class="st-row super-row ${k >= 1 ? 'ready' : ''}"><span>${sp.icon} Super</span><div class="bar"><i style="width:${k * 100}%"></i></div><em>${k >= 1 ? (this.touch.on ? 'TAP ⭐' : 'X / RMB') : Math.floor(k * 100) + '%'}</em></div>`; })()}
+          ${m.empT > 0 ? '<div class="buffs"><span class="buff emp">⚡ JAMMED by EMP</span></div>' : ''}
           <div class="st-foot"><span>${Math.round(Math.hypot(m.vel.x, m.vel.z) * 3.6)} km/h</span><span>Alt ${Math.round(m.pos.y - m.baseOff)}</span><span class="${m.pr < 1 ? 'bad' : ''}">⚡ ${Math.round(m.pr * 100)}%</span><span>Parts ${m.parts.filter((q) => q.alive).length}/${m.totalParts}</span>${dom}</div>`;
-        $('hint').textContent = 'W/S drive · A/D turn · Mouse look & aim · Click fire · Shift DASH · Space up/jump · C down · V camera · E exit · Esc pause' + (this.modeId === 'test' ? ' · T back to Workshop' : '');
+        $('hint').textContent = 'W/S drive · A/D turn · Mouse look & aim · Click fire · Shift DASH · X / right-click SUPER · Space up/jump · C down · V camera · E exit · Esc menu' + (this.modeId === 'test' ? ' · T back to Workshop' : '');
       } else if (p.pilot && p.pilot.alive) {
         const pl = p.pilot;
         const ownAlive = p.mech && p.mech.alive;
@@ -2010,6 +2033,8 @@
       if (this.countdown <= 0 && this.countdown > -0.6) $('countdown').textContent = 'GO!';
       this.hitMarker = Math.max(0, (this.hitMarker || 0) - 1 / 60);
       $('crosshair').classList.toggle('hit', this.hitMarker > 0);
+      this.killMarker = Math.max(0, (this.killMarker || 0) - 1 / 60);
+      $('crosshair').classList.toggle('kill', this.killMarker > 0);
       this.damageFlash = Math.max(0, (this.damageFlash || 0) - 0.03);
       $('vignette').style.opacity = this.damageFlash;
       this.drawMinimap();
@@ -2270,7 +2295,8 @@
       // one screen-refresh request at a time (the background timer also calls this while hidden)
       if (!this.rafQueued) { this.rafQueued = true; requestAnimationFrame((t) => { this.rafQueued = false; this.loop(t); }); }
       if (now - this.last < 4) return; // both clocks fired together
-      const dt = Math.min(0.05, (now - this.last) / 1000);
+      let dt = Math.min(0.05, (now - this.last) / 1000);
+      if (this.slowmo > 0) { this.slowmo -= dt; dt *= this.slowmo > 0.25 ? 0.3 : 1; }
       this.last = now;
       try {
         this.watchPerformance(dt);
@@ -2311,6 +2337,7 @@
       this.time += dt;
       this.gamepad.update(dt);
       this.touch.update();
+      this.supers.update(dt);
       if (this.state !== this._musicState) { this._musicState = this.state; this.updateMusic(); }
       if (this.state === 'workshop') {
         this.workshop.update(dt);

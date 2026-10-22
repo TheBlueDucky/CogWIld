@@ -22,6 +22,8 @@ Then open http://localhost:8765. This runs the game **and** the online server, s
 - **Progression**: levels, ranks (Mono/Hybrid/Omni), part unlocks, coins, shop, daily reward, daily challenges, 26 achievements, stats
 - **Interactive tutorial**, clip recorder (F8), controller support, graphics settings (auto-lowers on slow PCs), save backup/restore
 - **One PLAY button**: pick an arena on the arena card, PLAY finds a match there; after 30 s bots fill the empty seats. Private rooms with invite links (every mode, co-op Survival and Boss too) and practice vs bots sit behind the arena card. Quick chat.
+- **Supers**: deal damage to charge a super (Shield Dome, Turbo Ram, Missile Barrage or EMP Shockwave, depending on your parts)
+- **Daily featured event**: one mode + arena a day with 2× coins and +50% trophies; trophy-based matchmaking with bots that scale with the room's trophies
 - **Accounts**: username + password, cloud-saved progress on every device, profile with avatars, friends (online status, join their room), parties of 4, trophies with tiers, a Trophy Road and world/friends leaderboards
 - **Every platform**: browser, Windows app (.exe) and Android app (.apk) with touch controls; download page at `/download`
 - **Settings**: remappable keys, touch controls, music volume, fullscreen, graphics, FOV, sensitivity and more

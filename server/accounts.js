@@ -5,6 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const FEATURED = require('../js/featured.js');
 
 const DATA_DIR = process.env.DATA_DIR || path.resolve(__dirname, '..', 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
@@ -473,18 +474,20 @@ class Accounts {
     const secs = (Date.now() - (room.beganAt || Date.now())) / 1000;
     if (secs < QUICK_MIN_SECS) return;
     n = Math.max(2, Math.min(16, n | 0));
+    const featured = FEATURED.is(room.settings.mode, room.playedArena || room.settings.arena);
     for (const [id, place] of Object.entries(res)) {
       const c = this.h.clients.get(+id);
       const pl = place | 0;
       if (!c || c.room !== room.code || !room.players.has(c.id) || pl < 1 || pl > n) continue;
       const u = this.me(c);
       if (!u) continue;
-      const d = trophyDelta(pl, n, u.tro | 0, u.streak | 0);
+      let d = trophyDelta(pl, n, u.tro | 0, u.streak | 0);
+      if (featured && d > 0) d = Math.round(d * FEATURED.TROPHY_MULT); // today's featured event
       u.tro = Math.max(0, (u.tro | 0) + d);
       u.best = Math.max(u.best | 0, u.tro);
       u.played = (u.played | 0) + 1;
       if (pl === 1) { u.wins = (u.wins | 0) + 1; u.streak = (u.streak | 0) + 1; } else u.streak = 0;
-      this.send(c, { t: 'trophies', d, tro: u.tro, best: u.best, place: pl, n, streak: u.streak });
+      this.send(c, { t: 'trophies', d, tro: u.tro, best: u.best, place: pl, n, streak: u.streak, featured });
       this.friendsChanged(c.user);
     }
     this.dirty();
