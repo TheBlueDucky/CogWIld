@@ -460,7 +460,7 @@
       $('acName').textContent = `${a.icon} ${a.name}`;
       // the featured chip above PLAY, and a badge when your pick is today's featured event
       const f = CW.FEATURED.today(), fm = MODES[f.mode], fa = CW.ARENAS[f.arena];
-      $('featChip').innerHTML = `⭐ <b>Featured today</b> ${fm.icon} ${fm.name} · ${fa.icon} ${fa.name}<small>${CW.FEATURED.COIN_MULT}× coins · +50% trophies · ends in ${this.featuredLeft()}</small>`;
+      $('featChip').innerHTML = `<b>⭐ Featured today</b><span>${fm.icon} ${fm.name} · ${fa.icon} ${fa.name}</span><small>${CW.FEATURED.COIN_MULT}× coins · +50% trophies · ends in ${this.featuredLeft()}</small>`;
       const on = f.mode === this.modeChoice() && f.arena === this.arenaChoice();
       $('arenaCard').classList.toggle('featured', on);
       $('featChip').classList.toggle('on', on);

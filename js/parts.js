@@ -2,7 +2,7 @@
 (function () {
   const CW = (window.CW = window.CW || {});
 
-  CW.VERSION = 'v1.1.1';
+  CW.VERSION = 'v1.2';
   CW.SAVE_VERSION = 2;
   CW.WATER_Y = 0;
   CW.GRAV = 22;

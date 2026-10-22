@@ -453,6 +453,10 @@
         body.innerHTML = `<div class="small">${n} / ${CW.ACHIEVEMENTS.length} unlocked. Each one pays coins.</div><div class="ach-grid">${CW.ACHIEVEMENTS.map((a) => `<div class="ach ${got[a.id] ? 'got' : ''}"><b>${got[a.id] ? '🏆' : '🔒'} ${a.name}</b><span class="small">${a.desc}</span><div class="small">+${a.reward} 🪙</div></div>`).join('')}</div>`;
       } else if (k === 'news') {
         body.innerHTML = `<ul class="news">
+          <li><b>v1.2</b>: ⭐ <b>Supers!</b> Deal damage to charge your super, then press X / right-click / ⭐: Shield Dome, Turbo Ram, Missile Barrage or EMP Shockwave, depending on what your mech is built from (the Workshop shows which).</li>
+          <li>🗓 <b>Featured event every day</b>: one mode on one arena gives 2× coins and +50% trophies. Tap the purple chip above PLAY to play it.</li>
+          <li>🏆 Matchmaking now puts you with players near your trophies, and bots get tougher in higher-trophy matches.</li>
+          <li>💥 Hits feel better: enemies flash when hit, bigger wrecks with flying chunks and a shockwave, a red kill marker and slow motion when a match is decided.</li>
           <li><b>v1.1.1</b>: 🔩 Real metal textures on every part: painted panels with bolts and wear, tread-plate armor, gunmetal weapons and engines, carbon-fiber wings and rotors (also in the Shop). Leveling takes longer, and bots aim worse.</li>
           <li><b>v1.1</b>: 🎮 <b>PLAY picks a mode and an arena</b>: all 7 modes are in matchmaking (King of the Hill and Gold Rush are 3v3, Boss and Survival are co-op). Bots fill the empty seats after 30 seconds.</li>
           <li>📱 A new, bigger look that fits every screen: phones get their own layout, panels close when you tap outside them, Back is always in reach.</li>
