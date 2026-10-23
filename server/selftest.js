@@ -350,7 +350,7 @@ async function main() {
   const gg = await player();
   gg.send({ t: 'googleLogin', credential: googleToken('someone@gmail.com', 'other-app') });
   check(/not for this game/.test((await gg.next('acctErr')).msg), 'a Google token for another app is refused');
-  gg.send({ t: 'googleLogin', credential: googleToken('someone@gmail.com').replace(/.$/, 'A') });
+  { const tk = googleToken('someone@gmail.com'), at = tk.length - 20; gg.send({ t: 'googleLogin', credential: tk.slice(0, at) + (tk[at] === 'B' ? 'C' : 'B') + tk.slice(at + 1) }); }
   check(!!(await gg.next('acctErr')), 'a tampered Google token is refused');
   gg.send({ t: 'googleLogin', credential: googleToken('someone@gmail.com') });
   await gg.next('acctPickName');
