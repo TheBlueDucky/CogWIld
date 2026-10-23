@@ -897,6 +897,21 @@
   .t-btn.down { background: rgba(92, 225, 255, .3) !important; border-color: var(--hl) !important; }
   .t-super.ready { background: radial-gradient(circle, rgba(92, 225, 255, .75), rgba(21, 151, 181, .85)) !important; border-color: #fff !important; }
   .t-gadget.ready { background: rgba(92, 225, 255, .35) !important; border-color: var(--hl) !important; }
+  /* everything you can click shows a cyan outline on hover (PLAY and touch buttons excepted) */
+  button:not(:disabled):not(.play-btn):not(.t-btn):hover, .quests-card:hover, a.btn:hover, label.set-row:has(input[type=checkbox]):hover { outline: 2px solid var(--hl) !important; outline-offset: -1px; }
+  /* the daily gift: a small row that sits on the Shop's background */
+  .shop-gift { display: inline-flex !important; width: auto !important; max-width: 100%; background: transparent !important; border: 1px solid var(--line2) !important; padding: 4px 10px !important; }
+  .shop-gift > div { flex: 0 1 auto !important; }
+  .shop-gift .ws-btn { padding: 2px 12px !important; margin-left: 6px; }
+  /* the Cog Pass bar above the challenge card */
+  .pass-bar { position: relative; display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 10px; border-radius: var(--rad); background: rgba(14, 20, 42, .5); border: 1px solid var(--glass-line); color: var(--txt); text-align: left; }
+  .pass-bar .pb-ico { font-size: 22px; }
+  .pass-bar .pb-main { display: flex; flex-direction: column; line-height: 1.1; min-width: 92px; }
+  .pass-bar b { font-size: 14px; }
+  .pass-bar small { font-size: 11px; color: var(--muted2); font-weight: 700; }
+  .pass-bar .pb-track { flex: 1; height: 8px; border-radius: 6px; background: rgba(255, 255, 255, .1); overflow: hidden; }
+  .pass-bar .pb-track i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #2bb8e0, #5ce1ff); }
+  .pass-bar .badge { position: absolute; top: -6px; right: -6px; }
   .pass-tier .tier-n { color: var(--muted2) !important; font-family: 'Nunito', sans-serif !important; font-weight: 700 !important; font-size: 13px !important; }
   .pass-tier.reached .tier-n { color: var(--hl) !important; }
   .ach-pop { background: rgba(255, 255, 255, .05) !important; border: 1px solid var(--line2) !important; box-shadow: none !important; color: var(--txt) !important; }
@@ -956,12 +971,10 @@
 
     <!-- side columns -->
     <div class="lobby-side left">
-      <button id="btnPass" class="side-btn"><span>🎟</span>Cog Pass<i id="badgePass" class="badge hidden">0</i></button>
       <button id="btnShop" class="side-btn"><span>🛒</span>Shop<i id="badgeShop" class="badge hidden">!</i></button>
       <button id="btnWorkshop" class="side-btn"><span>🔧</span>Workshop</button>
       <button id="btnChallenges" class="side-btn"><span>🎯</span>Challenges<i id="badgeChallenges" class="badge hidden">0</i></button>
       <button id="btnAch" class="side-btn"><span>🎖</span>Achievements</button>
-      <button id="btnStats" class="side-btn"><span>📊</span>Stats</button>
       <button id="btnHowto" class="side-btn"><span>❓</span>Help</button>
     </div>
     <div class="lobby-side right">
@@ -969,7 +982,6 @@
       <button id="btnClubs" class="side-btn"><span>🛡</span>Clubs</button>
       <button id="btnTop" class="side-btn"><span>📈</span>Leaderboard</button>
       <button id="btnRoad" class="side-btn"><span>🛤</span>Trophy Road<i id="badgeRoad" class="badge hidden">0</i></button>
-      <button id="btnProfile" class="side-btn"><span>👤</span>Profile</button>
       <button id="btnNews" class="side-btn"><span>📰</span>News</button>
     </div>
 
@@ -986,6 +998,7 @@
         <div class="quest-row">
           <button id="btnDaily" class="daily"></button>
         </div>
+        <button id="btnPass" class="pass-bar" title="Cog Pass: free rewards every season"><span class="pb-ico">🎟</span><span class="pb-main"><b>Cog Pass</b><small id="pbTier">Season 1</small></span><span class="pb-track"><i id="pbFill"></i></span><i id="badgePass" class="badge hidden">0</i></button>
         <div class="card quests-card" id="questsCard" title="See all of today's challenges">
           <h3>🎯 Challenge <small id="questsMore">see all ›</small></h3>
           <div id="menuChallenges"></div>

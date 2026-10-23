@@ -194,6 +194,20 @@
       this.renderMenu();
     }
 
+    // every number we keep about your play (the Stats panel and your Profile)
+    statsHtml() {
+      const p = this.game.profile, s = p.stats;
+      const rows = [
+        ['Matches played', s.matches], ['Wins', s.wins], ['Win rate', s.matches ? Math.round((s.wins / s.matches) * 100) + '%' : '—'],
+        ['Mechs wrecked', s.wrecks], ['Pilots eliminated', s.elims], ['Times eliminated', s.deaths], ['Best wreck streak', s.bestStreak],
+        ['Enemy parts blown off', s.parts], ['Spike rams', s.rams], ['Dashes', s.dashes],
+        ['Time flying', Math.round(s.airTime) + ' s'], ['Time in water', Math.round(s.waterTime) + ' s'],
+        ['Rush Build matches', s.rush], ['Workshop Clash matches', s.clash], ['Coins earned', s.coinsEarned], ['Level', this.game.level()],
+        ['Achievements', `${Object.keys(p.achievements || {}).length}/${CW.ACHIEVEMENTS.length}`],
+      ];
+      return `<div class="stat-grid">${rows.map(([a, b]) => `<div><b>${b}</b><span>${a}</span></div>`).join('')}</div>`;
+    }
+
     renderPanel() {
       const p = this.game.profile;
       const body = $('panelBody');
@@ -265,15 +279,7 @@
       } else if (k === 'pass') {
         this.game.account.passPanel(body);
       } else if (k === 'stats') {
-        const s = p.stats;
-        const rows = [
-          ['Matches played', s.matches], ['Wins', s.wins], ['Win rate', s.matches ? Math.round((s.wins / s.matches) * 100) + '%' : '—'],
-          ['Mechs wrecked', s.wrecks], ['Pilots eliminated', s.elims], ['Times eliminated', s.deaths], ['Best wreck streak', s.bestStreak],
-          ['Enemy parts blown off', s.parts], ['Spike rams', s.rams], ['Dashes', s.dashes],
-          ['Time flying', Math.round(s.airTime) + ' s'], ['Time in water', Math.round(s.waterTime) + ' s'],
-          ['Rush Build matches', s.rush], ['Workshop Clash matches', s.clash], ['Coins earned', s.coinsEarned], ['Level', this.game.level()],
-        ];
-        body.innerHTML = `<div class="stat-grid">${rows.map(([a, b]) => `<div><b>${b}</b><span>${a}</span></div>`).join('')}</div>`;
+        body.innerHTML = this.statsHtml();
       } else if (k === 'settings') {
         const s = this.settings;
         const acct = this.game.account;
@@ -568,7 +574,6 @@
       $('btnChallenges').onclick = () => g.meta.openPanel('challenges');
       $('questsCard').onclick = (e) => { if (!e.target.closest('button')) g.meta.openPanel('challenges'); };
       $('btnShop').onclick = () => g.meta.openPanel('shop');
-      $('btnStats').onclick = () => g.meta.openPanel('stats');
       $('btnSettings').onclick = () => g.meta.openPanel('settings');
       $('btnHowto').onclick = () => g.meta.openPanel('howto');
       $('btnAch').onclick = () => g.meta.openPanel('ach');

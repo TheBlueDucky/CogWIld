@@ -246,7 +246,6 @@
     bindUi() {
       const g = this.game;
       $('acctChip').onclick = () => (this.loggedIn ? g.meta.openPanel('profile') : this.openLogin());
-      $('btnProfile').onclick = () => (this.loggedIn ? g.meta.openPanel('profile') : this.openLogin('Log in to get a profile, trophies and friends'));
       $('btnFriends').onclick = () => (this.loggedIn ? g.meta.openPanel('friends') : this.openLogin('Log in to add friends and make a party'));
       $('btnRoad').onclick = () => g.meta.openPanel('road');
       $('btnPass').onclick = () => g.meta.openPanel('pass');
@@ -370,6 +369,11 @@
       $('badgeFriends').classList.toggle('hidden', !(req || online));
       $('badgeFriends').classList.toggle('calm', !req);
       const pass = this.passReady();
+      // the Cog Pass bar: tier and progress to the next one
+      const w = this.wallet, E = CW.ECON;
+      const pts = w ? w.pass.pts : 0, tier = Math.min(E.PASS.tiers, Math.floor(pts / E.PASS.perTier));
+      $('pbTier').textContent = w ? `Tier ${tier} / ${E.PASS.tiers}` : `Season ${E.season().id}`;
+      $('pbFill').style.width = (tier >= E.PASS.tiers ? 100 : Math.round(((pts % E.PASS.perTier) / E.PASS.perTier) * 100)) + '%';
       $('badgePass').textContent = pass;
       $('badgePass').classList.toggle('hidden', !pass);
       const road = this.roadReady();
@@ -637,7 +641,7 @@
     }
     profilePanel(body) {
       const g = this.game;
-      if (!this.me) { body.innerHTML = '<div class="small">You are playing as a guest.</div><button class="btn" id="profLogin">👤 Log in or sign up</button>'; $('profLogin').onclick = () => { g.meta.closePanel(); this.openLogin(); }; return; }
+      if (!this.me) { body.innerHTML = '<div class="small">You are playing as a guest.</div><button class="btn" id="profLogin">👤 Log in or sign up</button><h3>Stats</h3>' + g.meta.statsHtml(); $('profLogin').onclick = () => { g.meta.closePanel(); this.openLogin(); }; return; }
       const me = this.me;
       const s = g.profile.stats;
       body.innerHTML = this.card(me) +
@@ -646,7 +650,7 @@
           const locked = prem && !g.profile.owned.avatars.includes(prem.id);
           return `<button class="av-btn ${i === me.av ? 'on' : ''} ${locked ? 'locked' : ''}" ${locked ? 'data-shop="1" title="Unlock it in the Shop or on the Trophy Road"' : `data-av="${i}"`}>${a}${locked ? '<i>🔒</i>' : ''}</button>`;
         }).join('')}</div>
-        <h3>Your numbers</h3><div class="stat-grid"><div><b>${s.matches}</b><span>Matches (all modes)</span></div><div><b>${s.wins}</b><span>Wins (all modes)</span></div><div><b>${s.wrecks}</b><span>Mechs wrecked</span></div><div><b>${Object.keys(g.profile.achievements || {}).length}/${CW.ACHIEVEMENTS.length}</b><span>Achievements</span></div></div>
+        <h3>Stats</h3>${g.meta.statsHtml()}
         <h3>Account</h3>
         <div class="small">${this.sync.dirty ? '☁ Backing up your progress…' : '☁ Your progress is backed up to your account.'} Log in on any device (web, Windows or Android) to play with it.</div>
         <div class="small" style="margin-top:6px">📧 ${this.myEmail ? `You log in with <b>${esc(this.myEmail)}</b>` : 'No email yet: add one so you can always log in with a code'}</div>
