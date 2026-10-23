@@ -1430,12 +1430,8 @@
           m.protect = 1.5;
         }
         if (dist < 115) {
-          const travel = dist / 110;
-          const aim = tp.clone().addScaledVector(tg.vel || new V3(), travel * 0.8);
-          const j = ai.jitter * (1 + dist * 0.045); // bots miss more the farther you are
-          aim.x += (Math.random() - 0.5) * j; aim.y += (Math.random() - 0.5) * j * 0.6; aim.z += (Math.random() - 0.5) * j;
-          inp.aim = aim;
-          inp.fire = this.los(m.pos.clone().setY(m.pos.y + 1), tp);
+          inp.aim = this.botAim(ai, tg, tp, dist, dt, dist / 110);
+          inp.fire = this.botTrigger(ai, dt) && this.los(m.pos.clone().setY(m.pos.y + 1), tp);
         }
       } else if (c.pilot && c.pilot.alive) {
         const p = c.pilot;
@@ -1452,13 +1448,30 @@
         p.inp.yaw = Math.atan2(-dx, -dz);
         p.inp.jump = Math.random() < dt * 0.6;
         if (dist < 60) {
-          const aim = tp.clone();
-          const j = ai.jitter * (1 + dist * 0.07);
-          aim.x += (Math.random() - 0.5) * j; aim.y += (Math.random() - 0.5) * j; aim.z += (Math.random() - 0.5) * j;
-          p.inp.aim = aim;
-          p.inp.fire = this.los(p.center.clone(), tp);
+          p.inp.aim = this.botAim(ai, tg, tp, dist, dt, 0);
+          p.inp.fire = this.botTrigger(ai, dt) && this.los(p.center.clone(), tp);
         }
       }
+    }
+    // Bots aim like people, not like an aimbot: they react a moment late, lead moving targets only
+    // partly, their aim drifts around the target (worse far away) and they shoot in bursts.
+    botAim(ai, tg, tp, dist, dt, travel) {
+      if (ai.seenFor !== tg.c || !ai.seen) { ai.seenFor = tg.c; ai.seen = tp.clone(); ai.aimOff = new V3(); ai.offGoal = new V3(); ai.offT = 0; }
+      ai.seen.lerp(tp, Math.min(1, dt * 4)); // about a quarter second behind
+      ai.offT -= dt;
+      if (ai.offT <= 0) {
+        ai.offT = 0.5 + Math.random() * 0.8;
+        const s = ai.jitter * (1.4 + dist * 0.06);
+        ai.offGoal.set((Math.random() - 0.5) * 2 * s, (Math.random() - 0.5) * s, (Math.random() - 0.5) * 2 * s);
+      }
+      ai.aimOff.lerp(ai.offGoal, Math.min(1, dt * 3));
+      if (ai.lead === undefined) ai.lead = 0.3 + Math.random() * 0.5;
+      return ai.seen.clone().addScaledVector(tg.vel || new V3(), travel * ai.lead).add(ai.aimOff);
+    }
+    botTrigger(ai, dt) {
+      ai.burst = (ai.burst || 0) - dt;
+      if (ai.burst < -(0.7 + Math.random() * 1.1)) ai.burst = 0.9 + Math.random() * 1.3;
+      return ai.burst > 0;
     }
 
     // ---------------- events ----------------

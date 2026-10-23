@@ -116,7 +116,11 @@
       $('badgeChallenges').textContent = claim;
       $('badgeChallenges').classList.toggle('hidden', claim === 0);
       this.renderDaily();
-      $('menuChallenges').innerHTML = p.challenges.list.map((c) => this.challengeRow(c, true)).join('');
+      // the corner card shows one challenge (one you can claim first, else the next unfinished one)
+      const list = p.challenges.list;
+      const one = list.find((c) => c.progress >= c.target && !c.claimed) || list.find((c) => c.progress < c.target);
+      $('menuChallenges').innerHTML = one ? this.challengeRow(one, true) : '<div class="small">✔ All of today\'s challenges are done!</div>';
+      $('questsMore').textContent = `${list.filter((c) => c.claimed).length}/${list.length} · see all ›`;
       $('menuTip').textContent = '💡 ' + TIPS[Math.floor((Date.now() / 86400000) % TIPS.length)];
     }
 
@@ -125,6 +129,7 @@
       const p = this.game.profile;
       const ready = p.dailyClaimed !== E.day();
       $('btnDaily').classList.toggle('ready', ready);
+      $('badgeShop').classList.toggle('hidden', !ready); // the gift waits in the Shop
       $('btnDaily').innerHTML = ready ? '🎁 <b>Free gift!</b><small>Tap to claim your daily reward</small>' : `⏳ <b>Next gift in ${this.untilMidnight()}</b><small>Streak: ${p.dailyStreak || 1} day${(p.dailyStreak || 1) > 1 ? 's' : ''} · come back tomorrow</small>`;
     }
 
@@ -175,6 +180,8 @@
     openPanel(kind) {
       this.panel = kind;
       $('panel').classList.remove('hidden');
+      $('panel').classList.toggle('full', kind === 'shop'); // the Shop is a whole screen of its own
+      $('panelBody').parentElement.scrollTop = 0;
       const titles = {
         challenges: '🎯 Daily Challenges', shop: '🛒 Shop', stats: '📊 Stats', settings: '⚙ Settings', howto: '❓ How to Play', ach: '🎖 Achievements', news: '📰 What\'s new',
         profile: '👤 Profile', friends: '👥 Friends', road: '🛤 Trophy Road', pass: '🎟 Cog Pass', clubs: '🛡 Clubs', top: '📈 Leaderboard', player: '👤 Player', ranks: '⭐ Level & Ranks', arenas: '🎮 Pick a mode and arena',
@@ -227,12 +234,15 @@
         const left = this.untilMidnight();
         // Cog Pass items aren't sold, but once you have them they show up here to equip
         const sale = (kind) => CW.SHOP[kind].filter((it) => !it.pass || this.owns(kind, it.id));
+        const giftReady = p.dailyClaimed !== E.day(), streak = p.dailyStreak || 1;
         body.innerHTML = `<div class="shop-coins">🪙 <b>${p.coins}</b><span class="small">Earn coins from matches, challenges, the daily gift and the Trophy Road.</span></div>
+          <div class="shop-gift ${giftReady ? 'ready' : ''}"><span class="g-ico">🎁</span><div><b>Daily gift</b><br><span>${giftReady ? `Free coins! Come back every day for a bigger gift.` : `Next gift in ${left} · streak ${streak} day${streak > 1 ? 's' : ''}`}</span></div>${giftReady ? '<button class="ws-btn on" id="shopGift">Claim</button>' : ''}</div>
           <h3>🔥 Daily deals <span class="small" id="dealTimer">new deals in ${left}</span></h3>
           <div class="shop-grid">${deals.length ? deals.map((d) => item(d.kind, d.it, true)).join('') : '<div class="small">You own everything in the shop. Wow!</div>'}</div>
           <h3>🎨 Paints <span class="small">for your mechs, in the Workshop's Paint section</span></h3><div class="shop-grid">${sale('paints').map((it) => item('paints', it)).join('')}</div>
           <h3>✨ Dash trails</h3><div class="shop-grid">${sale('trails').map((it) => item('trails', it)).join('')}</div>
           <h3>🙂 Avatars <span class="small">${this.game.account.loggedIn ? 'shown on your profile, in rooms and on the leaderboard' : 'log in to wear them'}</span></h3><div class="shop-grid">${sale('avatars').map((it) => item('avatars', it)).join('')}</div>`;
+        if ($('shopGift')) $('shopGift').onclick = () => { $('shopGift').disabled = true; this.claimDaily(); };
         body.querySelectorAll('.buy').forEach((b) => {
           b.onclick = () => {
             const it = CW.SHOP[b.dataset.kind].find((x) => x.id === b.dataset.id);
@@ -374,6 +384,9 @@
         body.innerHTML = `<div class="small">${n} / ${CW.ACHIEVEMENTS.length} unlocked. Each one pays coins.</div><div class="ach-grid">${CW.ACHIEVEMENTS.map((a) => `<div class="ach ${got[a.id] ? 'got' : ''}"><b>${got[a.id] ? '🏆' : '🔒'} ${a.name}</b><span class="small">${a.desc}</span><div class="small">+${a.reward} 🪙</div></div>`).join('')}</div>`;
       } else if (k === 'news') {
         body.innerHTML = `<ul class="news">
+          <li><b>v1.4</b>: 🎨 A cleaner, lighter menu: one color scheme, smaller buttons, PLAY in the corner, a see-through match HUD and a full-screen Shop (your daily gift is in there now).</li>
+          <li>🎯 6 daily challenges (tap the challenge card to see them all), and bots aim like people now instead of never missing.</li>
+          <li>🔒 Your coins, XP, unlocks and Shop are kept on the server even without an account, and mechs in online matches are checked, so nobody can cheat their way ahead.</li>
           <li><b>v1.3</b>: 🎟 <b>Cog Pass</b>: a free 30-tier reward track every 4 weeks, with paints, trails and avatars you can't buy. Earn pass points from matches, challenges and the daily gift.</li>
           <li>🛡 <b>Clubs</b>: start or join a club of up to 30 players, add up your trophies together and cheer each other on the club wall.</li>
           <li>🧰 <b>Gadgets</b>: Repair Kit, Proximity Mine, Jump Jets or Smoke Screen, 3 uses a match (G / 🧰). Pick yours in the PLAY panel.</li>
@@ -547,6 +560,7 @@
       $('btnDaily').onclick = () => g.meta.claimDaily();
       setInterval(() => { if (g.state === 'menu') g.meta.renderDaily(); }, 30000);
       $('btnChallenges').onclick = () => g.meta.openPanel('challenges');
+      $('questsCard').onclick = (e) => { if (!e.target.closest('button')) g.meta.openPanel('challenges'); };
       $('btnShop').onclick = () => g.meta.openPanel('shop');
       $('btnStats').onclick = () => g.meta.openPanel('stats');
       $('btnSettings').onclick = () => g.meta.openPanel('settings');
@@ -573,5 +587,5 @@
   }
 
   CW.Meta = Meta;
-  CW.today = today;
+  CW.today = () => E.day();
 })();
