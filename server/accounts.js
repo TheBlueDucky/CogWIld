@@ -668,6 +668,8 @@ class Accounts {
     if (!w.pass || w.pass.s !== s) w.pass = { s, pts: 0, claimed: [] };
     const d = E.day();
     if (w.earn.day !== d) w.earn = { day: d, total: 0, ads: 0, off: 0, offXp: 0, last: w.earn.last || 0 };
+    for (const f of ['total', 'ads', 'off', 'offXp', 'last']) if (!Number.isFinite(w.earn[f])) w.earn[f] = 0; // wallets from older versions
+    if (!Number.isFinite(w.coins)) w.coins = 0;
     if (w.ch.day !== d) w.ch = { day: d, got: [] };
     return w;
   }
