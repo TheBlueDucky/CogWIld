@@ -425,7 +425,7 @@
       if (!p) return;
       const lead = this.me && p.leader === this.me.name;
       bar.innerHTML = `<div class="pt-head"><b>🎉 Party ${p.members.length}/4</b><button class="link-btn" id="partyLeave">Leave</button></div>
-        <div class="party-row">${p.members.map((f) => `<span class="party-m ${f.name === p.leader ? 'lead' : ''}" title="${esc(f.name)}${f.name === p.leader ? ' (leader)' : ''}">${CW.avatar(f.av)}<small>${f.name === p.leader ? '👑 ' : ''}${esc(f.name)}</small></span>`).join('')}</div>
+        <div class="party-row">${p.members.map((f) => `<span class="party-m ${f.name === p.leader ? 'lead' : ''}" aria-label="${esc(f.name)}${f.name === p.leader ? ' (leader)' : ''}">${CW.avatar(f.av)}<small>${f.name === p.leader ? '👑 ' : ''}${esc(f.name)}</small></span>`).join('')}</div>
         <div class="small">${lead ? 'You lead: press PLAY and your party comes along.' : `${esc(p.leader)} picks the match. You'll follow them in.`}</div>`;
       $('partyLeave').onclick = () => this.net.send({ t: 'partyLeave' });
     }
@@ -533,10 +533,14 @@
       this.applyWallet(m.w);
       if (m.bought) g.meta.afterBuy(m.bought.kind, m.bought.id);
       if (m.gift) g.meta.giftToast(m.gift);
-      if (m.road || m.pass) {
+      // "Claim all" on the Cog Pass: one fanfare and one message for the whole batch
+      if (m.pass && this.passBatch && this.passBatch.left > 1) this.passBatch.left--;
+      else if (m.road || m.pass) {
         const what = this.rewardText(Object.assign({ coins: m.reward.coins }, ...m.reward.got.map((x) => ({ [x.kind]: x.id }))));
+        const batch = m.pass && this.passBatch && this.passBatch.n > 1 ? this.passBatch.n : 0;
+        this.passBatch = null;
         g.audio.fanfare();
-        g.toast(`🎁 ${m.road ? 'Trophy Road' : 'Cog Pass'}: ${what || 'claimed'}!`);
+        g.toast(batch ? `🎁 Cog Pass: ${batch} rewards claimed!` : `🎁 ${m.road ? 'Trophy Road' : 'Cog Pass'}: ${what || 'claimed'}!`);
         g.workshop.buildPaint();
       }
       if (m.src === 'match' && m.pts && g.state === 'results') $('resPass').textContent = `🎟 +${m.pts} Cog Pass points`;
@@ -553,8 +557,9 @@
       if (!w) return 0;
       return CW.ECON.passRewards(w.pass.s).filter((r) => r.at <= w.pass.pts && !w.pass.claimed.includes(r.tier)).length;
     }
+    // a whole screen: your tier + how to earn points on top, then the 30 tiers as a track you scroll sideways
     passPanel(body) {
-      const E = CW.ECON, g = this.game;
+      const E = CW.ECON;
       const ss = E.season();
       if (!this.wallet) {
         body.innerHTML = `<div class="small">The Cog Pass is a free reward track that starts over every 4 weeks, with paints, trails and avatars you can't buy in the Shop. It needs an internet connection.</div>`;
@@ -562,24 +567,72 @@
       }
       const ps = this.wallet.pass;
       const list = E.passRewards(ps.s);
-      const tier = Math.min(E.PASS.tiers, Math.floor(ps.pts / E.PASS.perTier));
-      const into = ps.pts - tier * E.PASS.perTier;
+      const per = E.PASS.perTier, max = E.PASS.tiers;
+      const tier = Math.min(max, Math.floor(ps.pts / per));
+      const into = tier >= max ? per : ps.pts - tier * per;
+      const hex = (c) => '#' + c.toString(16).padStart(6, '0');
+      const what = (r) => (r.paints ? ['paints', r.paints] : r.trails ? ['trails', r.trails] : r.avatars ? ['avatars', r.avatars] : null);
       const look = (r) => {
-        const it = r.paints ? ['paints', r.paints] : r.trails ? ['trails', r.trails] : r.avatars ? ['avatars', r.avatars] : null;
-        if (!it) return `🪙 ${r.coins}`;
+        const it = what(r);
+        if (!it) return `<div class="pt-pic coin">🪙</div><small>${r.coins} coins</small>`;
         const x = E.item(it[0], it[1]);
-        const pic = it[0] === 'paints' ? `<div class="swatch tex" style="background:#${x.color.toString(16).padStart(6, '0')} url(${CW.texURL('panel')}) center/160% auto;background-blend-mode:multiply"></div>`
-          : it[0] === 'trails' ? `<div class="swatch trail" style="background:linear-gradient(90deg,${x.colors.map((c) => '#' + c.toString(16).padStart(6, '0')).join(',')})"></div>` : `<span style="font-size:30px">${CW.avatar(x.idx)}</span>`;
-        return `${pic}<small>${x.name}${r.coins ? ` + 🪙${r.coins}` : ''}</small>`;
+        const pic = it[0] === 'paints' ? `<div class="pt-pic swatch tex" style="background:${hex(x.color)} url(${CW.texURL('panel')}) center/160% auto;background-blend-mode:multiply"></div>`
+          : it[0] === 'trails' ? `<div class="pt-pic swatch trail" style="background:linear-gradient(90deg,${x.colors.map(hex).join(',')})"><i></i><i></i><i></i></div>` : `<div class="pt-pic av">${CW.avatar(x.idx)}</div>`;
+        return `${pic}<small>${x.name}<br><span>${{ paints: 'Paint', trails: 'Dash trail', avatars: 'Avatar' }[it[0]]}${r.coins ? ` + 🪙${r.coins}` : ''}</span></small>`;
       };
-      body.innerHTML = `<div class="pass-head"><b>🎟 Season ${ps.s}</b><span class="small">ends in ${CW.timeLeft(ss.end - Date.now())}</span>
-          <div class="ch-bar" title="${into} / ${E.PASS.perTier}"><i style="width:${tier >= E.PASS.tiers ? 100 : Math.round((into / E.PASS.perTier) * 100)}%"></i></div><b>Tier ${tier} / ${E.PASS.tiers}</b></div>
-        <div class="small">Earn pass points: up to ${E.PASS.match} per match (more for winning, featured and weekly events), ${E.PASS.challenge} per daily challenge and ${E.PASS.gift} for the daily gift. You have <b>${ps.pts}</b>.</div>
-        <div class="pass-track">${list.map((r) => {
-          const reached = ps.pts >= r.at, claimed = ps.claimed.includes(r.tier);
-          return `<div class="pass-tier ${reached ? 'reached' : ''} ${claimed ? 'claimed' : ''} ${r.tier % 5 === 0 ? 'big' : ''}"><span class="tier-n">Tier ${r.tier}</span><div class="tier-r">${look(r)}</div>${claimed ? '<span class="owned">✔</span>' : reached ? `<button class="ws-btn on" data-tier="${r.tier}">Claim!</button>` : '<span class="small">🔒</span>'}</div>`;
-        }).join('')}</div>`;
-      body.querySelectorAll('[data-tier]').forEach((b) => (b.onclick = () => { b.disabled = true; this.net.send({ t: 'passClaim', tier: +b.dataset.tier }); }));
+      const ready = list.filter((r) => ps.pts >= r.at && !ps.claimed.includes(r.tier));
+      const next = list.find((r) => ps.pts < r.at);
+      const nextBig = list.find((r) => ps.pts < r.at && what(r));
+      const nextName = (r) => { const it = what(r); return it ? E.item(it[0], it[1]).name : `🪙 ${r.coins}`; };
+      // the line under the tier numbers: filled up to your points (each tier column is W wide with a G gap)
+      const W = 112, G = 10, PAD = 16;
+      const fill = Math.max(0, Math.min(PAD + (max - 1) * (W + G) + W / 2, PAD + (ps.pts / per - 1) * (W + G) + W / 2));
+      const old = body.querySelector('.pt-scroll');
+      const keep = old ? old.scrollLeft : null;
+      body.innerHTML = `
+        <div class="pass-top">
+          <div class="pass-me">
+            <div class="pass-badge"><small>Tier</small><b>${tier}</b></div>
+            <div class="pass-prog">
+              <div class="pass-season">Season ${ps.s} · ends in ${CW.timeLeft(ss.end - Date.now())}</div>
+              <div class="pass-bar2"><i style="width:${Math.round((into / per) * 100)}%"></i><span>${tier >= max ? 'All tiers done!' : `${into} / ${per} points`}</span></div>
+              <div class="pass-next">${tier >= max ? 'You finished this season\'s pass. New rewards next season!' : `<b>${per - into}</b> more points to <b>tier ${tier + 1}</b> (${nextName(next)})`}${nextBig && nextBig !== next ? ` · ★ ${nextName(nextBig)} at tier ${nextBig.tier}` : ''}</div>
+            </div>
+            ${ready.length ? `<button class="ws-btn on pass-claimall" id="passClaimAll">🎁 Claim ${ready.length > 1 ? `all ${ready.length}` : 'reward'}</button>` : ''}
+          </div>
+          <div class="pass-how">
+            <b>How to tier up</b>
+            <div class="pass-ways">
+              <span><i>🎮</i>Play matches<em>up to +${E.PASS.match}</em></span>
+              <span><i>🎯</i>Daily challenges<em>+${E.PASS.challenge} each</em></span>
+              <span><i>🎁</i>Daily gift<em>+${E.PASS.gift}</em></span>
+            </div>
+            <small>Every ${per} points = 1 tier. Wins, featured and weekly events give the most points.</small>
+          </div>
+        </div>
+        <div class="pt-scroll"><div class="pt-track" style="--w:${W}px;--g:${G}px;--pad:${PAD}px;width:${PAD * 2 + max * W + (max - 1) * G}px">
+          <div class="pt-line"><i style="width:${fill}px"></i></div>
+          ${list.map((r) => {
+            const reached = ps.pts >= r.at, claimed = ps.claimed.includes(r.tier);
+            const st = claimed ? 'claimed' : reached ? 'ready' : r.tier === tier + 1 ? 'next' : 'locked';
+            const act = claimed ? '<span class="pt-done">✔ Claimed</span>'
+              : reached ? `<button class="ws-btn on" data-tier="${r.tier}">Claim</button>`
+                : `<span class="pt-lock">🔒 ${r.at - ps.pts} pts to go</span>`;
+            return `<div class="pt-col ${st} ${r.tier % 5 === 0 ? 'big' : ''}" data-col="${r.tier}"><div class="pt-node">${r.tier}</div><div class="pt-card">${r.tier % 5 === 0 ? '<em>★</em>' : ''}${look(r)}</div>${act}</div>`;
+          }).join('')}
+        </div></div>`;
+      const sc = body.querySelector('.pt-scroll');
+      // first look: your next tier in the middle; after a claim: stay where you were
+      sc.scrollLeft = keep !== null ? keep : Math.max(0, PAD + tier * (W + G) + W / 2 - sc.clientWidth / 2);
+      // a mouse wheel scrolls the track sideways
+      sc.onwheel = (e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { sc.scrollLeft += e.deltaY; e.preventDefault(); } };
+      const claim = (t) => this.net.send({ t: 'passClaim', tier: t });
+      body.querySelectorAll('[data-tier]').forEach((b) => (b.onclick = () => { b.disabled = true; claim(+b.dataset.tier); }));
+      if ($('passClaimAll')) $('passClaimAll').onclick = () => {
+        $('passClaimAll').disabled = true;
+        this.passBatch = { left: ready.length, n: ready.length };
+        ready.forEach((r) => claim(r.tier));
+      };
     }
 
     // ======================= Trophy Road =======================
@@ -631,7 +684,7 @@
       const on = (sel, fn) => body.querySelectorAll(sel).forEach((b) => (b.onclick = () => fn(b)));
       const row = (cl) => `<div class="club-row"><span style="font-size:26px">${badge(cl.badge)}</span><b>${esc(cl.name)}</b><span class="small">👥 ${cl.members}/30 · 🏆 ${cl.tro}${cl.minTro ? ` · needs ${cl.minTro}` : ''}${cl.open ? '' : ' · 🔒 closed'}</span>
         <button class="ws-btn" data-peek="${esc(cl.id)}">View</button>${cl.open && cl.members < 30 && (this.me.tro | 0) >= cl.minTro ? `<button class="ws-btn on" data-join="${esc(cl.id)}">Join</button>` : ''}</div>`;
-      const members = (cl, mine) => cl.list.map((p) => `<div class="club-row"><span>${CW.avatar(p.av)}</span><b class="fr-name" data-view="${esc(p.name)}">${esc(p.name)}${p.role === 'owner' ? ' 👑' : ''}</b><span class="small">${p.on ? '🟢' : '⚫'} 🏆 ${p.tro}</span>${mine && this.club.list.some((x) => x.name === this.me.name && x.role === 'owner') && p.name !== this.me.name ? `<button class="tod-btn" data-kick="${esc(p.name)}" title="Remove from the club">✖</button>` : ''}</div>`).join('');
+      const members = (cl, mine) => cl.list.map((p) => `<div class="club-row"><span>${CW.avatar(p.av)}</span><b class="fr-name" data-view="${esc(p.name)}">${esc(p.name)}${p.role === 'owner' ? ' 👑' : ''}</b><span class="small">${p.on ? '🟢' : '⚫'} 🏆 ${p.tro}</span>${mine && this.club.list.some((x) => x.name === this.me.name && x.role === 'owner') && p.name !== this.me.name ? `<button class="tod-btn" data-kick="${esc(p.name)}" aria-label="Remove from the club">✖</button>` : ''}</div>`).join('');
       const head = (cl) => `<div class="club-card"><span class="club-badge">${badge(cl.badge)}</span><div style="flex:1"><b style="font-size:20px">${esc(cl.name)}</b><div class="small">${esc(cl.desc || '')}</div><div class="small">🏆 <b>${cl.tro}</b> club trophies · 👥 ${cl.members}/30 · ${cl.open ? '🔓 open' : '🔒 closed'}${cl.minTro ? ` · needs 🏆 ${cl.minTro}` : ''}</div></div></div>`;
       if (this.club) {
         const cl = this.club;
@@ -684,7 +737,7 @@
         `<h3>Pick your avatar</h3><div class="av-grid">${CW.AVATARS.map((a, i) => {
           const prem = CW.SHOP.avatars.find((x) => x.idx === i);
           const locked = prem && !g.profile.owned.avatars.includes(prem.id);
-          return `<button class="av-btn ${i === me.av ? 'on' : ''} ${locked ? 'locked' : ''}" ${locked ? 'data-shop="1" title="Unlock it in the Shop or on the Trophy Road"' : `data-av="${i}"`}>${a}${locked ? '<i>🔒</i>' : ''}</button>`;
+          return `<button class="av-btn ${i === me.av ? 'on' : ''} ${locked ? 'locked' : ''}" ${locked ? 'data-shop="1" aria-label="Unlock it in the Shop or on the Trophy Road"' : `data-av="${i}"`}>${a}${locked ? '<i>🔒</i>' : ''}</button>`;
         }).join('')}</div>
         <h3>Stats</h3>${g.meta.statsHtml()}
         <h3>Account</h3>
@@ -739,6 +792,7 @@
     }
     showPlayer(name, back) { this.backTo = back; this.viewing = null; this.game.meta.openPanel('player'); this.net.send({ t: 'profile', name }); }
     friendsPanel(body) {
+      if (!this.me) { body.innerHTML = `<div class="small">Log in to add friends and make a party.</div>`; return; }
       const net = this.net;
       const inRoom = net.room && net.room.state === 'lobby';
       const party = this.party;
@@ -750,11 +804,11 @@
         `<h3>Friends (${this.friends.filter((f) => f.on).length} online / ${this.friends.length})</h3>` +
         (order.length ? order.map((f) => `<div class="fr-row ${f.on ? 'on' : ''}"><span class="av">${CW.avatar(f.av)}</span><b class="fr-name" data-view="${esc(f.name)}">${esc(f.name)}</b>
           <span class="small">${f.on ? STATUS[f.st] || '🟢 Online' : '⚫ Offline'} · 🏆 ${f.tro}</span>
-          ${f.on && !inParty(f.name) ? `<button class="ws-btn" data-party="${esc(f.name)}" title="Invite to your party">🎉 Party</button>` : ''}
-          ${f.on && inRoom ? `<button class="ws-btn" data-inv="${esc(f.name)}" title="Invite to the room you're in">📨 Invite</button>` : ''}
-          ${f.room && (!net.room || net.room.code !== f.room) ? `<button class="ws-btn on" data-join="${esc(f.room)}" title="Join their room">▶ Join</button>` : ''}
-          ${f.watch ? `<button class="ws-btn on" data-watch="${esc(f.name)}" title="Watch their match (they'll see you're watching)">👁 Watch</button>` : ''}
-          <button class="ws-btn" data-rem="${esc(f.name)}" title="Remove friend">✖</button></div>`).join('') : '<div class="small">No friends yet. Add someone by their username!</div>') +
+          ${f.on && !inParty(f.name) ? `<button class="ws-btn" data-party="${esc(f.name)}" aria-label="Invite to your party">🎉 Party</button>` : ''}
+          ${f.on && inRoom ? `<button class="ws-btn" data-inv="${esc(f.name)}" aria-label="Invite to the room you're in">📨 Invite</button>` : ''}
+          ${f.room && (!net.room || net.room.code !== f.room) ? `<button class="ws-btn on" data-join="${esc(f.room)}" aria-label="Join their room">▶ Join</button>` : ''}
+          ${f.watch ? `<button class="ws-btn on" data-watch="${esc(f.name)}" aria-label="Watch their match (they'll see you're watching)">👁 Watch</button>` : ''}
+          <button class="ws-btn" data-rem="${esc(f.name)}" aria-label="Remove friend">✖</button></div>`).join('') : '<div class="small">No friends yet. Add someone by their username!</div>') +
         (this.reqOut.length ? `<h3>Sent requests</h3>${this.reqOut.map((n) => `<div class="fr-row"><b>${esc(n)}</b><span class="small">waiting…</span><button class="ws-btn" data-dec="${esc(n)}">Cancel</button></div>`).join('')}` : '');
       $('frForm').onsubmit = (e) => { e.preventDefault(); const n = $('frName').value.trim(); if (n) net.send({ t: 'friendAdd', name: n }); $('frName').value = ''; };
       const on = (sel, fn) => body.querySelectorAll(sel).forEach((b) => (b.onclick = () => fn(b)));

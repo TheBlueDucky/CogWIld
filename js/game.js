@@ -647,6 +647,7 @@
     // the top-most thing Esc can close: a pop-up, the login box, a panel, the mech picker, the online screen
     closeTop() {
       const open = (id) => $(id) && !$(id).classList.contains('hidden');
+      if (open('confirm')) { this.meta.closeConfirm(); return true; }
       if (open('modal')) { this.closeModal(); return true; }
       if (open('acct')) { if (!this.account.loginRequired()) $('acct').classList.add('hidden'); return true; }
       if (open('panel')) { this.meta.closePanel(); return true; }

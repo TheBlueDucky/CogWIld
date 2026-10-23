@@ -31,6 +31,7 @@ Then run one with `desktop/node_modules/.bin/electron tests/<file>.js` (screensh
 | `wall-aim-test.js` | a mech hopping into a cliff stays below it, camera stays out of the cliff, touch aim assist turns toward enemies |
 | `chat-test.js` | a quick-chat line shows once for the sender and once for the other player |
 | `hover-test.js` | pointing at a settings row turns its text blue, no outline box |
+| `menu-shots.js` | Shop (whole-card hover outline, "Buy it?" pop-up, Esc, a real purchase, no hover text), Cog Pass (also claimable tiers) and every Settings category (`SIZES=1280x720,915x412,780x350`) |
 | `ui-shots.js` | screenshots of lobby, panels, Workshop, a match and results (`SIZES=1280x720,800x450`; run one size per process) |
 
 ## Live checks (against https://cogwild.duckdns.org, they clean up after themselves)

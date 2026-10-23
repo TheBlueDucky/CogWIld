@@ -5,7 +5,7 @@ You build a mech from parts in the Workshop, then fight online (bots fill empty 
 It runs in the browser (three.js r128, no build step), as a Windows app (Electron) and an Android app (Capacitor),
 and on game portals (itch.io, CrazyGames, Poki). The online server is zero-dependency Node.js.
 
-**Live:** https://cogwild.duckdns.org (download page `/download`) · **Current version:** v1.6.4 · **Online protocol:** `cogwild-net-8`
+**Live:** https://cogwild.duckdns.org (download page `/download`) · **Current version:** v1.6.5 · **Online protocol:** `cogwild-net-8`
 The user is not a programmer: explain things in plain words, test everything yourself, and show screenshots as proof.
 
 ## How the user wants things done
@@ -21,7 +21,9 @@ The user is not a programmer: explain things in plain words, test everything you
   no fat outlines, no bright fills), menu titles gray-blue (`--muted2 #9fb3d9`) in sentence case and not too bold,
   dark text fields (`color-scheme: dark`), less rounded corners (`--rad 10px`), a cyan outline on hover for clickable
   buttons (not PLAY, not settings rows: their text turns the title gray-blue `--muted2` on hover), no gold/yellow focus outlines,
-  Esc closes any menu/pop-up (also the Workshop). Brawl Stars-like, but not a copy. Must fit phones (Galaxy A57 sideways
+  Esc closes any menu/pop-up (also the Workshop). No hover text on anything (no `title=`; use `aria-label`).
+  Shop cards are clickable as a whole (gray-blue `--muted2` outline all around on hover) and ask "Buy it?" first.
+  Shop, Cog Pass (sideways tier track, Brawl Stars-like) and Settings (a button per category) are full screens. Brawl Stars-like, but not a copy. Must fit phones (Galaxy A57 sideways
   ≈ 915×412; also check 780×350).
 - Lobby layout: left = Shop, Workshop, Challenges, Achievements, Help; right = Friends, Clubs, Leaderboard, Trophy
   Road, News; top-left chip = Profile (stats live in Profile); bottom-left = party card, Cog Pass bar, one challenge;

@@ -113,7 +113,7 @@
         b.className = 'paint';
         CW.paintSwatch(b, c);
         b.dataset.color = c;
-        b.title = 'Paint your mech';
+        b.setAttribute('aria-label', 'Paint your mech');
         b.onclick = () => {
           if (!this.bp) return;
           this.pushUndo();
@@ -506,7 +506,7 @@
         ['⛰ Land', land],
         ['🌊 Water', water],
         ['☁ Air', air],
-        ['Super', (() => { const sp = CW.SUPERS && CW.SUPERS[CW.superFor(this.bp.parts)]; return sp ? `<span title="${sp.desc}">${sp.icon} ${sp.name}</span>` : '—'; })()],
+        ['Super', (() => { const sp = CW.SUPERS && CW.SUPERS[CW.superFor(this.bp.parts)]; return sp ? `<span aria-label="${sp.desc}">${sp.icon} ${sp.name}</span>` : '—'; })()],
       ];
       $('wsStats').innerHTML = rows.map(([k, v]) => `<div class="row"><span>${k}</span><span>${v}</span></div>`).join('');
       $('wsWarn').innerHTML =
@@ -526,13 +526,13 @@
         const dots = [...s.domains].map((d) => `<span class="dom-dot" style="background:${CW.DOMAINS[d].color}"></span>`).join('');
         const locked = s.domains.size > allowed;
         row.innerHTML = `<span class="bp-name">${CW.esc(bp.name)}</span><span class="bp-meta">${dots}${locked ? ' 🔒' : ''} ${s.cost}</span>`;
-        row.title = bp.desc || '';
+        row.setAttribute('aria-label', bp.name + (bp.desc ? ': ' + bp.desc : ''));
         row.onclick = () => { this.load(bp); this.game.toast(`Loaded "${bp.name}"`); };
         if (kind === 'saved') {
           const del = document.createElement('button');
           del.className = 'bp-del';
           del.textContent = '✕';
-          del.title = 'Delete';
+          del.setAttribute('aria-label', 'Delete');
           del.onclick = (e) => {
             e.stopPropagation();
             this.game.blueprints.splice(idx, 1);

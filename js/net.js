@@ -360,9 +360,9 @@
           ${p.acct ? `<span class="lb-av">${CW.avatar(p.av)}</span>` : ''}
           <b>${esc(p.name)}${p.id === this.id ? ' (you)' : ''}</b>${p.acct ? `<span class="lb-tro-s">🏆${p.tro | 0}</span>` : ''}
           <span class="small">${mode.fromScratch ? 'builds in match' : '🤖 ' + esc(p.bpName || '?')}</span>
-          ${host && p.id !== this.id ? `<button class="tod-btn" data-kick="${p.id}" title="Remove from room">✖</button>` : ''}</div>`).join('') +
-        r.bots.map((b) => `<div class="lb-player"><span class="lb-ready">🤖</span><b>${esc(b.name)}</b><span class="small" title="A player who joins takes this seat">bot</span>
-          ${host ? `<button class="tod-btn" data-kick="${b.id}" title="Remove this bot">✖</button>` : ''}</div>`).join('') +
+          ${host && p.id !== this.id ? `<button class="tod-btn" data-kick="${p.id}" aria-label="Remove from room">✖</button>` : ''}</div>`).join('') +
+        r.bots.map((b) => `<div class="lb-player"><span class="lb-ready">🤖</span><b>${esc(b.name)}</b><span class="small" aria-label="A player who joins takes this seat">bot</span>
+          ${host ? `<button class="tod-btn" data-kick="${b.id}" aria-label="Remove this bot">✖</button>` : ''}</div>`).join('') +
         `<div class="small" style="margin-top:6px">Empty slots are filled with bots.${g.account && g.account.loggedIn ? ' <button class="ws-btn" id="lbFriends">👥 Invite friends</button>' : ''}</div>`;
       if ($('lbFriends')) $('lbFriends').onclick = () => g.meta.openPanel('friends');
       $('lbPlayers').querySelectorAll('[data-kick]').forEach((b) => (b.onclick = () => this.send({ t: 'kick', id: +b.dataset.kick })));

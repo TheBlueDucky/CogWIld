@@ -41,7 +41,7 @@
     }
 
     build() {
-      const btn = (ids, extra) => ids.map((id) => BUTTONS.find((b) => b[0] === id)).map(([id, label]) => `<button class="t-btn t-${id} ${extra || ''}" data-t="${id}" ${id === 'exit' ? 'title="Hold to get out"' : ''}>${label}</button>`).join('');
+      const btn = (ids, extra) => ids.map((id) => BUTTONS.find((b) => b[0] === id)).map(([id, label]) => `<button class="t-btn t-${id} ${extra || ''}" data-t="${id}" ${id === 'exit' ? 'aria-label="Hold to get out"' : ''}>${label}</button>`).join('');
       const root = document.createElement('div');
       root.id = 'touch';
       root.className = 'hidden';

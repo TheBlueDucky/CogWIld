@@ -13,6 +13,7 @@
     el.style.backgroundBlendMode = 'multiply';
   };
   const swatchStyle = (c, tex) => `background:${hex(c)} url(${CW.texURL(tex || 'panel')}) center/160% auto;background-blend-mode:multiply`;
+  const SHOP_LABEL = { paints: 'Paint', trails: 'Dash trail', avatars: 'Avatar' };
 
   // the Shop's catalog lives in js/economy.js (CW.SHOP), shared with the server
 
@@ -162,6 +163,37 @@
     // gifts, deals and challenges renew at midnight UTC
     untilMidnight() { return CW.timeLeft(E.nextMidnight() - Date.now()); }
 
+    // what a shop item looks like (its card and the "buy it?" pop-up)
+    shopLook(kind, it) {
+      return kind === 'paints' ? `<div class="swatch tex" style="${swatchStyle(it.color)}"></div>`
+        : kind === 'trails' ? `<div class="swatch trail" style="background:${it.colors.length > 1 ? `linear-gradient(90deg,${it.colors.map(hex).join(',')})` : hex(it.colors[0])}"><i></i><i></i><i></i></div>`
+          : `<div class="swatch av">${CW.avatar(it.idx)}</div>`;
+    }
+    // "Buy it?" pop-up before any coins are spent
+    confirmBuy(kind, it, deal) {
+      const p = this.game.profile;
+      const price = deal ? this.dealPrice(it) : it.price;
+      const short = price - p.coins;
+      $('confirmLook').innerHTML = this.shopLook(kind, it);
+      $('confirmTitle').textContent = `Buy ${it.name}?`;
+      $('confirmKind').textContent = SHOP_LABEL[kind] + (deal ? ' · daily deal, 30% off' : '');
+      $('confirmPrice').innerHTML = `${deal ? `<s>${it.price}</s> ` : ''}${price} 🪙`;
+      $('confirmDesc').innerHTML = short > 0 ? `You have ${p.coins} 🪙. You need <b>${short}</b> more coins.`
+        : `You have ${p.coins} 🪙, ${p.coins - price} 🪙 left after buying.`;
+      $('confirmOk').textContent = short > 0 ? 'Not enough coins' : `Buy for ${price} 🪙`;
+      $('confirmOk').disabled = short > 0;
+      $('confirmOk').onclick = () => {
+        // the server sets the price, takes the coins and sends back the new wallet (see afterBuy)
+        if (!this.game.account.walletLive) { this.closeConfirm(); return this.game.toast('🛒 The Shop needs an internet connection'); }
+        $('confirmOk').disabled = true;
+        this.game.account.net.send({ t: 'buy', kind, id: it.id });
+        this.closeConfirm();
+      };
+      $('confirm').classList.remove('hidden');
+      setTimeout(() => !$('confirmOk').disabled && $('confirmOk').focus(), 30);
+    }
+    closeConfirm() { $('confirm').classList.add('hidden'); }
+
     // a new paint/trail/avatar: wear it right away
     afterBuy(kind, id) {
       const p = this.game.profile;
@@ -180,7 +212,10 @@
     openPanel(kind) {
       this.panel = kind;
       $('panel').classList.remove('hidden');
-      $('panel').classList.toggle('full', kind === 'shop'); // the Shop is a whole screen of its own
+      // the Shop, Cog Pass and Settings are whole screens of their own
+      $('panel').classList.toggle('full', ['shop', 'pass', 'settings'].includes(kind));
+      $('panel').dataset.kind = kind;
+      $('panelBody').innerHTML = '';
       $('panelBody').parentElement.scrollTop = 0;
       const titles = {
         challenges: '🎯 Daily challenges', shop: '🛒 Shop', stats: '📊 Stats', settings: '⚙ Settings', howto: '❓ How to play', ach: '🎖 Achievements', news: '📰 What\'s new',
@@ -232,18 +267,17 @@
         });
       } else if (k === 'shop') {
         const deals = this.dailyDeals();
+        // the whole card is the button: click to buy (asks first) or to equip
         const item = (kind, it, deal) => {
           const own = this.owns(kind, it.id);
           const price = deal ? this.dealPrice(it) : it.price;
           const eq = (kind === 'trails' && p.trail === it.id) || (kind === 'avatars' && this.game.account.me && this.game.account.me.av === it.idx);
-          const look = kind === 'paints' ? `<div class="swatch tex" style="${swatchStyle(it.color)}"></div>`
-            : kind === 'trails' ? `<div class="swatch trail" style="background:${it.colors.length > 1 ? `linear-gradient(90deg,${it.colors.map(hex).join(',')})` : hex(it.colors[0])}"><i></i><i></i><i></i></div>`
-              : `<div class="swatch av">${CW.avatar(it.idx)}</div>`;
-          const label = { paints: 'Paint', trails: 'Dash trail', avatars: 'Avatar' }[kind];
-          const btn = eq ? '<span class="owned">★ Equipped</span>'
-            : own ? (kind === 'paints' ? '<span class="owned">✔ Owned</span>' : `<button class="ws-btn equip" data-kind="${kind}" data-id="${it.id}">Equip</button>`)
-              : `<button class="ws-btn buy ${deal ? 'deal' : ''}" data-kind="${kind}" data-id="${it.id}" data-deal="${deal ? 1 : ''}">${deal ? `<s>${it.price}</s> ` : ''}${price} 🪙</button>`;
-          return `<div class="shop-item ${deal ? 'is-deal' : ''}">${deal ? '<i class="deal-tag">-30%</i>' : ''}${look}<b>${it.name}</b><span class="small">${label}</span>${btn}</div>`;
+          const act = eq || (own && kind === 'paints') ? '' : own ? 'equip' : 'buy';
+          const tag = eq ? '<span class="owned">★ Equipped</span>'
+            : own ? (kind === 'paints' ? '<span class="owned">✔ Owned</span>' : '<span class="price equip">Equip</span>')
+              : `<span class="price">${deal ? `<s>${it.price}</s> ` : ''}${price} 🪙</span>`;
+          const data = act ? ` data-act="${act}" data-kind="${kind}" data-id="${it.id}" data-deal="${deal ? 1 : ''}" role="button" tabindex="0"` : '';
+          return `<div class="shop-item ${deal ? 'is-deal' : ''} ${act ? 'can-' + act : ''}"${data}>${deal ? '<i class="deal-tag">-30%</i>' : ''}${this.shopLook(kind, it)}<b>${it.name}</b><span class="small">${SHOP_LABEL[kind]}</span>${tag}</div>`;
         };
         const left = this.untilMidnight();
         // Cog Pass items aren't sold, but once you have them they show up here to equip
@@ -257,24 +291,16 @@
           <h3>✨ Dash trails</h3><div class="shop-grid">${sale('trails').map((it) => item('trails', it)).join('')}</div>
           <h3>🙂 Avatars <span class="small">${this.game.account.loggedIn ? 'shown on your profile, in rooms and on the leaderboard' : 'log in to wear them'}</span></h3><div class="shop-grid">${sale('avatars').map((it) => item('avatars', it)).join('')}</div>`;
         if ($('shopGift')) $('shopGift').onclick = () => { $('shopGift').disabled = true; this.claimDaily(); };
-        body.querySelectorAll('.buy').forEach((b) => {
-          b.onclick = () => {
-            const it = CW.SHOP[b.dataset.kind].find((x) => x.id === b.dataset.id);
-            const price = b.dataset.deal ? this.dealPrice(it) : it.price;
-            if (p.coins < price) return this.game.toast(`Need ${price - p.coins} more coins`);
-            // the server sets the price, takes the coins and sends back the new wallet (see afterBuy)
-            if (!this.game.account.walletLive) return this.game.toast('🛒 The Shop needs an internet connection');
-            b.disabled = true;
-            this.game.account.net.send({ t: 'buy', kind: b.dataset.kind, id: it.id });
-          };
-        });
-        body.querySelectorAll('.equip').forEach((b) => {
-          b.onclick = () => {
-            const it = CW.SHOP[b.dataset.kind].find((x) => x.id === b.dataset.id);
+        body.querySelectorAll('.shop-item[data-act]').forEach((b) => {
+          const it = CW.SHOP[b.dataset.kind].find((x) => x.id === b.dataset.id);
+          const go = () => {
+            if (b.dataset.act === 'buy') return this.confirmBuy(b.dataset.kind, it, !!b.dataset.deal);
             if (b.dataset.kind === 'trails') { p.trail = it.id; this.save(); }
             if (b.dataset.kind === 'avatars') { if (!this.game.account.loggedIn) return this.game.account.openLogin('Log in to wear avatars'); this.game.account.net.send({ t: 'profileSet', av: it.idx }); }
             this.renderPanel();
           };
+          b.onclick = go;
+          b.onkeydown = (e) => { if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); go(); } };
         });
       } else if (k === 'pass') {
         this.game.account.passPanel(body);
@@ -284,10 +310,11 @@
         const s = this.settings;
         const acct = this.game.account;
         const keyRows = CW.KEY_ACTIONS.map((a) => `<div class="set-row"><span>${a.label}</span><button class="ws-btn key-btn" data-key="${a.id}">${CW.keyName((s.keys || {})[a.id] || a.def)}</button></div>`).join('');
-        body.innerHTML = `
-          <h3>👤 Account</h3>
+        const tabs = [['account', '👤', 'Account'], ['display', '🖥', 'Display'], ['controls', '🎮', 'Controls'], ['keys', '⌨', 'Keys'], ['touch', '📱', 'Touch screen'], ['sound', '🔊', 'Sound'], ['online', '🌐', 'Online'], ['save', '💾', 'Save data']];
+        body.innerHTML = `<div class="set-wrap"><nav class="set-tabs">${tabs.map(([id, ico, name]) => `<button class="set-tab" data-settab="${id}"><i>${ico}</i><span>${name}</span></button>`).join('')}</nav><div class="set-main">
+          <section class="set-sec" data-sec="account"><h3>👤 Account</h3>
           <div class="set-row"><span>${acct && acct.loggedIn ? `Logged in as <b>${CW.esc(acct.me.name)}</b> · progress backed up to the cloud` : 'Playing as a guest (progress saved on this device only)'}</span><button class="ws-btn on" id="setAcct">${acct && acct.loggedIn ? 'Profile' : 'Log in / Sign up'}</button></div>
-          <h3>🖥 Display</h3>
+          </section><section class="set-sec" data-sec="display"><h3>🖥 Display</h3>
           <label class="set-row"><span>Graphics quality</span><select id="setGfx"><option value="auto">Auto (recommended)</option><option value="low">Low (fast, for older laptops and phones)</option><option value="medium">Medium</option><option value="high">High (shadows + max detail)</option></select></label>
           <label class="set-row"><span>Field of view <b id="setFovV"></b></span><input type="range" id="setFov" min="60" max="105" step="1"></label>
           <label class="set-row"><span>Camera</span><select id="setCam"><option value="first">First person (from your Camera part)</option><option value="third">Chase (behind the mech)</option></select></label>
@@ -296,32 +323,41 @@
           <label class="set-row chk"><input type="checkbox" id="setDmg"><span>Floating damage numbers</span></label>
           <label class="set-row chk"><input type="checkbox" id="setFps"><span>Show FPS counter</span></label>
           <label class="set-row chk"><input type="checkbox" id="setClips"><span>Clip recorder: press <b>F8</b> in a match to save the last 10–20 seconds as a video (uses a little extra CPU)</span></label>
-          <h3>🎮 Controls</h3>
+          </section><section class="set-sec" data-sec="controls"><h3>🎮 Controls</h3>
           <label class="set-row"><span>Look sensitivity (mouse, stick, touch) <b id="setSensV"></b></span><input type="range" id="setSens" min="0.3" max="2.5" step="0.05"></label>
           <label class="set-row chk"><input type="checkbox" id="setInvert"><span>Invert look up/down</span></label>
           <label class="set-row chk"><input type="checkbox" id="setSteer"><span>Auto-steer: your mech turns toward where you look while driving</span></label>
           <label class="set-row"><span>Bot difficulty</span><select id="setDiff"><option value="easy">🙂 Easy</option><option value="normal">😐 Normal</option><option value="hard">😈 Hard</option></select></label>
-          <h3>⌨ Keys <button class="ws-btn" id="setKeysReset">Reset keys</button></h3>
+          </section><section class="set-sec" data-sec="keys"><h3>⌨ Keys <button class="ws-btn" id="setKeysReset">Reset keys</button></h3>
           <div class="small">Click a key, then press the new key (Esc cancels). Esc always pauses, keys 1-8 send quick chat online.</div>
           ${keyRows}
-          <h3>📱 Touch screen</h3>
+          </section><section class="set-sec" data-sec="touch"><h3>📱 Touch screen</h3>
           <label class="set-row"><span>On-screen controls</span><select id="setTouch"><option value="auto">Auto (on for touch screens)</option><option value="on">Always on</option><option value="off">Off</option></select></label>
           <label class="set-row"><span>Button size <b id="setTouchSizeV"></b></span><input type="range" id="setTouchSize" min="0.7" max="1.5" step="0.05"></label>
           <label class="set-row chk"><input type="checkbox" id="setVibrate"><span>Vibration (phones and tablets)</span></label>
           <label class="set-row chk"><input type="checkbox" id="setAimAssist"><span>Aim assist (touch: your aim is gently pulled onto enemies near the crosshair)</span></label>
-          <h3>🔊 Sound</h3>
+          </section><section class="set-sec" data-sec="sound"><h3>🔊 Sound</h3>
           <label class="set-row"><span>Volume <b id="setVolV"></b></span><input type="range" id="setVol" min="0" max="1" step="0.05"></label>
           <label class="set-row chk"><input type="checkbox" id="setMusic"><span>Music</span></label>
           <label class="set-row"><span>Music volume <b id="setMusicVolV"></b></span><input type="range" id="setMusicVol" min="0" max="1" step="0.05"></label>
-          <h3>🌐 Online</h3>
+          </section><section class="set-sec" data-sec="online"><h3>🌐 Online</h3>
           <label class="set-row chk"><input type="checkbox" id="setFriendOn"><span>Tell me when a friend comes online</span></label>
           <label class="set-row chk"><input type="checkbox" id="setChat"><span>Show other players' quick chat</span></label>
-          <h3>💾 Save data</h3>
+          </section><section class="set-sec" data-sec="save"><h3>💾 Save data</h3>
           <div class="menu-btns" style="justify-content:flex-start;margin-top:4px">
             <button class="ws-btn" id="setExport">💾 Back up save</button>
             <button class="ws-btn" id="setImport">📥 Restore save</button>
             <button class="ws-btn" id="setReset">Reset all progress…</button>
-          </div>`;
+          </div></section></div></div>`;
+        // one category at a time (the last one you looked at)
+        const showTab = (id) => {
+          this.setTab = id;
+          body.querySelectorAll('[data-settab]').forEach((b) => b.classList.toggle('on', b.dataset.settab === id));
+          body.querySelectorAll('.set-sec').forEach((x) => x.classList.toggle('on', x.dataset.sec === id));
+          body.querySelector('.set-main').scrollTop = 0;
+        };
+        body.querySelectorAll('[data-settab]').forEach((b) => (b.onclick = () => showTab(b.dataset.settab)));
+        showTab(this.setTab || 'account');
         $('setAcct').onclick = () => { if (acct.loggedIn) this.openPanel('profile'); else { this.closePanel(); acct.openLogin(); } };
         $('setFull').onclick = () => this.game.toggleFullscreen();
         $('setTouch').value = s.touch;
@@ -394,6 +430,7 @@
         body.innerHTML = `<div class="small">${n} / ${CW.ACHIEVEMENTS.length} unlocked. Each one pays coins.</div><div class="ach-grid">${CW.ACHIEVEMENTS.map((a) => `<div class="ach ${got[a.id] ? 'got' : ''}"><b>${got[a.id] ? '🏆' : '🔒'} ${a.name}</b><span class="small">${a.desc}</span><div class="small">+${a.reward} 🪙</div></div>`).join('')}</div>`;
       } else if (k === 'news') {
         body.innerHTML = `<ul class="news">
+          <li><b>v1.6.5</b>: 🎟 A new full-screen Cog Pass: your tier, how to earn points and a track of rewards you scroll sideways, with Claim all. ⚙ Settings is a full screen with a button for each category. 🛒 Click anywhere on a Shop item to buy it, after a quick "Buy it?" check. Buttons no longer show hover text.</li>
           <li><b>v1.6.4</b>: Quick chat no longer shows your own messages twice; settings rows turn gray-blue when you point at them; on phones News lines up on the right.</li>
           <li><b>v1.6.3</b>: Settings rows turn blue when you point at them instead of showing a big outline.</li>
           <li><b>v1.6.2</b>: 📱 Phones: new button layout (fire, super, gadget and dash for your right thumb, up and down next to the stick, the rest in the bottom row), hold 🚪 to get out of your mech, aim assist (Settings), and the lobby and party card fit small screens. Mechs no longer pop onto walls, the camera stays out of walls, and Esc closes the Workshop.</li>
@@ -500,7 +537,7 @@
       const lv = g.level();
       const gad = Object.entries(CW.GADGETS).map(([id, gd]) => {
         const locked = gd.level > lv;
-        return `<button class="mode-opt gad-opt ${(this.settings.gadget || 'repair') === id ? 'on' : ''} ${locked ? 'locked' : ''}" data-gadget="${id}" ${locked ? 'disabled' : ''} title="${gd.desc}"><span>${gd.icon}</span><b>${gd.name}</b><small>${locked ? `🔒 Level ${gd.level}` : gd.desc}</small></button>`;
+        return `<button class="mode-opt gad-opt ${(this.settings.gadget || 'repair') === id ? 'on' : ''} ${locked ? 'locked' : ''}" data-gadget="${id}" ${locked ? 'disabled' : ''} aria-label="${gd.desc}"><span>${gd.icon}</span><b>${gd.name}</b><small>${locked ? `🔒 Level ${gd.level}` : gd.desc}</small></button>`;
       }).join('');
       body.innerHTML = `<div class="event-cards">
           <button class="feat-card week-card ${kind === 'weekly' ? 'on' : ''}" id="weekPick"><span>${w.icon}</span><div><b>This week: ${w.name}</b><small>${wm.icon} ${wm.name} · ${w.desc} · +50% coins · ends in ${CW.timeLeft(w.endsAt - Date.now())}</small></div><em>${kind === 'weekly' ? '✔ Picked' : 'Play it'}</em></button>
@@ -584,6 +621,8 @@
       $('btnChallenges').onclick = () => g.meta.openPanel('challenges');
       $('questsCard').onclick = (e) => { if (!e.target.closest('button')) g.meta.openPanel('challenges'); };
       $('btnShop').onclick = () => g.meta.openPanel('shop');
+      $('confirmNo').onclick = () => g.meta.closeConfirm();
+      $('confirm').addEventListener('pointerdown', (e) => { if (e.target === $('confirm')) g.meta.closeConfirm(); });
       $('btnSettings').onclick = () => g.meta.openPanel('settings');
       $('btnHowto').onclick = () => g.meta.openPanel('howto');
       $('btnAch').onclick = () => g.meta.openPanel('ach');

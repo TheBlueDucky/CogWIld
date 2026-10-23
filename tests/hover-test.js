@@ -11,7 +11,7 @@ app.whenReady().then(async () => {
   await win.loadURL('http://localhost:8781/');
   await js(`localStorage.setItem('cogwild.profile', JSON.stringify({ xp: 500, settings: { tutorialDone: true, music: 0, sfx: 0 } })); location.reload();`);
   await wait(4000);
-  await js(`(window.game || CW.game).meta.openPanel('settings'); true`);
+  await js(`(window.game || CW.game).meta.openPanel('settings'); document.querySelector('[data-settab="display"]').click(); true`);
   await wait(600);
   const look = () => js(`(() => { const row = document.getElementById('setShake').closest('label'); const sp = row.querySelector('span'); const cs = getComputedStyle(row); return { text: getComputedStyle(sp).color, outline: cs.outlineStyle + ' ' + cs.outlineWidth }; })()`);
   const box = await js(`(() => { const r = document.getElementById('setShake').closest('label').getBoundingClientRect(); return { x: r.left + 120, y: r.top + r.height / 2 }; })()`);
