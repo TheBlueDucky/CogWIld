@@ -44,6 +44,7 @@ const RATE = 90; // messages per second allowed (with a burst allowance)
 const BYTE_RATE = 512 * 1024; // bytes per second a player may send (burst: 4 seconds' worth)
 const MAX_PER_IP = parseInt(process.env.MAX_PER_IP || '24', 10); // open connections from one address
 const perIp = new Map(); // ip -> open connections
+const HOST_SILENCE = 6000; // a host's game sends 20 updates a second; this long without one and it's gone
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
 
 // ======================= static files =======================
@@ -236,8 +237,29 @@ function fillAndStart(room) {
   }
   room.searchEnds = 0;
   room.settings.difficulty = botLevel(roomTro(room)); // tougher bots for higher-trophy rooms
+  room.hostId = pickHost(room); // nobody can count on running the match
   room.autoAt = Date.now(); // the timer loop nudges the host until the match begins
   sendRoom(room);
+}
+// does the host's result fit the match? null when it does, else why not
+const MAX_MATCH_SECS = 20 * 60;
+function resultProblem(room, res, n) {
+  if (!res || typeof res !== 'object') return 'no result';
+  if ((Date.now() - (room.beganAt || 0)) / 1000 > MAX_MATCH_SECS) return 'match too long';
+  const places = Object.entries(res).map(([id, p]) => [+id, p | 0]);
+  if (places.some(([, p]) => p < 1 || p > n)) return 'place out of range';
+  const solo = ['ffa', 'race'].includes(room.settings.format);
+  if (solo && new Set(places.map(([, p]) => p)).size !== places.length) return 'two players in the same place';
+  // last mech standing: whoever was knocked out first must place behind whoever lasted longer
+  if (solo && ['clash', 'rush'].includes(room.settings.mode) && room.out) {
+    for (const [a, pa] of places) {
+      for (const [b, pb] of places) {
+        const oa = room.out.get(a), ob = room.out.get(b);
+        if (a !== b && oa !== undefined && (ob === undefined || oa < ob) && pa < pb) return 'placings disagree with who was knocked out';
+      }
+    }
+  }
+  return null;
 }
 function broadcast(room, msg, exceptId) {
   const s = JSON.stringify(msg);
@@ -252,20 +274,34 @@ function leaveRoom(c, reason) {
   if (!room) return;
   room.players.delete(c.id);
   if (!room.players.size) { rooms.delete(room.code); return; }
-  if (room.state === 'playing') broadcast(room, { t: 'left', id: c.id, reason });
   if (room.hostId === c.id) {
-    room.hostId = [...room.players][0];
-    // the match was running on the old host's game: everyone goes back to the lobby
-    if (room.state === 'playing') {
-      room.state = 'lobby';
-      for (const id of room.players) clients.get(id).ready = false;
-      // matchmaking: whoever is left gets a fresh search (and new bots) instead of a room that never starts
-      if (room.auto) { room.bots = []; room.autoAt = 0; room.searchEnds = Date.now() + SEARCH; }
+    room.hostId = pickHost(room);
+    if (room.state === 'playing' && room.phase === 'match') {
+      // host migration: another player's game takes over the bots and the rules, and the match goes on
+      broadcast(room, { t: 'host', id: room.hostId, old: c.id });
+    } else if (room.state === 'playing') {
+      // the old host had everyone's Rush builds: back to the lobby
+      resetRoom(room);
       broadcast(room, { t: 'hostLeft' });
     }
-  }
+  } else if (room.state === 'playing') broadcast(room, { t: 'left', id: c.id, reason });
   sendRoom(room);
   accounts.roomChanged(c);
+}
+
+// matchmaking: whoever is left gets a fresh search (and new bots) instead of a room that never starts
+function resetRoom(room) {
+  room.state = 'lobby';
+  room.phase = null;
+  for (const id of room.players) clients.get(id).ready = false;
+  if (room.auto) { room.bots = []; room.autoAt = 0; room.searchEnds = Date.now() + SEARCH; }
+}
+// a random player runs the match (players whose results didn't add up lately only when nobody else is there)
+function pickHost(room) {
+  const ids = [...room.players];
+  const fair = ids.filter((id) => !accounts.flagged(clients.get(id)));
+  const pool = fair.length ? fair : ids;
+  return pool[crypto.randomInt(pool.length)];
 }
 
 function joinRoom(c, room) {
@@ -367,13 +403,29 @@ function handle(c, data) {
       room.beganAt = Date.now();
       // the arena the host's game actually picked ("any arena" resolves when the match begins)
       if (m.payload && /^[a-z]{1,16}$/.test(m.payload.arena)) room.playedArena = m.payload.arena;
+      room.phase = m.payload && m.payload.kind === 'build' ? 'build' : 'match';
+      // who plays which mech (for checking the results later), and who got knocked out, in order
+      room.roster = new Map();
+      room.out = new Map();
+      if (room.phase === 'match' && m.payload && Array.isArray(m.payload.roster)) {
+        for (const e of m.payload.roster.slice(0, 64)) if (e && Number.isInteger(e.i)) room.roster.set(e.i, { o: e.o | 0, h: !!e.h });
+      }
       broadcast(room, { t: 'begin', payload: m.payload }, c.id);
       for (const id of room.players) accounts.roomChanged(clients.get(id));
       break;
     case 'end':
       if (!isHost || room.state !== 'playing') break;
-      accounts.matchResult(room, m.res, Math.min(m.n | 0, seatsOf(room))); // Quick Match placings move trophies
+      {
+        const n = Math.min(m.n | 0, seatsOf(room));
+        const why = room.auto ? resultProblem(room, m.res, n) : null;
+        if (why) {
+          // the host's result doesn't fit what the other games reported: no trophies move
+          console.warn(`results refused in ${room.code} (host ${c.name}): ${why}`);
+          accounts.disputed(c, room, why);
+        } else accounts.matchResult(room, m.res, n); // Quick Match placings move trophies
+      }
       room.state = 'lobby';
+      room.phase = null;
       for (const id of room.players) clients.get(id).ready = false;
       // matchmaking rooms: whoever stays gets a fresh search (players' games leave for a new search on "Play again")
       if (room.auto) { room.bots = []; room.searchEnds = Date.now() + SEARCH; }
@@ -385,6 +437,13 @@ function handle(c, data) {
     case 'ev':
       if (!room || room.state !== 'playing') break;
       m.from = c.id;
+      // a player's own game saying they were knocked out (nobody reports their own elimination falsely)
+      if (Array.isArray(m.e) && room.roster) {
+        for (const e of m.e) {
+          const r = e && e.k === 'elim' && room.roster.get(e.c);
+          if (r && r.h && r.o === c.id && !room.out.has(c.id)) room.out.set(c.id, room.out.size + 1);
+        }
+      }
       if (m.toHost) { const h = clients.get(room.hostId); if (h && h.id !== c.id) h.ws.send(m); }
       else broadcast(room, m, c.id);
       break;
@@ -424,6 +483,7 @@ server.on('upgrade', (req, sock) => {
     if (c.tokens < 1 || c.bytes < data.length) { c.strikes = (c.strikes || 0) + 1; if (c.strikes > 500) ws.close(1008); return; }
     c.tokens -= 1;
     c.bytes -= data.length;
+    c.heard = now;
     if (c.strikes) c.strikes--;
     try { handle(c, data); } catch (e) { console.error('message error', e); }
   };
@@ -447,6 +507,11 @@ setInterval(() => {
   const now = Date.now();
   for (const r of rooms.values()) {
     if (r.auto && r.state === 'lobby' && r.searchEnds && now >= r.searchEnds && r.players.size) fillAndStart(r);
+    // a host whose game went silent mid-match (lost internet): drop them so another player takes over
+    if (r.state === 'playing' && r.phase === 'match' && r.players.size > 1) {
+      const h = clients.get(r.hostId);
+      if (h && now - (h.heard || now) > HOST_SILENCE) h.ws.close(1001);
+    }
     if (r.auto && r.state === 'lobby' && r.autoAt && now >= r.autoAt) {
       r.autoAt = now + 5000; // keep nudging the host until the match starts
       const h = clients.get(r.hostId);

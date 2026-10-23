@@ -260,19 +260,61 @@ async function main() {
   mk.send({ t: 'ready', ready: true, bp: { name: '<b>x</b>', color: 123, parts: [{ t: 'core', x: 1e9, y: 0, z: 0 }, { t: '__proto__' }, { t: 'constructor', x: 'a' }, null, { t: 'wheel<script>' }] } });
   const rb = (await mk.next('room', (m) => m.room.players.some((p) => p.bp))).room.players[0].bp;
   check(rb && rb.name === 'bx/b' && rb.parts.length === 2 && rb.parts[0].x === 64 && rb.parts[1].t === 'constructor' && rb.parts[1].x === 0, 'mech parts are cleaned (bad names dropped, positions clamped)');
-  // the host quits a PLAY match: the others get a fresh search and a new match
-  const h1 = await player(), h2 = await player();
-  h1.send({ t: 'quick', mode: 'race', arena: 'swamp' });
-  await h1.next('room');
-  h2.send({ t: 'quick', mode: 'race', arena: 'swamp' });
-  await h2.next('room', (m) => m.room.players.length === 2);
-  await h1.next('autostart', null, 6000);
-  h1.send({ t: 'begin', payload: { arena: 'swamp' } });
-  await h2.next('begin');
-  h1.ws.close();
-  await h2.next('hostLeft');
-  check(!!(await h2.next('autostart', null, 6000).catch(() => null)), 'when the host quits, the rest get a new match');
-  h2.ws.close();
+  console.log('fair play');
+  // two players matched together; the server picks one of them at random to host
+  const pair = async (mode, arena) => {
+    const a = await player(), b = await player();
+    a.send({ t: 'quick', mode, arena });
+    await a.next('room');
+    b.send({ t: 'quick', mode, arena });
+    await b.next('room', (m) => m.room.players.length === 2);
+    // whoever the server tells to start is the host (look without moving either player's cursor)
+    for (let i = 0; i < 80 && !a.last('autostart') && !b.last('autostart'); i++) await wait(100);
+    const go = a.last('autostart') ? a : b;
+    go.cursor = go.got.length;
+    return { host: go, other: go === a ? b : a };
+  };
+  // Rush build phase: the host quits, everyone gets a fresh search
+  let pr = await pair('rush', 'swamp');
+  pr.host.send({ t: 'begin', payload: { kind: 'build', arena: 'swamp' } });
+  await pr.other.next('begin');
+  pr.host.ws.close();
+  await pr.other.next('hostLeft');
+  check(!!(await pr.other.next('autostart', null, 6000).catch(() => null)), 'host quits while building: the rest get a new match');
+  pr.other.ws.close();
+  // mid-match: the other player becomes the host and the match goes on
+  pr = await pair('koth', 'swamp');
+  pr.host.send({ t: 'begin', payload: { kind: 'match', arena: 'swamp', roster: [] } });
+  await pr.other.next('begin');
+  pr.host.ws.close();
+  const nh = await pr.other.next('host');
+  check(nh.id === pr.other.id && nh.old === pr.host.id, 'host quits mid-match: another player takes over');
+  pr.other.send({ t: 'end', res: { [pr.other.id]: 1 }, n: 2 });
+  check(!!(await pr.other.next('room', (m) => m.room.state === 'lobby').catch(() => null)), 'the new host can finish the match');
+  pr.other.ws.close();
+  // a host that goes silent (lost internet) is dropped after a few seconds
+  pr = await pair('koth', 'canyon');
+  pr.host.send({ t: 'begin', payload: { kind: 'match', arena: 'canyon', roster: [] } });
+  await pr.other.next('begin');
+  pr.host.ws.onmessage = null; // keeps the socket open but says nothing
+  check(!!(await pr.other.next('host', null, 12000).catch(() => null)), 'a silent host is replaced');
+  pr.other.ws.close();
+  // results that don't fit what the other game reported are refused
+  const rigged = async (res) => {
+    const q = await pair('clash', 'city');
+    const roster = [{ i: 1, o: q.host.id, h: 1 }, { i: 2, o: q.other.id, h: 1 }];
+    q.host.send({ t: 'begin', payload: { kind: 'match', arena: 'city', roster } });
+    await q.other.next('begin');
+    q.other.send({ t: 'st', s: [], e: [{ k: 'elim', c: 2, by: 1 }] }); // the other player's game: "I'm out"
+    await wait(150);
+    q.host.send({ t: 'end', res: res(q.host.id, q.other.id), n: 8 });
+    const r = await q.other.next('note', (m) => /didn't add up/.test(m.msg), 1500).catch(() => null);
+    q.host.ws.close(); q.other.ws.close();
+    return !r;
+  };
+  check(await rigged((h, o) => ({ [h]: 1, [o]: 2 })), 'a result that fits is accepted');
+  check(!(await rigged((h, o) => ({ [h]: 2, [o]: 1 }))), 'a player who was knocked out first cannot be put ahead');
+  check(!(await rigged((h, o) => ({ [h]: 1, [o]: 1 }))), 'two players in 1st place in free-for-all is refused');
   // connections from one address are capped
   const many = [];
   for (let i = 0; i < 30; i++) many.push(player().then((p) => p, () => null));

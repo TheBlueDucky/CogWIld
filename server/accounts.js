@@ -652,6 +652,20 @@ class Accounts {
     }
     this.dirty();
   }
+  // a host whose result was refused: nobody's trophies move, and they're picked as host less often for a week
+  disputed(hostC, room, why) {
+    const u = this.me(hostC);
+    if (u) { const now = Date.now(); u.disputes = (u.disputes || []).filter((t) => now - t < 7 * 86400000).concat(now); this.dirty(); }
+    for (const id of room.players) {
+      const c = this.h.clients.get(id);
+      if (c) this.send(c, { t: 'note', kind: 'info', msg: "⚠ This match's result didn't add up, so no trophies changed." });
+    }
+  }
+  flagged(c) {
+    const u = c && this.me(c);
+    const now = Date.now();
+    return !!u && (u.disputes || []).filter((t) => now - t < 7 * 86400000).length >= 2;
+  }
   sorted() {
     if (!this.topCache) this.topCache = Object.values(this.db.users).sort((a, b) => (b.tro | 0) - (a.tro | 0) || (a.created || 0) - (b.created || 0));
     return this.topCache;

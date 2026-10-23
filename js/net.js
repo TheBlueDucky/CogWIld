@@ -146,6 +146,7 @@
         case 'begin': this.onBegin(m.payload); break;
         case 'st': this.onState(m); break;
         case 'left': this.onLeft(m.id); break;
+        case 'host': this.onNewHost(m.id, m.old); break;
         case 'hostLeft':
           if (this.active || this.building) {
             this.stopMatch();
@@ -854,6 +855,36 @@
           c.ai.style = d.has('air') ? 'heli' : d.has('water') && !d.has('land') ? 'boat' : 'ground';
         }
       }
+    }
+    // the host quit mid-match: the server picked a new host. Their mech and the bots they ran carry on as
+    // bots, and if that's us, our game now runs the rules, objective, waves and chests from what it already knows.
+    onNewHost(id, old) {
+      const g = this.game;
+      if (this.room) this.room.hostId = id;
+      if (!this.active) { this.isHost = id === this.id; return; }
+      const me = id === this.id;
+      if (me) this.isHost = true;
+      this.onLeft(old);
+      if (me) this.takeOver();
+      g.feed(me ? '📡 The host left. Your game runs the match now.' : '📡 The host left. The match goes on!', 'good');
+    }
+    takeOver() {
+      const g = this.game;
+      const o = g.obj;
+      if (o) {
+        if (o.nuggets) o.nid = o.nuggets.reduce((a, n) => Math.max(a, n.id), 0) + 1; // Gold Rush
+        if (o.zonePos) o.moveT = 0; // King of the Hill: the hill moves a minute from now
+        for (const n of o.nuggets || []) { if (n.target) { n.mesh.position.x = n.target.x; n.mesh.position.z = n.target.z; } n.target = null; }
+      }
+      const ch = g.chests;
+      if (ch && ch.items) ch.nextId = ch.items.reduce((a, c) => Math.max(a, c.id | 0), 0) + 1;
+      const sv = g.survival;
+      if (sv) {
+        const foes = g.combatants.some((c) => c.team !== 0 && c.alive);
+        sv.breakT = foes ? 0 : 5;
+        sv.waveT = 0;
+      }
+      this.objT = 0;
     }
     // the host's game: tell everyone the match is over
     matchEnded(winner, places) {
