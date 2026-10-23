@@ -468,6 +468,7 @@
       // you see every hit land: the mech flashes white for a moment
       if (dmg > 0 && !(this.protect > 0)) this.flashT = 0.09;
       if (!net.applying && this.game.mods && this.game.mods.dmg) dmg *= this.game.mods.dmg; // weekly event: Glass Cannons
+      if (this.combatant && this.combatant.isPlayer && dmg >= 6 && !(this.protect > 0)) this.game.buzz(dmg >= 30 ? 35 : 15, 0.15);
       // the game that decides a hit also fills the shooter's super meter
       if (who && who !== this.combatant && !net.applying && this.game.supers) this.game.supers.charge(who, dmg);
       // online: the shooter's game decides what hits; the target's own game applies the damage

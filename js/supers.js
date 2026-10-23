@@ -41,6 +41,7 @@
     }
     readyPing() {
       const g = this.game;
+      g.buzz([25, 40, 25], 0.3);
       g.toast(`${CW.SUPERS[this.type(g.player)].icon} SUPER ready! Press X / right-click`);
       g.audio.tone(660, 0.12, 'triangle', 0.25, 1.5);
       setTimeout(() => g.audio.tone(990, 0.16, 'triangle', 0.25, 1.3), 110);

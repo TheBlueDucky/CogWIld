@@ -44,7 +44,7 @@
       const id = type === 'mine' ? `${c.netId}:${++this.seq}` : null;
       this.effect(c, type, true, id);
       if (g.net.active) g.net.events.push({ k: 'gadget', c: c.netId, type, id, x: Math.round(m.pos.x * 10) / 10, z: Math.round(m.pos.z * 10) / 10 });
-      if (c.isPlayer) g.meta.track('gadget');
+      if (c.isPlayer) { g.meta.track('gadget'); g.buzz(20); }
       if (c.isPlayer) { g.toast(`${CW.GADGETS[type].icon} ${CW.GADGETS[type].name}! (${c.gadgetN} left)`); g.audio.tone(520, 0.1, 'square', 0.15, 1.6); }
       return true;
     }

@@ -33,7 +33,7 @@
 
   const DEFAULT_SETTINGS = {
     graphics: 'auto', showFps: false, tutorialDone: false, clips: true, arena: 'random', timeOfDay: 'random', difficulty: 'normal', music: true, sens: 1, fov: 80, invertY: false, camMode: 'first', autoSteer: true, shake: true, dmgNumbers: true, volume: 0.6,
-    musicVol: 1, keys: {}, touch: 'auto', touchSize: 1, friendOnline: true, otherChat: true,
+    musicVol: 1, keys: {}, touch: 'auto', touchSize: 1, vibrate: true, friendOnline: true, otherChat: true,
   };
   // keys you can change in Settings (Esc always pauses); def is the key the game reads internally
   CW.KEY_ACTIONS = [
@@ -301,6 +301,7 @@
           <h3>📱 Touch screen</h3>
           <label class="set-row"><span>On-screen controls</span><select id="setTouch"><option value="auto">Auto (on for touch screens)</option><option value="on">Always on</option><option value="off">Off</option></select></label>
           <label class="set-row"><span>Button size <b id="setTouchSizeV"></b></span><input type="range" id="setTouchSize" min="0.7" max="1.5" step="0.05"></label>
+          <label class="set-row chk"><input type="checkbox" id="setVibrate"><span>Vibration (phones and tablets)</span></label>
           <h3>🔊 Sound</h3>
           <label class="set-row"><span>Volume <b id="setVolV"></b></span><input type="range" id="setVol" min="0" max="1" step="0.05"></label>
           <label class="set-row chk"><input type="checkbox" id="setMusic"><span>Music</span></label>
@@ -360,6 +361,7 @@
         const bindChk = (id, key) => { const el = $(id); el.checked = !!s[key]; el.onchange = () => { s[key] = el.checked; this.apply(); }; };
         bindChk('setFriendOn', 'friendOnline');
         bindChk('setChat', 'otherChat');
+        bindChk('setVibrate', 'vibrate');
         bindChk('setMusic', 'music');
         bindChk('setFps', 'showFps');
         bindChk('setClips', 'clips');

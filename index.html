@@ -891,6 +891,16 @@
   /* PLAY: dark cyan */
   .bs-btn.play-btn { background: linear-gradient(180deg, #1597b5, #0d6a82) !important; color: #fff !important; border: 1px solid rgba(255, 255, 255, .18) !important; box-shadow: 0 4px 0 #084456, 0 6px 16px rgba(0, 0, 0, .3) !important; text-shadow: none !important; }
   .bs-btn.play-btn:hover { filter: brightness(1.08); }
+  /* touch controls in the same quiet style: see-through, thin lines, cyan when ready or pressed */
+  #tStick { background: rgba(14, 20, 42, .28) !important; border: 2px solid rgba(255, 255, 255, .2) !important; }
+  .t-btn { background: rgba(14, 20, 42, .42) !important; border: 2px solid rgba(255, 255, 255, .2) !important; }
+  .t-btn.down { background: rgba(92, 225, 255, .3) !important; border-color: var(--hl) !important; }
+  .t-super.ready { background: radial-gradient(circle, rgba(92, 225, 255, .75), rgba(21, 151, 181, .85)) !important; border-color: #fff !important; }
+  .t-gadget.ready { background: rgba(92, 225, 255, .35) !important; border-color: var(--hl) !important; }
+  /* phones: keyboard hints off, the feed under the status card, a smaller top line */
+  .touch-ui #camBadge, .touch-ui #recDot, .touch-ui #netInfo .kb { display: none !important; }
+  .touch-ui #feed { top: auto; bottom: calc(190px * var(--tsize, 1)); left: 12px; max-width: 38vw; font-size: 12px; }
+  .touch-ui #topInfo { font-size: 13px !important; padding: 4px 10px; max-width: 46vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .mode-opt.on { outline: none !important; transform: none !important; }
   .acct-row { display: flex; gap: 8px; margin: 8px 0; }
   .acct-row input { flex: 1; padding: 10px 12px; font-size: 16px; }

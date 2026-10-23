@@ -610,6 +610,15 @@
       this._toastT = setTimeout(() => t.classList.remove('show'), 2200);
     }
 
+    // a short buzz on phones and tablets (Settings > Vibration); `ms` can be a pattern like [40, 30, 40]
+    buzz(ms, gap = 0.1) {
+      if (this.settings.vibrate === false || !this.touch.on || !navigator.vibrate) return;
+      if (navigator.userActivation && !navigator.userActivation.hasBeenActive) return; // browsers allow it only after a tap
+      const now = performance.now() / 1000;
+      if (now - (this.lastBuzz || 0) < gap) return;
+      this.lastBuzz = now;
+      try { navigator.vibrate(ms); } catch (e) { /* not allowed here */ }
+    }
     // ---------------- input ----------------
     // the top-most thing Esc can close: a pop-up, the login box, a panel, the mech picker, the online screen
     closeTop() {
@@ -1489,7 +1498,8 @@
     who(c, you) { return c ? (c.isPlayer ? you : c.name) : 'The arena'; }
 
     onMechDestroyed(mech, who) {
-      if (who && who.isPlayer && mech.combatant !== who) { this.killMarker = 0.6; this.cam.shake = Math.min(1.5, this.cam.shake + 0.5); }
+      if (who && who.isPlayer && mech.combatant !== who) { this.killMarker = 0.6; this.cam.shake = Math.min(1.5, this.cam.shake + 0.5); this.buzz(30); }
+      if (mech.combatant.isPlayer) this.buzz([70, 40, 90], 0.5);
       this.net.mechDestroyed(mech, who);
       const c = mech.combatant;
       if (who && !CW.sameTeam(who, c)) who.wrecks++;
