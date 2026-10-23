@@ -39,7 +39,17 @@ foreach ($p in $(if ($Portal -eq 'all') { 'itch', 'crazygames', 'poki' } else { 
   }
 
   if (Test-Path $zip) { Remove-Item -Force $zip }
-  Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip
+  # not Compress-Archive: Windows PowerShell 5.1 writes folders as "js\economy.js", which the portals (Linux servers)
+  # unpack as one oddly named file, so the game can't find any of its scripts. Paths here use "/".
+  Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+  $za = [IO.Compression.ZipFile]::Open($zip, 'Create')
+  try {
+    $base = (Resolve-Path $stage).Path.TrimEnd('\') + '\'
+    foreach ($f in Get-ChildItem $stage -Recurse -File) {
+      $name = $f.FullName.Substring($base.Length).Replace('\', '/')
+      [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($za, $f.FullName, $name, 'Optimal')
+    }
+  } finally { $za.Dispose() }
   '{0,-28} {1,5:N1} MB  (server {2})' -f "dist\cogwild-$p.zip", ((Get-Item $zip).Length / 1MB), $ServerUrl
 }
 

@@ -129,6 +129,8 @@ apps would break with the new server; they then get an "update" prompt.
 ## Gotchas learned the hard way
 - Bash heredocs with backslashes or `'` inside Python break; write the script to a file (scratchpad) and run it.
 - `tar` on Windows paths needs `--force-local`.
+- Never zip with `Compress-Archive` (Windows PowerShell 5.1): it stores `js\economy.js` with backslashes, and Linux hosts (itch.io,
+  portals) unpack that as one odd file name, so the game sticks on "Building the arena…". build-itch.ps1 uses .NET ZipFile with `/`.
 - CSP is strict (`script-src 'self'`): no inline scripts or `onclick=` in pages.
 - Two Electron windows in one test: create both before destroying either (a fresh window after a destroyed one can fail to load).
 - Class names on lobby buttons used to clash with other screens' styles (`.ach`, `.road`): keep side buttons as plain `side-btn`.
