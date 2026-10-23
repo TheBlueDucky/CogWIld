@@ -755,6 +755,8 @@
       this.chests.start();
       this.bonusXp = 0;
       if (this.showcase) this.showcase.visible = false;
+      for (const st of (this.stage || new Map()).values()) { this.scene.remove(st.g); this.scene.remove(st.ped); }
+      if (this.stage) this.stage.clear(); // the lobby's preview mechs don't come along into the match
       this.cam.shake = 0; this.cam.fovKick = 0;
       this.lastMechYaw = undefined;
       $('hud').classList.remove('hidden');
