@@ -925,7 +925,27 @@
   .acct-row input { flex: 1; padding: 10px 12px; font-size: 16px; }
   .acct-or { text-align: center; color: var(--muted2); font-size: 13px; margin: 8px 0 2px; }
   #gBtn { display: flex; justify-content: center; min-height: 44px; }
-  #acct.required #acctGuest { display: none; }
+  #acct.required #acctGuest, #acct.required #acctX { display: none; }
+  /* the login box */
+  #acct .acct-box { width: min(420px, calc(var(--vw) * .94)); padding: 18px 22px !important; display: flex; flex-direction: column; gap: 8px; }
+  .acct-top { display: flex; align-items: center; justify-content: space-between; }
+  .acct-top h2 { margin: 0; font-size: 22px !important; }
+  #acctX { padding: 2px 10px !important; }
+  .seg { display: flex; background: rgba(255, 255, 255, .05); border: 1px solid var(--line2); border-radius: 10px; padding: 3px; gap: 3px; margin: 4px 0; }
+  .seg button { flex: 1; padding: 7px 0; border: none; border-radius: 8px; background: transparent; color: var(--muted2); font: 700 15px 'Nunito', sans-serif; }
+  .seg button.on { background: rgba(92, 225, 255, .14); color: var(--hl); }
+  .acct-form { display: flex; flex-direction: column; gap: 10px; }
+  .acct-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 700; color: var(--muted2); }
+  .acct-form label small { font-weight: 600; color: #7484ad; }
+  .acct-form input { padding: 10px 12px; font-size: 16px; }
+  .acct-form .btn.big { width: 100%; margin-top: 2px; }
+  .acct-form .step { font-size: 12px; font-weight: 800; color: var(--hl); letter-spacing: .3px; }
+  .link-btn { background: none !important; border: none !important; color: var(--muted2) !important; font: 700 13px 'Nunito', sans-serif; padding: 2px !important; align-self: center; cursor: pointer; }
+  .link-btn:hover { color: var(--hl) !important; outline: none !important; text-decoration: underline; }
+  .acct-show { font-size: 13px; color: var(--muted2); display: flex; gap: 6px; align-items: center; }
+  .acct-err { min-height: 18px; color: #ff8a8a; font-size: 14px; font-weight: 700; }
+  .acct-err.ok { color: var(--hl); }
+  .acct-terms { font-size: 12px; color: #7484ad; }
   .mail-link { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 6px 0; }
   .mail-link input { padding: 6px 8px; }
   .shop-item.is-deal { background: rgba(255, 255, 255, .045) !important; }
@@ -1242,29 +1262,54 @@
   <!-- ACCOUNT: log in / sign up -->
   <div id="acct" class="hidden">
     <div class="acct-box">
-    <h2 class="title-font">👤 Log in to Cogwild</h2>
-    <div class="small" id="acctWhy"></div>
-    <!-- email (a 6-digit code) or Google: the way in for everyone -->
-    <div id="acctMail">
-      <div id="gBtnWrap" class="hidden"><div id="gBtn"></div><div class="acct-or">or with your email</div></div>
-      <form id="mailForm" class="acct-row"><input id="acctEmail" type="email" maxlength="254" placeholder="you@gmail.com" autocomplete="email" spellcheck="false" autocapitalize="off"><button class="btn big go" id="mailGo">Send me a code</button></form>
-      <form id="codeForm" class="hidden"><div class="small" id="codeSentTo"></div><div class="acct-row"><input id="acctCode" inputmode="numeric" maxlength="6" placeholder="6-digit code" autocomplete="one-time-code"><button class="btn big go">Log in</button></div><button type="button" id="codeBack" class="ws-btn">Use another email</button></form>
-      <form id="nameForm" class="hidden"><div class="small">Welcome! Pick your username. Other players see it, so don't use your real name.</div><div class="acct-row"><input id="acctNewName" maxlength="16" spellcheck="false" autocapitalize="off" placeholder="Username"><button class="btn big go">Start playing</button></div></form>
-      <div class="small">By logging in you agree to the <a class="site-link" href="terms.html" target="_blank" rel="noopener">Terms</a> and <a class="site-link" href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>. Under 13? Ask a parent first.</div>
-      <div class="menu-btns"><button type="button" id="acctOld" class="ws-btn">I have a username and password</button></div>
-    </div>
-    <form id="acctForm" class="hidden" autocomplete="on">
-      <div class="acct-tabs"><button type="button" id="acctTabSign" class="ws-btn">✨ Sign up</button><button type="button" id="acctTabLogin" class="ws-btn">▶ Log in</button></div>
-      <label>Username<input id="acctName" name="username" maxlength="16" spellcheck="false" autocomplete="username" autocapitalize="off"></label>
-      <label>Password<input id="acctPass" name="password" type="password" maxlength="72"></label>
-      <label id="acctPass2Row">Password again<input id="acctPass2" type="password" maxlength="72" autocomplete="new-password"></label>
-      <label class="check"><input type="checkbox" id="acctShow"> Show password</label>
-      <div class="small" id="acctHint"></div>
-      <div class="small" id="acctAgree">By creating an account you agree to the <a class="site-link" href="terms.html" target="_blank" rel="noopener">Terms</a> and <a class="site-link" href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>. Under 13? Ask a parent first.</div>
-      <div class="menu-btns"><button id="acctGo" class="btn">Go</button><button type="button" id="acctBack" class="ws-btn">← Log in with email</button></div>
-    </form>
-    <div class="acct-err" id="acctErr"></div>
-    <div class="menu-btns"><button type="button" id="acctGuest" class="ws-btn">Play as guest</button></div>
+      <div class="acct-top"><h2 class="title-font" id="acctTitle">Welcome to Cogwild</h2><button type="button" id="acctX" class="ws-btn" title="Close (Esc)">✕</button></div>
+      <div class="small" id="acctWhy"></div>
+      <div class="seg" id="acctTabs"><button type="button" id="tabLogin">Log in</button><button type="button" id="tabSign">Sign up</button></div>
+      <div id="gBtnWrap" class="hidden"><div id="gBtn"></div><div class="acct-or">or</div></div>
+      <!-- log in: email + password (old accounts can type their username) -->
+      <form id="fLogin" class="acct-form">
+        <label>Email<input id="liEmail" maxlength="254" autocomplete="username" spellcheck="false" autocapitalize="off" placeholder="you@gmail.com"></label>
+        <label>Password<input id="liPass" type="password" maxlength="72" autocomplete="current-password"></label>
+        <button class="btn big go">Log in</button>
+        <button type="button" id="liForgot" class="link-btn">Forgot your password?</button>
+      </form>
+      <!-- sign up: email -> code -> username + password (the same steps, without the last one, make a new password) -->
+      <form id="fMail" class="acct-form hidden">
+        <div class="step" id="mailStepT">Step 1 of 3 · your email</div>
+        <label>Email<input id="suEmail" type="email" maxlength="254" autocomplete="email" spellcheck="false" autocapitalize="off" placeholder="you@gmail.com"></label>
+        <button class="btn big go">Send me a code</button>
+      </form>
+      <form id="fCode" class="acct-form hidden">
+        <div class="step" id="codeStepT">Step 2 of 3 · check your email</div>
+        <div class="small" id="codeSentTo"></div>
+        <label>Code<input id="suCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6 digits"></label>
+        <button class="btn big go">Verify</button>
+        <button type="button" id="codeBack" class="link-btn">Use a different email</button>
+      </form>
+      <form id="fName" class="acct-form hidden">
+        <div class="step">Step 3 of 3 · your player</div>
+        <label>Username <small>shown to other players. Don't use your real name or email.</small><input id="suName" maxlength="16" spellcheck="false" autocapitalize="off" autocomplete="nickname" placeholder="3-16 letters, numbers or _"></label>
+        <label class="pw-row">Password<input id="suPass" type="password" maxlength="72" autocomplete="new-password" placeholder="6 or more characters"></label>
+        <label class="pw-row">Confirm password<input id="suPass2" type="password" maxlength="72" autocomplete="new-password"></label>
+        <button class="btn big go">Create account</button>
+      </form>
+      <form id="fReset" class="acct-form hidden">
+        <div class="step">Choose a new password</div>
+        <label>New password<input id="rsPass" type="password" maxlength="72" autocomplete="new-password" placeholder="6 or more characters"></label>
+        <label>Confirm password<input id="rsPass2" type="password" maxlength="72" autocomplete="new-password"></label>
+        <button class="btn big go">Save and log in</button>
+      </form>
+      <!-- when the server can't send emails yet: username + password accounts -->
+      <form id="fOld" class="acct-form hidden">
+        <label>Username<input id="olName" maxlength="16" spellcheck="false" autocapitalize="off" autocomplete="username"></label>
+        <label>Password<input id="olPass" type="password" maxlength="72" autocomplete="new-password"></label>
+        <label>Confirm password<input id="olPass2" type="password" maxlength="72" autocomplete="new-password"></label>
+        <button class="btn big go">Create account</button>
+      </form>
+      <label class="check acct-show"><input type="checkbox" id="acctShow"> Show passwords</label>
+      <div class="acct-err" id="acctErr"></div>
+      <div class="small acct-terms">By signing up you agree to the <a class="site-link" href="terms.html" target="_blank" rel="noopener">Terms</a> and <a class="site-link" href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>. Under 13? Ask a parent first.</div>
+      <button type="button" id="acctGuest" class="link-btn">Play as guest</button>
     </div>
   </div>
   <div id="notes"></div>

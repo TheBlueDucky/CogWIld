@@ -212,7 +212,7 @@ class Accounts {
       clubCreate: () => this.clubCreate(c, m), clubJoin: () => this.clubJoin(c, m), clubLeave: () => this.clubLeave(c), clubKick: () => this.clubKick(c, m),
       clubList: () => this.clubList(c, m), clubInfo: () => this.clubInfo(c, m), clubChat: () => this.clubChat(c, m), clubEdit: () => this.clubEdit(c, m),
       guest: () => this.guestHello(c, m), earn: () => this.earn(c, m),
-      emailStart: () => this.emailStart(c, m), emailCode: () => this.emailCode(c, m), emailName: () => this.emailName(c, m), googleLogin: () => this.googleLogin(c, m), gift: () => this.gift(c), buy: () => this.buy(c, m), roadClaim: () => this.roadClaim(c, m), passClaim: () => this.passClaim(c, m),
+      emailStart: () => this.emailStart(c, m), emailCode: () => this.emailCode(c, m), emailName: () => this.emailName(c, m), googleLogin: () => this.googleLogin(c, m), acctResetPass: () => this.resetPass(c, m), gift: () => this.gift(c), buy: () => this.buy(c, m), roadClaim: () => this.roadClaim(c, m), passClaim: () => this.passClaim(c, m),
       invite: () => this.inviteRoom(c, m), top: () => this.top(c, m), status: () => { c.busy = !!m.busy; if (c.user) this.friendsChanged(c.user); },
     }[t];
     if (!fn) return true;
@@ -227,8 +227,13 @@ class Accounts {
   // 1) send a 6-digit code to an email address
   async emailStart(c, m) {
     const email = String(m.email || '').trim().toLowerCase();
+    const purpose = ['signup', 'reset'].includes(m.purpose) ? m.purpose : c.user ? 'link' : 'login';
     if (!mailer.ready) return this.err(c, "Email login isn't set up on this server yet");
     if (email.length > 254 || !EMAIL_RE.test(email)) return this.err(c, "That doesn't look like an email address");
+    // one account per email
+    if (purpose === 'signup' && this.byEmail.has(email)) return this.err(c, 'That email already has an account. Log in instead.');
+    // a new password: only accounts get a code, but the answer is the same either way (nobody learns who plays)
+    if (purpose === 'reset' && !this.byEmail.has(email)) return this.send(c, { t: 'acctCodeSent', email, purpose });
     const now = Date.now();
     const byIp = (this.mailByIp.get(c.ip) || []).filter((x) => now - x < 3600000);
     const byMail = (this.mailByIp.get('e:' + email) || []).filter((x) => now - x < 600000);
@@ -244,7 +249,7 @@ class Accounts {
       this.codes.delete(email);
       return this.err(c, "We couldn't send the email right now. Try again in a minute.");
     }
-    this.send(c, Object.assign({ t: 'acctCodeSent', email }, mailer.dev ? { devCode: code } : {}));
+    this.send(c, Object.assign({ t: 'acctCodeSent', email, purpose }, mailer.dev ? { devCode: code } : {}));
   }
   // 2) the code from the email
   emailCode(c, m) {
@@ -254,7 +259,35 @@ class Accounts {
     if (++p.tries > 5) { this.codes.delete(email); return this.err(c, 'Too many wrong codes. Ask for a new one.'); }
     if (!same(sha(email + ':' + String(m.code || '').trim()), p.hash)) return this.err(c, "That code isn't right");
     this.codes.delete(email);
+    if (m.purpose === 'signup' && !c.user) {
+      if (this.byEmail.has(email)) return this.err(c, 'That email already has an account. Log in instead.');
+      c.newEmail = email;
+      c.newGoogle = false;
+      return this.send(c, { t: 'acctPickName', email });
+    }
+    if (m.purpose === 'reset' && !c.user) {
+      if (!this.byEmail.has(email)) return this.err(c, "That code isn't right");
+      c.resetEmail = email;
+      return this.send(c, { t: 'acctNewPass', email });
+    }
     this.emailVerified(c, email);
+  }
+  // a forgotten password: after the emailed code, a new one (other devices are logged out)
+  async resetPass(c, m) {
+    const k = c.resetEmail && this.byEmail.get(c.resetEmail);
+    const u = k && this.db.users[k];
+    if (!u) return this.err(c, 'Ask for a new code first');
+    const pass = String(m.pass || '');
+    if (pass.length < 6 || pass.length > 72) return this.err(c, 'Passwords need 6 to 72 characters');
+    u.salt = crypto.randomBytes(16).toString('hex');
+    u.hash = (await scrypt(pass, u.salt)).toString('hex');
+    for (const t of u.tokens || []) this.byToken.delete(t);
+    u.tokens = [];
+    c.resetEmail = null;
+    this.fails.delete('n:' + key(u.name));
+    this.fails.delete('n:' + u.email);
+    this.dirty();
+    this.attach(c, k, this.addToken(k));
   }
   async googleLogin(c, m) {
     if (this.slowDown(c)) return;
@@ -276,24 +309,29 @@ class Accounts {
     }
     if (k && this.db.users[k]) return this.attach(c, k, this.addToken(k));
     c.newEmail = email;
-    const base = email.split('@')[0].replace(/[^A-Za-z0-9_]/g, '').slice(0, 12) || 'Pilot';
-    let suggest = base.length >= 3 ? base : base + '123';
-    for (let i = 0; this.user(suggest) && i < 50; i++) suggest = base.slice(0, 12) + crypto.randomInt(10, 9999);
-    this.send(c, { t: 'acctPickName', email, suggest });
+    c.newGoogle = true;
+    this.send(c, { t: 'acctPickName', email, google: true });
   }
   // 3) a new player picks their username
-  emailName(c, m) {
+  async emailName(c, m) {
     const email = c.newEmail;
     if (!email) return this.err(c, 'Log in with your email first');
-    const name = String(m.name || '').trim();
+    const name = String(m.name || '').trim(), pass = String(m.pass || '');
     if (!NAME_RE.test(name)) return this.err(c, 'Usernames are 3-16 letters, numbers or _');
     if (BLOCKED.some((b) => key(name).includes(b))) return this.err(c, 'Please pick a different username');
+    if (!c.newGoogle) {
+      if (pass.length < 6 || pass.length > 72) return this.err(c, 'Passwords need 6 to 72 characters');
+      if (pass.toLowerCase() === key(name) || pass.toLowerCase() === email) return this.err(c, "Your password can't be your username or email");
+    }
     if (this.user(name)) return this.err(c, 'That username is taken');
-    if (this.byEmail.has(email)) { c.newEmail = null; return this.attach(c, this.byEmail.get(email), this.addToken(this.byEmail.get(email))); }
+    if (this.byEmail.has(email)) return this.err(c, 'That email already has an account. Log in instead.');
+    const salt = pass ? crypto.randomBytes(16).toString('hex') : null;
+    const hash = pass ? (await scrypt(pass, salt)).toString('hex') : null;
+    if (this.user(name) || this.byEmail.has(email)) return this.err(c, 'That username is taken');
     const now = Date.now();
     const k = key(name);
     const guest = c.guest && this.db.guests[c.guest];
-    this.db.users[k] = { name, email, salt: null, hash: null, created: now, seen: now, av: Math.floor(Math.random() * E.FREE_AVATARS), tro: 0, best: 0, wins: 0, played: 0, streak: 0, lv: 1, friends: [], reqIn: [], reqOut: [], claimed: [], tokens: [] };
+    this.db.users[k] = { name, email, salt, hash, created: now, seen: now, av: Math.floor(Math.random() * E.FREE_AVATARS), tro: 0, best: 0, wins: 0, played: 0, streak: 0, lv: 1, friends: [], reqIn: [], reqOut: [], claimed: [], tokens: [] };
     if (guest && guest.w) { this.db.users[k].w = guest.w; delete this.db.guests[c.guest]; }
     this.byEmail.set(email, k);
     c.newEmail = null;
@@ -323,12 +361,13 @@ class Accounts {
     this.attach(c, k, this.addToken(k));
   }
   async login(c, m) {
-    if (this.slowDown(c) || this.locked(c, m.name)) return;
-    const u = this.user(m.name);
+    const id = String(m.name || '').trim().toLowerCase();
+    if (this.slowDown(c) || this.locked(c, id)) return;
+    const u = id.includes('@') ? this.db.users[this.byEmail.get(id)] || null : this.user(id);
     const pass = String(m.pass || '');
     // same work and same message whether or not the name exists, so names can't be probed
     const hash = (await scrypt(pass.slice(0, 72), u && u.salt ? u.salt : 'nobody')).toString('hex');
-    if (!u || !u.hash || !same(hash, u.hash)) { this.failed(c, m.name); return this.err(c, 'Wrong username or password'); }
+    if (!u || !u.hash || !same(hash, u.hash)) { this.failed(c, id); return this.err(c, id.includes('@') ? 'Wrong email or password' : 'Wrong username or password'); }
     this.attach(c, key(u.name), this.addToken(key(u.name)));
   }
   auth(c, m) {

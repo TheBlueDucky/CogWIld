@@ -93,16 +93,17 @@
         case 'acctOk': this.onLogin(m); break;
         case 'acctCodeSent':
           if (this.loggedIn) { g.toast(`📧 We sent a code to ${m.email}`); break; } // adding an email to your account
-          this.mailStep('code');
+          this.loginView('code');
           $('codeSentTo').textContent = `We sent a 6-digit code to ${m.email}. Check your inbox (and spam).`;
-          if (m.devCode) $('acctCode').value = m.devCode; // local testing only
-          setTimeout(() => $('acctCode').focus(), 50);
+          $('suCode').value = m.devCode || ''; // devCode: local testing only
           break;
         case 'acctPickName':
-          this.mailStep('name');
-          $('acctNewName').value = m.suggest || '';
-          setTimeout(() => $('acctNewName').focus(), 50);
+          this.googleSign = !!m.google;
+          this.mailAddr = m.email;
+          $('suName').value = '';
+          this.loginView('name');
           break;
+        case 'acctNewPass': this.loginView('reset'); break;
         case 'acctEmailSet': this.myEmail = m.email; g.toast(`📧 ${m.email} is now your login`); this.linkStep = null; this.rerender(); break;
         case 'guestOk':
           if (m.token) keep('cogwild.guest', m.token);
@@ -117,7 +118,7 @@
           if (m.reason) g.toast('👤 ' + m.reason);
           break;
         case 'acctErr':
-          if ($('acctErr') && !$('acct').classList.contains('hidden')) { $('acctErr').textContent = m.msg; this.busy(false); }
+          if ($('acctErr') && !$('acct').classList.contains('hidden')) { $('acctErr').textContent = m.msg; $('acctErr').classList.remove('ok'); }
           else g.toast('⚠ ' + m.msg);
           break;
         case 'acctMe': this.me = m.me; this.renderChips(); this.rerender(); break;
@@ -173,8 +174,7 @@
       $('acct').classList.add('hidden');
       const user = m.me.name.toLowerCase();
       this.guestOn = false;
-      if (this.signing) keep('cogwild.guest', null); // the guest wallet became this account's
-      this.signing = false;
+      if (m.created && Date.now() - m.created < 60000) keep('cogwild.guest', null); // a new account took the guest wallet
       if (m.wallet && !m.wallet.fresh) { this.applyWallet(m.wallet); this.afterWallet(); }
       const server = m.save;
       // which copy of the progress wins: the newest one
@@ -252,36 +252,91 @@
       $('btnClubs').onclick = () => (this.loggedIn ? (g.meta.openPanel('clubs'), this.net.send({ t: 'clubInfo' })) : this.openLogin('Log in to join a club'));
       $('roadBar').onclick = () => (this.loggedIn ? g.meta.openPanel('road') : this.openLogin('Log in to earn trophies and unlock the Trophy Road'));
       $('btnTop').onclick = () => { g.meta.openPanel('top'); this.net.send({ t: 'top' }); };
-      $('acctTabLogin').onclick = () => this.loginTab('login');
-      $('acctTabSign').onclick = () => this.loginTab('sign');
+      $('tabLogin').onclick = () => this.loginView('login');
+      $('tabSign').onclick = () => this.loginView(this.mailLogin() ? 'mail' : 'old', 'signup');
       $('acctGuest').onclick = () => $('acct').classList.add('hidden');
+      $('acctX').onclick = () => { if (!this.loginRequired()) $('acct').classList.add('hidden'); };
       $('acct').addEventListener('pointerdown', (e) => { if (e.target === $('acct') && !this.loginRequired()) $('acct').classList.add('hidden'); });
-      $('acctForm').onsubmit = (e) => { e.preventDefault(); this.submitLogin(); };
-      // email login: address -> code -> (new players) username
-      $('mailForm').onsubmit = async (e) => {
+      const err = (msg, ok) => { $('acctErr').textContent = msg; $('acctErr').classList.toggle('ok', !!ok); };
+      const online = async () => { try { await this.net.connect(); return true; } catch (e) { err("Can't reach the server. Check your internet."); return false; } };
+      // log in: email (or an old username) + password
+      $('fLogin').onsubmit = async (e) => {
         e.preventDefault();
-        const email = $('acctEmail').value.trim();
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return ($('acctErr').textContent = "That doesn't look like an email address");
-        $('acctErr').textContent = 'Sending…';
-        try { await this.net.connect(); } catch (err) { $('acctErr').textContent = "Can't reach the server. Check your internet."; return; }
-        $('acctErr').textContent = '';
-        this.mailAddr = email;
-        this.net.send({ t: 'emailStart', email });
+        const id = $('liEmail').value.trim(), pass = $('liPass').value;
+        if (!id || !pass) return err('Type your email and password');
+        if (!(await online())) return;
+        err('');
+        this.welcomeToast = '👋 Welcome back!';
+        this.net.send({ t: 'acctLogin', name: id, pass });
+        $('liPass').value = '';
       };
-      $('codeForm').onsubmit = (e) => { e.preventDefault(); $('acctErr').textContent = ''; this.net.send({ t: 'emailCode', email: this.mailAddr, code: $('acctCode').value.trim() }); };
-      $('nameForm').onsubmit = (e) => { e.preventDefault(); $('acctErr').textContent = ''; this.welcomeToast = `🎉 Welcome to Cogwild, ${$('acctNewName').value.trim()}!`; this.net.send({ t: 'emailName', name: $('acctNewName').value.trim() }); };
-      $('codeBack').onclick = () => this.mailStep('mail');
-      $('acctOld').onclick = () => { $('acctMail').classList.add('hidden'); $('acctForm').classList.remove('hidden'); this.loginTab('login'); };
-      $('acctBack').onclick = () => { $('acctForm').classList.add('hidden'); $('acctMail').classList.remove('hidden'); $('acctErr').textContent = ''; };
-      $('acctShow').onchange = (e) => { const t = e.target.checked ? 'text' : 'password'; $('acctPass').type = t; $('acctPass2').type = t; };
+      $('liForgot').onclick = () => { $('suEmail').value = $('liEmail').value.includes('@') ? $('liEmail').value.trim() : ''; this.loginView('mail', 'reset'); };
+      // sign up (or a new password): email -> code
+      $('fMail').onsubmit = async (e) => {
+        e.preventDefault();
+        const email = $('suEmail').value.trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return err("That doesn't look like an email address");
+        if (!(await online())) return;
+        err('Sending…', true);
+        this.mailAddr = email;
+        this.net.send({ t: 'emailStart', email, purpose: this.purpose });
+      };
+      $('fCode').onsubmit = (e) => { e.preventDefault(); err(''); this.net.send({ t: 'emailCode', email: this.mailAddr, code: $('suCode').value.trim(), purpose: this.purpose }); };
+      $('codeBack').onclick = () => this.loginView('mail', this.purpose);
+      // the last step: username + password
+      $('fName').onsubmit = (e) => {
+        e.preventDefault();
+        const name = $('suName').value.trim(), pass = $('suPass').value;
+        if (!/^[A-Za-z0-9_]{3,16}$/.test(name)) return err('Usernames are 3-16 letters, numbers or _');
+        if (name.includes('@') || (this.mailAddr && name.toLowerCase() === this.mailAddr.split('@')[0].toLowerCase())) return err("Pick a username that isn't your email");
+        if (!this.googleSign) {
+          if (pass.length < 6) return err('Passwords need at least 6 characters');
+          if (pass !== $('suPass2').value) return err("The two passwords don't match");
+        }
+        err('');
+        this.welcomeToast = `🎉 Welcome to Cogwild, ${name}!`;
+        this.net.send({ t: 'emailName', name, pass: this.googleSign ? '' : pass });
+      };
+      $('fReset').onsubmit = (e) => {
+        e.preventDefault();
+        if ($('rsPass').value.length < 6) return err('Passwords need at least 6 characters');
+        if ($('rsPass').value !== $('rsPass2').value) return err("The two passwords don't match");
+        err('');
+        this.welcomeToast = '🔑 Password changed. Welcome back!';
+        this.net.send({ t: 'acctResetPass', pass: $('rsPass').value });
+      };
+      // no email on the server yet: username + password
+      $('fOld').onsubmit = async (e) => {
+        e.preventDefault();
+        const name = $('olName').value.trim(), pass = $('olPass').value;
+        if (!/^[A-Za-z0-9_]{3,16}$/.test(name)) return err('Usernames are 3-16 letters, numbers or _');
+        if (pass.length < 6) return err('Passwords need at least 6 characters');
+        if (pass !== $('olPass2').value) return err("The two passwords don't match");
+        if (!(await online())) return;
+        err('');
+        this.welcomeToast = `🎉 Welcome to Cogwild, ${name}!`;
+        this.net.send({ t: 'acctRegister', name, pass });
+      };
+      $('acctShow').onchange = (e) => { for (const id of ['liPass', 'suPass', 'suPass2', 'rsPass', 'rsPass2', 'olPass', 'olPass2']) $(id).type = e.target.checked ? 'text' : 'password'; };
     }
-    // which part of the email login shows: 'mail' (address), 'code' or 'name'
-    mailStep(step) {
-      $('mailForm').classList.toggle('hidden', step !== 'mail');
-      $('codeForm').classList.toggle('hidden', step !== 'code');
-      $('nameForm').classList.toggle('hidden', step !== 'name');
-      $('gBtnWrap').classList.toggle('hidden', step !== 'mail' || !this.googleReady);
+    // which form shows: 'login', 'mail', 'code', 'name', 'reset' or 'old'; purpose: 'signup' or 'reset'
+    loginView(view, purpose) {
+      if (purpose) this.purpose = purpose;
+      this.view = view;
+      const signing = view !== 'login';
+      $('tabLogin').classList.toggle('on', !signing || this.purpose === 'reset');
+      $('tabSign').classList.toggle('on', signing && this.purpose !== 'reset');
+      for (const [id, v] of [['fLogin', 'login'], ['fMail', 'mail'], ['fCode', 'code'], ['fName', 'name'], ['fReset', 'reset'], ['fOld', 'old']]) $(id).classList.toggle('hidden', view !== v);
+      const reset = this.purpose === 'reset' && signing;
+      $('acctTitle').textContent = reset ? 'New password' : view === 'login' ? 'Welcome back' : 'Create your account';
+      $('mailStepT').textContent = reset ? 'Step 1 of 2 · your email' : 'Step 1 of 3 · your email';
+      $('codeStepT').textContent = reset ? 'Step 2 of 2 · check your email' : 'Step 2 of 3 · check your email';
+      $('gBtnWrap').classList.toggle('hidden', !this.googleReady || !['login', 'mail'].includes(view) || reset);
+      $('acctTabs').classList.toggle('hidden', ['code', 'name', 'reset'].includes(view));
+      document.querySelectorAll('#fName .pw-row').forEach((r) => r.classList.toggle('hidden', !!this.googleSign));
       $('acctErr').textContent = '';
+      const focus = { login: 'liEmail', mail: 'suEmail', code: 'suCode', name: 'suName', reset: 'rsPass', old: 'olName' }[view];
+      setTimeout(() => $(focus) && $(focus).focus(), 50);
     }
     // the Google button (websites only: Google doesn't allow its sign-in inside app web views)
     setupGoogle() {
@@ -293,62 +348,24 @@
       s.async = true;
       s.onload = () => {
         try {
-          google.accounts.id.initialize({ client_id: id, callback: (r) => { $('acctErr').textContent = ''; this.net.send({ t: 'googleLogin', credential: r.credential }); } });
+          google.accounts.id.initialize({ client_id: id, callback: (r) => { $('acctErr').textContent = ''; this.welcomeToast = '👋 Welcome!'; this.net.send({ t: 'googleLogin', credential: r.credential }); } });
           google.accounts.id.renderButton($('gBtn'), { theme: 'filled_black', size: 'large', text: 'continue_with', shape: 'rectangular', width: 300 });
           this.googleReady = true;
-          if (!$('mailForm').classList.contains('hidden')) $('gBtnWrap').classList.remove('hidden');
+          if (this.view === 'login' || (this.view === 'mail' && this.purpose !== 'reset')) $('gBtnWrap').classList.remove('hidden');
         } catch (e) { /* the email code still works */ }
       };
       document.head.appendChild(s);
     }
-    openLogin(why) {
+    openLogin(why, view) {
       if (!this.net.canConnect()) return this.game.toast('Accounts need the game to be opened from its web address');
       $('acct').classList.remove('hidden');
       $('acct').classList.toggle('required', this.loginRequired());
-      // email/Google when the server offers it; otherwise the username + password form
-      const mail = this.mailLogin();
-      $('acctMail').classList.toggle('hidden', !mail);
-      $('acctForm').classList.toggle('hidden', mail);
-      $('acctTabSign').classList.toggle('hidden', mail); // new accounts are made with an email
-      this.mailStep('mail');
+      $('acctWhy').textContent = why || 'Save your progress, earn trophies and play with friends.';
+      this.googleSign = false;
       this.setupGoogle();
-      $('acctWhy').textContent = why || 'Save your progress in the cloud, earn trophies and play with friends.';
-      $('acctErr').textContent = '';
-      this.loginTab(mail ? 'login' : this.tab || 'sign');
-      this.busy(false);
-      setTimeout(() => (mail ? $('acctEmail') : $('acctName')).focus(), 50);
-    }
-    loginTab(tab) {
-      this.tab = tab;
-      const sign = tab === 'sign';
-      $('acctTabLogin').classList.toggle('on', !sign);
-      $('acctTabSign').classList.toggle('on', sign);
-      $('acctPass2Row').classList.toggle('hidden', !sign);
-      $('acctGo').textContent = sign ? '✨ Create account' : '▶ Log in';
-      $('acctPass').autocomplete = sign ? 'new-password' : 'current-password';
-      $('acctHint').textContent = sign ? 'Usernames: 3-16 letters, numbers or _ (not your real name). Pick a password you don\'t use anywhere else. There is no email, so remember it!' : '';
-      $('acctAgree').classList.toggle('hidden', !sign);
-      $('acctErr').textContent = '';
-    }
-    busy(on) { $('acctGo').disabled = on; $('acctGo').classList.toggle('dim', on); }
-    async submitLogin() {
-      const name = $('acctName').value.trim(), pass = $('acctPass').value;
-      const sign = this.tab === 'sign';
-      if (!/^[A-Za-z0-9_]{3,16}$/.test(name)) return ($('acctErr').textContent = 'Usernames are 3-16 letters, numbers or _');
-      if (pass.length < 6) return ($('acctErr').textContent = 'Passwords need at least 6 characters');
-      if (sign && pass !== $('acctPass2').value) return ($('acctErr').textContent = "The two passwords don't match");
-      this.busy(true);
-      $('acctErr').textContent = 'Connecting…';
-      try { await this.net.connect(); } catch (e) { this.busy(false); $('acctErr').textContent = "Can't reach the server. Check your internet."; return; }
-      $('acctErr').textContent = '';
-      this.welcomeToast = sign ? `🎉 Welcome to Cogwild, ${name}!` : `👋 Welcome back, ${name}!`;
-      this.signing = sign;
-      this.net.send({ t: sign ? 'acctRegister' : 'acctLogin', name, pass });
-      $('acctPass').value = '';
-      $('acctPass2').value = '';
+      this.loginView(view || 'login', 'signup');
     }
 
-    // ======================= menu chips + party bar + notes =======================
     renderChips() {
       const g = this.game;
       const me = this.me;
