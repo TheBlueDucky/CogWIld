@@ -257,7 +257,7 @@
       $('roadBar').onclick = () => (this.loggedIn ? g.meta.openPanel('road') : this.openLogin('Log in to earn trophies and unlock the Trophy Road'));
       $('btnTop').onclick = () => { g.meta.openPanel('top'); this.net.send({ t: 'top' }); };
       $('tabLogin').onclick = () => this.loginView('login');
-      $('tabSign').onclick = () => this.loginView(this.mailLogin() ? 'mail' : 'old', 'signup');
+      $('tabSign').onclick = () => this.loginView('sign', 'signup');
       $('acctGuest').onclick = () => $('acct').classList.add('hidden');
       $('acctX').onclick = () => { if (!this.loginRequired()) $('acct').classList.add('hidden'); };
       $('acct').addEventListener('pointerdown', (e) => { if (e.target === $('acct') && !this.loginRequired()) $('acct').classList.add('hidden'); });
@@ -275,7 +275,23 @@
         $('liPass').value = '';
       };
       $('liForgot').onclick = () => { $('suEmail').value = $('liEmail').value.includes('@') ? $('liEmail').value.trim() : ''; this.loginView('mail', 'reset'); };
-      // sign up (or a new password): email -> code
+      // sign up: email, password twice and a username, all at once
+      $('fSign').onsubmit = async (e) => {
+        e.preventDefault();
+        const email = $('sgEmail').value.trim(), pass = $('sgPass').value, name = $('sgName').value.trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return err("That doesn't look like an email address");
+        if (pass.length < 6) return err('Passwords need at least 6 characters');
+        if (pass !== $('sgPass2').value) return err("The two passwords don't match");
+        if (!/^[A-Za-z0-9_]{3,16}$/.test(name)) return err('Usernames are 3-16 letters, numbers or _');
+        if (name.toLowerCase() === email.split('@')[0].toLowerCase()) return err("Pick a username that isn't your email");
+        if (!(await online())) return;
+        err('Creating your account…', true);
+        this.mailAddr = email;
+        this.purpose = 'signup';
+        this.welcomeToast = `🎉 Welcome to Cogwild, ${name}!`;
+        this.net.send({ t: 'acctSignup', email, pass, name });
+      };
+      // a new password: email -> code
       $('fMail').onsubmit = async (e) => {
         e.preventDefault();
         const email = $('suEmail').value.trim();
@@ -286,7 +302,7 @@
         this.net.send({ t: 'emailStart', email, purpose: this.purpose });
       };
       $('fCode').onsubmit = (e) => { e.preventDefault(); err(''); this.net.send({ t: 'emailCode', email: this.mailAddr, code: $('suCode').value.trim(), purpose: this.purpose }); };
-      $('codeBack').onclick = () => this.loginView('mail', this.purpose);
+      $('codeBack').onclick = () => this.loginView(this.purpose === 'signup' ? 'sign' : 'mail', this.purpose);
       // the last step: username + password
       $('fName').onsubmit = (e) => {
         e.preventDefault();
@@ -321,7 +337,7 @@
         this.welcomeToast = `🎉 Welcome to Cogwild, ${name}!`;
         this.net.send({ t: 'acctRegister', name, pass });
       };
-      $('acctShow').onchange = (e) => { for (const id of ['liPass', 'suPass', 'suPass2', 'rsPass', 'rsPass2', 'olPass', 'olPass2']) $(id).type = e.target.checked ? 'text' : 'password'; };
+      $('acctShow').onchange = (e) => { for (const id of ['liPass', 'sgPass', 'sgPass2', 'suPass', 'suPass2', 'rsPass', 'rsPass2', 'olPass', 'olPass2']) $(id).type = e.target.checked ? 'text' : 'password'; };
     }
     // which form shows: 'login', 'mail', 'code', 'name', 'reset' or 'old'; purpose: 'signup' or 'reset'
     loginView(view, purpose) {
@@ -330,16 +346,16 @@
       const signing = view !== 'login';
       $('tabLogin').classList.toggle('on', !signing || this.purpose === 'reset');
       $('tabSign').classList.toggle('on', signing && this.purpose !== 'reset');
-      for (const [id, v] of [['fLogin', 'login'], ['fMail', 'mail'], ['fCode', 'code'], ['fName', 'name'], ['fReset', 'reset'], ['fOld', 'old']]) $(id).classList.toggle('hidden', view !== v);
+      for (const [id, v] of [['fLogin', 'login'], ['fSign', 'sign'], ['fMail', 'mail'], ['fCode', 'code'], ['fName', 'name'], ['fReset', 'reset'], ['fOld', 'old']]) $(id).classList.toggle('hidden', view !== v);
       const reset = this.purpose === 'reset' && signing;
       $('acctTitle').textContent = reset ? 'New password' : view === 'login' ? 'Welcome back' : 'Create your account';
-      $('mailStepT').textContent = reset ? 'Step 1 of 2 · your email' : 'Step 1 of 3 · your email';
-      $('codeStepT').textContent = reset ? 'Step 2 of 2 · check your email' : 'Step 2 of 3 · check your email';
-      $('gBtnWrap').classList.toggle('hidden', !this.googleReady || !['login', 'mail'].includes(view) || reset);
+      $('mailStepT').textContent = 'Step 1 of 2 · your email';
+      $('codeStepT').textContent = reset ? 'Step 2 of 2 · check your email' : 'Last step · confirm your email';
+      $('gBtnWrap').classList.toggle('hidden', !this.googleReady || !['login', 'sign'].includes(view));
       $('acctTabs').classList.toggle('hidden', ['code', 'name', 'reset'].includes(view));
       document.querySelectorAll('#fName .pw-row').forEach((r) => r.classList.toggle('hidden', !!this.googleSign));
       $('acctErr').textContent = '';
-      const focus = { login: 'liEmail', mail: 'suEmail', code: 'suCode', name: 'suName', reset: 'rsPass', old: 'olName' }[view];
+      const focus = { login: 'liEmail', sign: 'sgEmail', mail: 'suEmail', code: 'suCode', name: 'suName', reset: 'rsPass', old: 'olName' }[view];
       setTimeout(() => $(focus) && $(focus).focus(), 50);
     }
     // the Google button (websites only: Google doesn't allow its sign-in inside app web views)
@@ -355,7 +371,7 @@
           google.accounts.id.initialize({ client_id: id, callback: (r) => { $('acctErr').textContent = ''; this.welcomeToast = '👋 Welcome!'; this.net.send({ t: 'googleLogin', credential: r.credential }); } });
           google.accounts.id.renderButton($('gBtn'), { theme: 'filled_black', size: 'large', text: 'continue_with', shape: 'rectangular', width: 300 });
           this.googleReady = true;
-          if (this.view === 'login' || (this.view === 'mail' && this.purpose !== 'reset')) $('gBtnWrap').classList.remove('hidden');
+          if (this.view === 'login' || this.view === 'sign') $('gBtnWrap').classList.remove('hidden');
         } catch (e) { /* the email code still works */ }
       };
       document.head.appendChild(s);

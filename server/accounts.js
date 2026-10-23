@@ -204,7 +204,7 @@ class Accounts {
     const t = m.t;
     if (!/^(acct|friend|party|invite|top|profile|save|status|earn|gift|buy|roadClaim|passClaim|club|guest|email|google)/.test(t)) return false;
     const fn = {
-      acctRegister: () => this.register(c, m), acctLogin: () => this.login(c, m), acctAuth: () => this.auth(c, m),
+      acctRegister: () => this.register(c, m), acctSignup: () => this.signup(c, m), acctLogin: () => this.login(c, m), acctAuth: () => this.auth(c, m),
       acctLogout: () => this.logout(c), acctPass: () => this.changePass(c, m), acctDelete: () => this.remove(c, m),
       save: () => this.saveData(c, m), profileSet: () => this.setProfile(c, m), profile: () => this.showProfile(c, m),
       friendAdd: () => this.friendAdd(c, m), friendAccept: () => this.friendAccept(c, m), friendDecline: () => this.friendDecline(c, m), friendRemove: () => this.friendRemove(c, m),
@@ -261,6 +261,12 @@ class Accounts {
     this.codes.delete(email);
     if (m.purpose === 'signup' && !c.user) {
       if (this.byEmail.has(email)) return this.err(c, 'That email already has an account. Log in instead.');
+      const p = c.pendingSignup;
+      if (p && p.email === email) {
+        if (this.user(p.name)) return this.err(c, 'That username was just taken. Pick another one.');
+        c.pendingSignup = null;
+        return this.createAccount(c, p);
+      }
       c.newEmail = email;
       c.newGoogle = false;
       return this.send(c, { t: 'acctPickName', email });
@@ -335,6 +341,41 @@ class Accounts {
     if (guest && guest.w) { this.db.users[k].w = guest.w; delete this.db.guests[c.guest]; }
     this.byEmail.set(email, k);
     c.newEmail = null;
+    this.attach(c, k, this.addToken(k));
+  }
+
+  // sign up in one go: an email (one account per email), a password and a username. When the server can
+  // send emails, a code goes to the address first and the account is made once it's typed in.
+  async signup(c, m) {
+    if (this.slowDown(c)) return;
+    const email = String(m.email || '').trim().toLowerCase(), name = String(m.name || '').trim(), pass = String(m.pass || '');
+    if (email.length > 254 || !EMAIL_RE.test(email)) return this.err(c, "That doesn't look like an email address");
+    if (this.byEmail.has(email)) return this.err(c, 'That email already has an account. Log in instead.');
+    if (pass.length < 6 || pass.length > 72) return this.err(c, 'Passwords need 6 to 72 characters');
+    if (!NAME_RE.test(name)) return this.err(c, 'Usernames are 3-16 letters, numbers or _');
+    if (BLOCKED.some((b) => key(name).includes(b))) return this.err(c, 'Please pick a different username');
+    if (key(name) === email.split('@')[0]) return this.err(c, "Pick a username that isn't your email");
+    if (pass.toLowerCase() === key(name) || pass.toLowerCase() === email) return this.err(c, "Your password can't be your username or email");
+    if (this.user(name)) return this.err(c, 'That username is taken');
+    const now = Date.now();
+    if ((this.regByIp.get(c.ip) || []).filter((x) => now - x < 3600000).length >= 5) return this.err(c, 'Too many new accounts from your network. Try again later.');
+    const salt = crypto.randomBytes(16).toString('hex');
+    const hash = (await scrypt(pass, salt)).toString('hex');
+    if (mailer.ready) { c.pendingSignup = { email, name, salt, hash }; return this.emailStart(c, { email, purpose: 'signup' }); }
+    this.createAccount(c, { email, name, salt, hash });
+  }
+  // a new account (and this device's guest wallet comes along)
+  createAccount(c, { email, name, salt, hash }) {
+    if (this.user(name)) return this.err(c, 'That username is taken');
+    if (email && this.byEmail.has(email)) return this.err(c, 'That email already has an account. Log in instead.');
+    const now = Date.now();
+    this.regByIp.set(c.ip, (this.regByIp.get(c.ip) || []).filter((x) => now - x < 3600000).concat(now));
+    const k = key(name);
+    const guest = c.guest && this.db.guests[c.guest];
+    this.db.users[k] = { name, email: email || undefined, salt, hash, created: now, seen: now, av: Math.floor(Math.random() * E.FREE_AVATARS), tro: 0, best: 0, wins: 0, played: 0, streak: 0, lv: 1, friends: [], reqIn: [], reqOut: [], claimed: [], tokens: [] };
+    if (guest && guest.w) { this.db.users[k].w = guest.w; delete this.db.guests[c.guest]; }
+    if (email) this.byEmail.set(email, k);
+    this.dirty();
     this.attach(c, k, this.addToken(k));
   }
 

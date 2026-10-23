@@ -1301,7 +1301,15 @@
         <button class="btn big go">Log in</button>
         <button type="button" id="liForgot" class="link-btn">Forgot your password?</button>
       </form>
-      <!-- sign up: email -> code -> username + password (the same steps, without the last one, make a new password) -->
+      <!-- sign up: email (one account each), password twice, username; with email on the server, a code confirms the address -->
+      <form id="fSign" class="acct-form hidden">
+        <label>Email<input id="sgEmail" type="email" maxlength="254" autocomplete="email" spellcheck="false" autocapitalize="off" placeholder="you@gmail.com"></label>
+        <label>Password<input id="sgPass" type="password" maxlength="72" autocomplete="new-password" placeholder="6 or more characters"></label>
+        <label>Confirm password<input id="sgPass2" type="password" maxlength="72" autocomplete="new-password"></label>
+        <label>Username <small>shown to other players. Don't use your real name or email.</small><input id="sgName" maxlength="16" spellcheck="false" autocapitalize="off" autocomplete="nickname" placeholder="3-16 letters, numbers or _"></label>
+        <button class="btn big go">Create account</button>
+      </form>
+      <!-- a forgotten password: email -> code -> new password -->
       <form id="fMail" class="acct-form hidden">
         <div class="step" id="mailStepT">Step 1 of 3 · your email</div>
         <label>Email<input id="suEmail" type="email" maxlength="254" autocomplete="email" spellcheck="false" autocapitalize="off" placeholder="you@gmail.com"></label>
@@ -1347,26 +1355,26 @@
 </div>
 
 <!-- three.js: from the CDN, or the local copy in js/vendor/ when offline (desktop build / no internet) -->
-<script src="js/vendor/three.min.js?v=15"></script>
-<script src="js/economy.js?v=15"></script>
-<script src="js/parts.js?v=15"></script>
-<script src="js/platform.js?v=15"></script>
-<script src="js/featured.js?v=15"></script>
-<script src="js/world.js?v=15"></script>
-<script src="js/entities.js?v=15"></script>
-<script src="js/meta.js?v=15"></script>
-<script src="js/extras.js?v=15"></script>
-<script src="js/modes.js?v=15"></script>
-<script src="js/tutorial.js?v=15"></script>
-<script src="js/clips.js?v=15"></script>
-<script src="js/gamepad.js?v=15"></script>
-<script src="js/workshop.js?v=15"></script>
-<script src="js/config.js?v=15"></script>
-<script src="js/net.js?v=15"></script>
-<script src="js/account.js?v=15"></script>
-<script src="js/touch.js?v=15"></script>
-<script src="js/supers.js?v=15"></script>
-<script src="js/gadgets.js?v=15"></script>
-<script src="js/game.js?v=15"></script>
+<script src="js/vendor/three.min.js?v=16"></script>
+<script src="js/economy.js?v=16"></script>
+<script src="js/parts.js?v=16"></script>
+<script src="js/platform.js?v=16"></script>
+<script src="js/featured.js?v=16"></script>
+<script src="js/world.js?v=16"></script>
+<script src="js/entities.js?v=16"></script>
+<script src="js/meta.js?v=16"></script>
+<script src="js/extras.js?v=16"></script>
+<script src="js/modes.js?v=16"></script>
+<script src="js/tutorial.js?v=16"></script>
+<script src="js/clips.js?v=16"></script>
+<script src="js/gamepad.js?v=16"></script>
+<script src="js/workshop.js?v=16"></script>
+<script src="js/config.js?v=16"></script>
+<script src="js/net.js?v=16"></script>
+<script src="js/account.js?v=16"></script>
+<script src="js/touch.js?v=16"></script>
+<script src="js/supers.js?v=16"></script>
+<script src="js/gadgets.js?v=16"></script>
+<script src="js/game.js?v=16"></script>
 </body>
 </html>

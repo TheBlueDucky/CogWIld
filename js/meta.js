@@ -392,6 +392,7 @@
         body.innerHTML = `<div class="small">${n} / ${CW.ACHIEVEMENTS.length} unlocked. Each one pays coins.</div><div class="ach-grid">${CW.ACHIEVEMENTS.map((a) => `<div class="ach ${got[a.id] ? 'got' : ''}"><b>${got[a.id] ? '🏆' : '🔒'} ${a.name}</b><span class="small">${a.desc}</span><div class="small">+${a.reward} 🪙</div></div>`).join('')}</div>`;
       } else if (k === 'news') {
         body.innerHTML = `<ul class="news">
+          <li><b>v1.6.1</b>: Sign up asks for your email (one account per email), a password twice and a username, all in one step.</li>
           <li><b>v1.6</b>: 👁 Watch your friends' matches from the Friends list (they see who's watching).</li>
           <li>🎉 Your party's mechs stand next to yours in the lobby, and while you wait for a match the players who join drop in on the stage.</li>
           <li>📧 Sign up with your email, a code and a password; log in with email and password; forgot it? Get a code.</li>

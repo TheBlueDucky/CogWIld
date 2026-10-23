@@ -349,6 +349,24 @@ async function main() {
   em2.send({ t: 'acctLogin', name: 'pilot.one@example.com', pass: 'pilot-pass-1' });
   check((await em2.next('acctOk')).me.name === 'PilotOne', 'log in with email and password');
   em2.ws.close();
+  // sign up in one go: email, password, username (here the server can send mail, so a code confirms the email)
+  const su = await player();
+  su.send({ t: 'acctSignup', email: 'pilot.one@example.com', pass: 'whatever1', name: 'Another1' });
+  check(/already has an account/.test((await su.next('acctErr')).msg), 'sign up: one account per email');
+  su.send({ t: 'acctSignup', email: 'Maker@Example.com', pass: 'maker-pass', name: 'PilotOne' });
+  check(/taken/.test((await su.next('acctErr')).msg), 'sign up: usernames are unique');
+  su.send({ t: 'acctSignup', email: 'Maker@Example.com', pass: 'maker-pass', name: 'Maker' });
+  check(/isn't your email/.test((await su.next('acctErr')).msg), "sign up: the username can't be the email");
+  su.send({ t: 'acctSignup', email: 'Maker@Example.com', pass: 'maker-pass', name: 'BuildMaster' });
+  await su.next('acctCodeSent');
+  su.send({ t: 'emailCode', email: 'maker@example.com', code: codeFor('maker@example.com'), purpose: 'signup' });
+  const sok = await su.next('acctOk');
+  check(sok.me.name === 'BuildMaster' && sok.email === 'maker@example.com' && sok.hasPass, 'sign up with email, password and username (code confirms the email)');
+  su.ws.close();
+  const su2 = await player();
+  su2.send({ t: 'acctLogin', name: 'maker@example.com', pass: 'maker-pass' });
+  check((await su2.next('acctOk')).me.name === 'BuildMaster', 'the new account logs in with email and password');
+  su2.ws.close();
   // forgot the password: a code to the email, then a new one
   const rs = await player();
   rs.send({ t: 'emailStart', email: 'nobody@example.com', purpose: 'reset' });
