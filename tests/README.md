@@ -45,3 +45,4 @@ Then run one with `desktop/node_modules/.bin/electron tests/<file>.js` (screensh
 node --experimental-websocket tests/live-smoke.js     # sign up, cloud save, friends, party matchmaking, leaderboard
 node --experimental-websocket tests/live-signup.js    # one-step sign up + log in with email
 ```
+And `desktop/node_modules/.bin/electron tests/live-voice.js`: two hidden, muted players chat and connect voice through the live relay (fake microphone), then delete their accounts.
