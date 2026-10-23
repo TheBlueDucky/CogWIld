@@ -1,0 +1,32 @@
+// Muted phone-size check: lobby, settings and a match with touch controls on, at 915x412 (a phone sideways).
+const { app, BrowserWindow } = require('electron');
+const fs = require('fs');
+const path = require('path');
+fs.mkdirSync(path.join(__dirname, 'shots'), { recursive: true });
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+app.whenReady().then(async () => {
+  const errors = [];
+  const W = +(process.env.W || 915), H = +(process.env.H || 412);
+  const win = new BrowserWindow({ show: false, width: W, height: H, useContentSize: true, webPreferences: { offscreen: true, partition: 'phone' + Date.now() } });
+  win.webContents.setAudioMuted(true);
+  win.webContents.on('console-message', (e, level, msg) => { if (level >= 2) errors.push(msg); });
+  const js = (code) => win.webContents.executeJavaScript(code);
+  const shot = async (name) => fs.writeFileSync(path.join(__dirname, 'shots', name + '.png'), (await win.webContents.capturePage()).toPNG());
+  const G = '(window.game || CW.game)';
+  await win.loadURL('http://localhost:8781/');
+  await js(`localStorage.setItem('cogwild.profile', JSON.stringify({ xp: 4000, coins: 300, settings: { tutorialDone: true, music: 0, sfx: 0, touch: 'on' } })); location.reload();`);
+  await wait(4500);
+  await shot('phone-lobby');
+  await js(`${G}.meta.openPanel('settings'); true`);
+  await wait(600);
+  await js(`document.getElementById('setVibrate').scrollIntoView(); true`);
+  await wait(300);
+  await shot('phone-settings');
+  await js(`${G}.meta.closePanel(); ${G}.playOffline('clash', 'canyon'); true`);
+  await wait(6000);
+  await shot('phone-match-' + W);
+  const vib = await js(`(() => { let n = 0; const o = navigator.vibrate; navigator.vibrate = () => { n++; return true; }; const g = ${G}; g.lastBuzz = 0; g.player.mech.hit(g.player.mech.core, 20, g.combatants.find((c) => !c.isPlayer)); g.lastBuzz = 0; g.supers.readyPing(); navigator.vibrate = o; return { buzzes: n, touch: g.touch.on }; })()`);
+  console.log('VIBRATION', JSON.stringify(vib));
+  console.log('errors', errors.length, errors.slice(0, 5).join(' | '));
+  app.exit(0);
+});

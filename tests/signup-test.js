@@ -1,0 +1,42 @@
+// Muted UI test (server without email, like the live one): sign up with email + password x2 + username,
+// log out, log in with email + password, and the same email can't sign up twice.
+const { app, BrowserWindow } = require('electron');
+const fs = require('fs');
+const path = require('path');
+fs.mkdirSync(path.join(__dirname, 'shots'), { recursive: true });
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+app.whenReady().then(async () => {
+  const errors = [];
+  const win = new BrowserWindow({ show: false, width: 1280, height: 720, useContentSize: true, webPreferences: { offscreen: true, partition: 'su' + Date.now() } });
+  win.webContents.setAudioMuted(true);
+  win.webContents.on('console-message', (e, level, msg) => { if (level >= 2) errors.push(msg); });
+  const js = (code) => win.webContents.executeJavaScript(code);
+  const shot = async (n) => fs.writeFileSync(path.join(__dirname, 'shots', n + '.png'), (await win.webContents.capturePage()).toPNG());
+  const G = '(window.game || CW.game)';
+  await win.loadURL('http://localhost:8781/');
+  await js(`localStorage.setItem('cogwild.profile', JSON.stringify({ xp: 500, settings: { tutorialDone: true, music: 0, sfx: 0 } })); location.reload();`);
+  await wait(4000);
+  const st = () => js(`({ acct: !document.getElementById('acct').classList.contains('hidden'), view: ${G}.account.view, err: document.getElementById('acctErr').textContent, me: ${G}.account.me && ${G}.account.me.name, email: ${G}.account.myEmail })`);
+  await js(`${G}.account.openLogin(); document.getElementById('tabSign').click(); true`);
+  await wait(400);
+  const fields = await js(`['sgEmail','sgPass','sgPass2','sgName'].map((id) => !document.getElementById(id).closest('form').classList.contains('hidden'))`);
+  console.log('SIGN UP FORM SHOWS email, password, confirm, username:', JSON.stringify(fields));
+  const mail = 'me' + (Date.now() % 100000) + '@gmail.com', name = 'Racer' + (Date.now() % 1000);
+  await js(`document.getElementById('sgEmail').value = '${mail}'; document.getElementById('sgPass').value = 'secret77'; document.getElementById('sgPass2').value = 'secret78'; document.getElementById('sgName').value = '${name}'; document.querySelector('#fSign .btn').click(); true`);
+  await wait(300);
+  console.log('MISMATCH:', (await st()).err);
+  await shot('signup-form');
+  await js(`document.getElementById('sgPass2').value = 'secret77'; document.querySelector('#fSign .btn').click(); true`);
+  await wait(2500);
+  console.log('SIGNED UP', JSON.stringify(await st()));
+  await js(`${G}.account.logout(); true`);
+  await wait(5000);
+  await js(`${G}.account.openLogin(); document.getElementById('tabSign').click(); document.getElementById('sgEmail').value = '${mail}'; document.getElementById('sgPass').value = 'other123'; document.getElementById('sgPass2').value = 'other123'; document.getElementById('sgName').value = 'Other${Date.now() % 1000}'; document.querySelector('#fSign .btn').click(); true`);
+  await wait(1500);
+  console.log('SAME EMAIL AGAIN:', (await st()).err);
+  await js(`document.getElementById('tabLogin').click(); document.getElementById('liEmail').value = '${mail}'; document.getElementById('liPass').value = 'secret77'; document.querySelector('#fLogin .btn').click(); true`);
+  await wait(2500);
+  console.log('LOGGED IN', JSON.stringify(await st()));
+  console.log('errors', errors.length, errors.slice(0, 5).join(' | '));
+  app.exit(0);
+});

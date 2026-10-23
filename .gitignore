@@ -22,3 +22,4 @@ android/android/.idea/
 .DS_Store
 Thumbs.db
 *.log
+tests/shots/

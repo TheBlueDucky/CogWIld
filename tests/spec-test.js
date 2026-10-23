@@ -1,0 +1,56 @@
+// Muted test: Ann plays a match; her friend Ben watches it; Ann is told; Ben leaves with Esc.
+const { app, BrowserWindow } = require('electron');
+const fs = require('fs');
+const path = require('path');
+fs.mkdirSync(path.join(__dirname, 'shots'), { recursive: true });
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+app.whenReady().then(async () => {
+  const errors = [];
+  const mk = async (name) => {
+    const win = new BrowserWindow({ show: false, width: 1280, height: 720, useContentSize: true, webPreferences: { offscreen: true, partition: 'p-' + name + Date.now(), backgroundThrottling: false } });
+    win.webContents.setAudioMuted(true);
+    win.webContents.on('console-message', (e, level, msg) => { if (level >= 2) errors.push(name + ': ' + msg); });
+    await win.loadURL('http://localhost:8781/');
+    const js = (code) => win.webContents.executeJavaScript(code);
+    await js(`localStorage.setItem('cogwild.profile', JSON.stringify({ xp: 5000, settings: { tutorialDone: true, music: 0, sfx: 0 } })); location.reload();`);
+    await wait(4000);
+    await js(`window.__crashes = []; (() => { const g = window.game || CW.game; const o = g.crash.bind(g); g.crash = (e) => { window.__crashes.push(String((e && e.stack) || e).slice(0, 300)); o(e); }; })(); true`);
+    return { win, js, name, shot: async (n) => fs.writeFileSync(path.join(__dirname, 'shots', n + '.png'), (await win.webContents.capturePage()).toPNG()) };
+  };
+  const G = '(window.game || CW.game)';
+  const A = await mk('ann'), B = await mk('ben');
+  const tag = Date.now() % 100000;
+  for (const P of [A, B]) { P.user = P.name + tag; await P.js(`${G}.net.connect().then(() => ${G}.net.send({ t: 'acctRegister', name: '${P.user}', pass: 'testpass1' }))`); }
+  await wait(2000);
+  await A.js(`${G}.net.send({ t: 'friendAdd', name: '${B.user}' })`);
+  await wait(700);
+  await B.js(`${G}.net.send({ t: 'friendAccept', name: '${A.user}' })`);
+  await wait(700);
+  await A.js(`${G}.settings.mmMode = 'koth'; ${G}.settings.mmEvent = null; ${G}.play(); true`);
+  for (let i = 0; i < 30 && (await A.js(`${G}.state`)) !== 'match'; i++) await wait(500);
+  await wait(3000);
+  const canWatch = await B.js(`(() => { const f = ${G}.account.friends.find((x) => x.name === '${A.user}'); return f && f.watch; })()`);
+  console.log('Ben sees Ann can be watched:', canWatch);
+  await B.js(`${G}.meta.openPanel('friends'); true`);
+  await wait(400);
+  await B.shot('spec-friends');
+  await B.js(`document.querySelector('[data-watch]').click(); true`);
+  await wait(3000);
+  const bs = await B.js(`(() => { const g = ${G}; return { state: g.state, spectator: g.spectator, watching: g.player && g.player.name, mechs: g.combatants.length, bar: !document.getElementById('specBar').classList.contains('hidden') }; })()`);
+  console.log('BEN WATCHING', JSON.stringify(bs));
+  const told = await A.js(`[...document.querySelectorAll('#notes .note')].map((n) => n.textContent).join(' | ')`);
+  console.log('ANN TOLD:', told);
+  await wait(2500);
+  const moved = await B.js(`(() => { const g = ${G}; const m = g.player && g.player.mech; return m ? [Math.round(m.pos.x), Math.round(m.pos.z)] : null; })()`);
+  await A.js(`(() => { const g = ${G}; g.keys.KeyW = true; return true; })()`);
+  await wait(2500);
+  const moved2 = await B.js(`(() => { const g = ${G}; const m = g.player && g.player.mech; return m ? [Math.round(m.pos.x), Math.round(m.pos.z)] : null; })()`);
+  console.log('Ann on Ben\'s screen moved from', JSON.stringify(moved), 'to', JSON.stringify(moved2));
+  await B.shot('spec-watching');
+  await B.js(`window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' })); true`);
+  await wait(1500);
+  console.log('AFTER ESC', JSON.stringify(await B.js(`({ state: ${G}.state, spectator: ${G}.spectator })`)));
+  console.log('crashes', JSON.stringify(await B.js('window.__crashes')), JSON.stringify(await A.js('window.__crashes')));
+  console.log('errors', errors.length, errors.slice(0, 6).join(' | '));
+  app.exit(0);
+});
