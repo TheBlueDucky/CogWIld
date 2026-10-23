@@ -42,3 +42,25 @@ foreach ($p in $(if ($Portal -eq 'all') { 'itch', 'crazygames', 'poki' } else { 
   Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip
   '{0,-28} {1,5:N1} MB  (server {2})' -f "dist\cogwild-$p.zip", ((Get-Item $zip).Length / 1MB), $ServerUrl
 }
+
+# itch.io: one folder with everything to upload (the browser version and the downloads, if build-apps.ps1 made them)
+if ($Portal -eq 'all' -or $Portal -eq 'itch') {
+  $itch = Join-Path $root 'dist\itch'
+  if (Test-Path $itch) { Remove-Item -Recurse -Force $itch }
+  New-Item -ItemType Directory -Force $itch | Out-Null
+  Copy-Item (Join-Path $root 'dist\cogwild-itch.zip') (Join-Path $itch 'cogwild-web.zip')
+  $dl = Join-Path $root 'dist\downloads'
+  $ver = (Get-Content (Join-Path $root 'desktop\package.json') -Raw | ConvertFrom-Json).version
+  $files = @(
+    @("Cogwild-$ver-portable.exe", 'Windows'), @("Cogwild-$ver-linux-x64.tar.gz", 'Linux'), @("Cogwild-$ver-linux-arm64.tar.gz", 'Linux (ARM)'),
+    @("Cogwild-$ver-mac-arm64.zip", 'macOS (Apple Silicon)'), @("Cogwild-$ver-mac-x64.zip", 'macOS (Intel)'))
+  $lines = @("Cogwild $ver for itch.io: upload each file on the game's Edit page > Uploads and tick its platform.", '', 'cogwild-web.zip  -> "This file will be played in the browser" (viewport 1280 x 720, Fullscreen button on)')
+  foreach ($f in $files) {
+    $src = Join-Path $dl $f[0]
+    if (Test-Path $src) { Copy-Item $src $itch; $lines += ('{0}  -> {1}' -f $f[0], $f[1]) }
+  }
+  [IO.File]::WriteAllLines((Join-Path $itch 'UPLOAD-THESE.txt'), $lines, $utf8)
+  Write-Host ('itch.io folder: {0}' -f $itch)
+  Get-ChildItem $itch | ForEach-Object { '  {0,-36} {1,6:N1} MB' -f $_.Name, ($_.Length / 1MB) }
+}
+

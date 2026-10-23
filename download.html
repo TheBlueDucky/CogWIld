@@ -23,6 +23,7 @@
   .btn.blue { background: var(--accent2); color: #fff; box-shadow: 0 4px 0 #1d4f9e; }
   .btn:active { transform: translateY(3px); box-shadow: none; }
   .small { color: var(--muted); font-size: 14px; }
+  code { background: rgba(255, 255, 255, .08); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
   .how { margin-top: 28px; background: rgba(34, 44, 77, .6); border: 2px solid var(--line); border-radius: 18px; padding: 16px 20px; }
   .how h3 { margin: 6px 0; color: var(--accent); }
   .how ol { margin: 4px 0 10px; padding-left: 22px; }
@@ -50,6 +51,20 @@
       <a class="btn" href="downloads/Cogwild-Setup-1.7.3.exe" download>⬇ Download installer</a>
       <a class="btn alt" href="downloads/Cogwild-1.7.3-portable.exe" download data-file="Cogwild-1.7.3-portable.exe">⬇ Portable .exe (no install) <span class="size"></span></a>
     </div>
+    <div class="card" data-file="Cogwild-1.7.3-mac-arm64.zip">
+      <div class="big">🍎</div>
+      <h2>macOS <small class="small">beta</small></h2>
+      <div class="small">Apple Silicon (M1 and newer) or Intel Macs, macOS 10.15+. Not signed by Apple yet: see below. <span class="size"></span></div>
+      <a class="btn" href="downloads/Cogwild-1.7.3-mac-arm64.zip" download>⬇ Apple Silicon (M1–M4)</a>
+      <a class="btn alt" href="downloads/Cogwild-1.7.3-mac-x64.zip" download data-file="Cogwild-1.7.3-mac-x64.zip">⬇ Intel Mac <span class="size"></span></a>
+    </div>
+    <div class="card" data-file="Cogwild-1.7.3-linux-x64.tar.gz">
+      <div class="big">🐧</div>
+      <h2>Linux</h2>
+      <div class="small">64-bit PCs (Ubuntu, Mint, Fedora, Debian, SteamOS…) or ARM (Raspberry Pi 4/5). <span class="size"></span></div>
+      <a class="btn" href="downloads/Cogwild-1.7.3-linux-x64.tar.gz" download>⬇ Linux 64-bit (.tar.gz)</a>
+      <a class="btn alt" href="downloads/Cogwild-1.7.3-linux-arm64.tar.gz" download data-file="Cogwild-1.7.3-linux-arm64.tar.gz">⬇ ARM 64-bit <span class="size"></span></a>
+    </div>
     <div class="card" data-file="Cogwild-1.7.3.apk">
       <div class="big">🤖</div>
       <h2>Android</h2>
@@ -64,6 +79,17 @@
       <li>Open the file you downloaded.</li>
       <li>Windows may say <b>"Windows protected your PC"</b> because Cogwild is a new game that isn't code-signed yet. Click <b>More info</b>, then <b>Run anyway</b>.</li>
       <li>Log in with your Cogwild account to bring your progress along.</li>
+    </ol>
+    <h3>🍎 Installing on a Mac</h3>
+    <ol>
+      <li>Open the zip you downloaded and drag <b>Cogwild</b> into your <b>Applications</b> folder.</li>
+      <li>The first time, <b>right-click</b> Cogwild and choose <b>Open</b>, then <b>Open</b> again (Cogwild isn't signed by Apple yet). On macOS 15 or newer: open it once, then go to <b>System Settings › Privacy &amp; Security</b> and click <b>Open Anyway</b>.</li>
+      <li>If the Mac says Cogwild "is damaged", open <b>Terminal</b> and run <code>xattr -cr /Applications/Cogwild.app</code>, then open it again.</li>
+    </ol>
+    <h3>🐧 Installing on Linux</h3>
+    <ol>
+      <li>Extract the .tar.gz (double-click it, or <code>tar -xzf Cogwild-1.7.3-linux-x64.tar.gz</code>).</li>
+      <li>Open the folder and run <code>./cogwild</code>. Run <code>./install-shortcut.sh</code> once to add Cogwild to your app menu.</li>
     </ol>
     <h3>🤖 Installing on Android</h3>
     <ol>

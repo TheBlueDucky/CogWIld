@@ -61,7 +61,7 @@ const MIME = {
   '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.json': 'application/json', '.ico': 'image/x-icon',
   '.webm': 'video/webm', '.mp3': 'audio/mpeg', '.txt': 'text/plain; charset=utf-8', '.md': 'text/plain; charset=utf-8',
   '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json', '.png': 'image/png',
-  '.apk': 'application/vnd.android.package-archive', '.exe': 'application/octet-stream', '.zip': 'application/zip',
+  '.apk': 'application/vnd.android.package-archive', '.exe': 'application/octet-stream', '.zip': 'application/zip', '.gz': 'application/gzip',
 };
 const PUBLIC = new Set(['auth.html', 'index.html', 'privacy.html', 'terms.html', 'credits.html', 'favicon.svg', 'download.html', 'manifest.webmanifest', 'sw.js']); // top-level files that may be served
 
@@ -98,7 +98,7 @@ function serveStatic(req, res) {
   }
   const rel = url.replace(/^\/+/, '');
   // only the game files: index/privacy/favicon/download at the top, everything under js/, and the app downloads
-  const allowed = PUBLIC.has(rel) || rel.startsWith('js/') || rel.startsWith('fonts/') || rel.startsWith('img/') || /^downloads\/[\w.-]+\.(exe|apk|zip)$/.test(rel);
+  const allowed = PUBLIC.has(rel) || rel.startsWith('js/') || rel.startsWith('fonts/') || rel.startsWith('img/') || /^downloads\/[\w.-]+\.(exe|apk|zip|tar\.gz)$/.test(rel);
   const file = path.resolve(ROOT, rel);
   if (!allowed || !file.startsWith(ROOT + path.sep) || rel.includes('..') || rel.includes('\0')) return reply(res, 404, 'Not found');
   fs.stat(file, (err, st) => {

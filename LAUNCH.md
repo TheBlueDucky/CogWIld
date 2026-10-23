@@ -10,9 +10,13 @@ The game, server, website, apps and store texts are ready. What's left below nee
 | Website (play in browser, installable) | https://cogwild.duckdns.org | `deploy\upload.ps1` (see deploy/README.md) |
 | Download page | https://cogwild.duckdns.org/download | `build-apps.ps1 -Upload ...` |
 | Windows installer + portable | `dist\downloads\Cogwild-Setup-1.7.3.exe`, `Cogwild-1.7.3-portable.exe` | `build-apps.ps1` |
+| macOS (beta, not signed by Apple) | `dist\downloads\Cogwild-1.7.3-mac-arm64.zip` (Apple Silicon), `-mac-x64.zip` (Intel) | `build-apps.ps1` |
+| Linux | `dist\downloads\Cogwild-1.7.3-linux-x64.tar.gz`, `-linux-arm64.tar.gz` (Raspberry Pi etc.) | `build-apps.ps1` |
 | Android (sideload) | `dist\downloads\Cogwild-1.7.3.apk` (release-signed) | `build-apps.ps1` |
 | Google Play | `dist\store\Cogwild-1.7.3.aab` | `build-apps.ps1` |
-| itch.io / CrazyGames / Poki | `dist\cogwild-itch.zip`, `cogwild-crazygames.zip`, `cogwild-poki.zip` | `build-itch.ps1 -Portal all` |
+| Microsoft Store | `dist\store\Cogwild-1.7.3-store.appx` (needs your Store identity, see §3) | `build-apps.ps1 -StoreId ... -StorePublisher ...` |
+| itch.io (everything in one folder) | `dist\itch\` (browser zip + Windows/Mac/Linux downloads + `UPLOAD-THESE.txt`) | `build-apps.ps1`, then `build-itch.ps1 -Portal all` |
+| CrazyGames / Poki | `dist\cogwild-crazygames.zip`, `cogwild-poki.zip` | `build-itch.ps1 -Portal all` |
 | Store texts, ratings, data safety | [STORE_PAGE.md](STORE_PAGE.md) | |
 | Screenshots + share image | `dist\store\screenshots\`, `img\og-image.png` | `cd desktop; node copy-game.js; npx electron shots.js` |
 | Privacy / Terms / Credits | `/privacy.html`, `/terms.html`, `/credits.html` | |
@@ -28,8 +32,10 @@ The game, server, website, apps and store texts are ready. What's left below nee
 - [ ] Play on 2-3 devices (a weak laptop, an Android phone), and watch 5 friends play **without helping them**.
 
 ## 1. itch.io (free, fastest)
-- [ ] Create a project → Kind **HTML** → upload `dist\cogwild-itch.zip` → tick **"played in the browser"**, viewport **1280×720**, **fullscreen button** and **mobile friendly** (landscape).
-- [ ] Also upload `Cogwild-Setup-1.7.3.exe` (Windows) and `Cogwild-1.7.3.apk` (Android) as downloads.
+- [ ] Create a project → Kind **HTML** → upload everything in `dist\itch\` (`UPLOAD-THESE.txt` says which platform to tick for each file):
+  `cogwild-web.zip` → **"This file will be played in the browser"**, viewport **1280×720**, **fullscreen button**, **mobile friendly** (landscape);
+  the Windows `.exe`, Linux `.tar.gz` and Mac `.zip` files as downloads (tick Windows / Linux / macOS). Add the `.apk` too if you like (Android).
+- [ ] The Mac build isn't signed by Apple: say on the page "first time: right-click Cogwild → Open".
 - [ ] Texts from STORE_PAGE.md, the 6 screenshots, cover image 630×500 (crop one screenshot).
 - [ ] Price: $0 or "name your price".
 
@@ -42,7 +48,14 @@ The game, server, website, apps and store texts are ready. What's left below nee
 
 ## 3. Windows: Steam and Microsoft Store
 - [ ] **Steam**: Steam Direct fee **$100**, tax/bank forms, store page early (wishlists take months), capsule images (use the screenshots + logo). Upload the `desktop\dist\win-unpacked` folder with SteamPipe.
-- [ ] **Microsoft Store** (free for individuals): Partner Center account, then add `"appx"` to the `win.target` list in `desktop\package.json` with your Partner Center publisher ID, and upload the `.appx`.
+- [ ] **Microsoft Store** (free for individual developers; the Store signs the app, no certificate needed):
+  1. Sign up at https://storedeveloper.microsoft.com (individual account) and open Partner Center.
+  2. **Apps and games → New product → MSIX or PWA app**, reserve the name **Cogwild**.
+  3. In the new app: **Product management → Product identity**. Copy **Package/Identity/Name** and **Package/Identity/Publisher** (starts with `CN=`).
+  4. Run `build-apps.ps1 -StoreId <Package/Identity/Name> -StorePublisher "<CN=...>"` (or give both to Claude). It makes `dist\store\Cogwild-1.7.3-store.appx`.
+  5. Start a submission: upload that `.appx` under **Packages**, fill in the store listing (texts and screenshots from STORE_PAGE.md),
+     age rating questionnaire (same answers as Google Play), privacy policy URL, and submit. Certification usually takes 1-3 days.
+  The package asks Windows for the internet and the microphone (voice chat); it needs Windows 10 (1809) or newer.
 - [ ] Optional: a **code-signing certificate** (~$100-300/year) removes the "Windows protected your PC" warning on the download page.
 
 ## 4. Web game portals (ad revenue share)
@@ -50,8 +63,10 @@ The game, server, website, apps and store texts are ready. What's left below nee
 - [ ] **Poki** (developers.poki.com): apply, then upload `dist\cogwild-poki.zip`.
 - [ ] Portal copies hide the "Get the app" link (portal rule) and still play online on your server.
 
-## 5. iPhone / iPad
-- [ ] Without a Mac and a $99/year Apple developer account there's no App Store version. iPhone players can already play on the website: Safari → Share → **Add to Home Screen** runs it fullscreen like an app.
+## 5. Mac, iPhone and iPad
+- [ ] The Mac download works without an Apple account but isn't signed: players open it once with right-click → Open (macOS 15+: System Settings → Privacy & Security → Open Anyway). It was built on Windows and **hasn't been tried on a real Mac yet**: ask a friend with a Mac to test it.
+- [ ] Signing + notarizing (no warning) and the Mac App Store need a Mac and a **$99/year** Apple developer account.
+- [ ] Without that there's no iPhone/iPad App Store version. iPhone players can already play on the website: Safari → Share → **Add to Home Screen** runs it fullscreen like an app.
 
 ## 6. Keep it running
 - [ ] Free **UptimeRobot** monitor on `https://cogwild.duckdns.org/health`.

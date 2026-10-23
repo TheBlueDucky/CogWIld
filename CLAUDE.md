@@ -65,7 +65,8 @@ The user is not a programmer: explain things in plain words, test everything you
 | `server/selftest.js` | ~142 server checks (fake SMTP + fake Google keys), incl. chat, voice set-up and browser Google sign-in |
 | `tests/` | muted Electron game tests + live checks, see `tests/README.md` |
 | `deploy/` | `setup.sh` (installs on the VM), `setup-turn.sh` (voice relay, coturn), `upload.ps1`, `backup-offsite.sh`, `watchdog.sh`, `set-login.ps1` (email codes), `set-google.ps1` (Google client ID) |
-| `build-apps.ps1`, `build-itch.ps1` | Windows exe + Android apk/aab (`-Upload` puts them on the server); portal zips (`-Portal all`) |
+| `build-apps.ps1`, `build-itch.ps1` | Windows exe, Microsoft Store appx (`-StoreId/-StorePublisher`), Linux tar.gz (x64+arm64), macOS zips (Intel+Apple Silicon, unsigned, packed on Windows by `desktop/pack-unix.py` from Electron's official Mac zip), Android apk/aab (`-Upload` puts the downloads on the server); portal zips + `dist\itch\` upload folder (`-Portal all`) |
+| `desktop/make-icons.js`, `desktop/build/appxmanifest.xml` | Store tiles + Mac .icns from build/icon.png; the appx manifest template (adds internet + microphone) copied into electron-builder before building |
 | `desktop/`, `android/` | Electron and Capacitor projects (`android/keys/` = release key, never commit) |
 | `README.md`, `LAUNCH.md`, `STORE_PAGE.md` | player-facing readme, store/launch steps, store texts |
 
@@ -141,6 +142,8 @@ apps would break with the new server; they then get an "update" prompt.
 - Confirm the Oracle alert email subscription.
 - Store launch: Google Play closed test (12 testers × 14 days), itch.io/CrazyGames/Poki submissions (zips in `dist/`).
 - Possibly a chat word filter later (they asked to wait).
+- Microsoft Store: reserve the name in Partner Center (free individual account) and give Product identity Name + Publisher, then rebuild the .appx (LAUNCH.md §3).
+- The Mac builds were never tried on a real Mac (built on Windows); Linux arm64 was smoke-tested in Docker on DuckysSrv.
 - Optional: delete the empty "CogWild" Google Cloud project on the personal Google account (made by mistake, no billing).
 
 ## Google sign-in (done 23 Oct 2026)

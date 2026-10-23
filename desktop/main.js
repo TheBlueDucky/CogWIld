@@ -4,6 +4,9 @@ const path = require('path');
 
 // it's a game: music may start the moment it opens, without waiting for a click
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+// Linux: many distributions block Chromium's sandbox helper for apps run from a folder; the game only shows its own
+// files and talks to its own server, so it runs without it (like most Linux games built this way)
+if (process.platform === 'linux') app.commandLine.appendSwitch('no-sandbox');
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -16,8 +19,10 @@ function createWindow() {
     autoHideMenuBar: true,
     // backgroundThrottling off: the game (and its music) keep going while the window is minimized
     webPreferences: { contextIsolation: true, nodeIntegration: false, backgroundThrottling: false },
+    ...(process.platform === 'linux' ? { icon: path.join(__dirname, 'app', 'img', 'icon-512.png') } : {}),
   });
-  Menu.setApplicationMenu(null);
+  // no menu bar, except on a Mac: there the app menu gives Cmd+Q and the edit menu makes copy/paste work in text boxes
+  Menu.setApplicationMenu(process.platform === 'darwin' ? Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'editMenu' }, { role: 'windowMenu' }]) : null);
   // links (privacy, terms, download page) open in the player's own browser, never inside the game window
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https:\/\//.test(url)) shell.openExternal(url);
