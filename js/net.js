@@ -8,7 +8,7 @@
   const CW = window.CW;
   const V3 = THREE.Vector3;
   const $ = (id) => document.getElementById(id);
-  const NET_VERSION = 'cogwild-net-7';
+  const NET_VERSION = 'cogwild-net-8';
   const SEND_HZ = 20;
   const r2 = (v) => Math.round(v * 100) / 100;
   // names and texts from other players: plain short text only

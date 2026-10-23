@@ -392,6 +392,10 @@
         body.innerHTML = `<div class="small">${n} / ${CW.ACHIEVEMENTS.length} unlocked. Each one pays coins.</div><div class="ach-grid">${CW.ACHIEVEMENTS.map((a) => `<div class="ach ${got[a.id] ? 'got' : ''}"><b>${got[a.id] ? '🏆' : '🔒'} ${a.name}</b><span class="small">${a.desc}</span><div class="small">+${a.reward} 🪙</div></div>`).join('')}</div>`;
       } else if (k === 'news') {
         body.innerHTML = `<ul class="news">
+          <li><b>v1.6</b>: 👁 Watch your friends' matches from the Friends list (they see who's watching).</li>
+          <li>🎉 Your party's mechs stand next to yours in the lobby, and while you wait for a match the players who join drop in on the stage.</li>
+          <li>📧 Sign up with your email, a code and a password; log in with email and password; forgot it? Get a code.</li>
+          <li>🧭 A tidier lobby: 5 buttons on each side, the Cog Pass bar above your challenge, stats in your Profile, and a cyan outline on anything you can click.</li>
           <li><b>v1.5</b>: 📧 Log in with your email (a 6-digit code) or with Google. Old username and password accounts still work and can add an email in Profile.</li>
           <li>🎨 Calmer menus: one dark-blue look, plain buttons, quieter titles, a dark-cyan PLAY button and dark text boxes. Press Esc to close any menu.</li>
           <li>⚖ The server now referees online matches: impossible damage is thrown away, and players caught cheating get nothing from that match.</li>
