@@ -273,6 +273,33 @@ function resultProblem(room, res, n) {
 function broadcast(room, msg, exceptId) {
   const s = JSON.stringify(msg);
   for (const id of room.players) if (id !== exceptId) { const c = clients.get(id); if (c) c.ws.send(s); }
+  if (room.spectators) for (const id of room.spectators) { const c = clients.get(id); if (c) c.ws.send(s); }
+}
+// friends watching a match: they get its start, what happened so far, then everything live
+const MAX_SPECTATORS = 6, LOG_MAX = 600;
+const LOGGED = new Set(['add', 'wreck', 'elim', 'spawn', 'wave', 'chest', 'open', 'pk', 'super']);
+function spectate(c, friend) {
+  const room = friend.room && rooms.get(friend.room);
+  if (!room || room.state !== 'playing' || room.phase !== 'match' || !room.beginPayload) return c.ws.send({ t: 'err', msg: `${friend.name} isn't in a match right now` });
+  room.spectators = room.spectators || new Set();
+  if (room.spectators.size >= MAX_SPECTATORS && !room.spectators.has(c.id)) return c.ws.send({ t: 'err', msg: 'Too many people are watching that match' });
+  if (c.room) leaveRoom(c);
+  stopSpectating(c);
+  room.spectators.add(c.id);
+  c.spectating = room.code;
+  c.watching = friend.id;
+  c.ws.send({ t: 'specBegin', code: room.code, hostId: room.hostId, target: friend.id, name: friend.name, payload: room.beginPayload, log: room.log || [], mode: room.settings.mode });
+  friend.ws.send({ t: 'note', kind: 'info', msg: `👁 ${c.name} is watching you play` });
+}
+function stopSpectating(c, why) {
+  const room = c.spectating && rooms.get(c.spectating);
+  if (room && room.spectators) room.spectators.delete(c.id);
+  if (c.spectating && why) c.ws.send({ t: 'specEnd', why });
+  c.spectating = null;
+}
+function endSpectators(room, why) {
+  for (const id of room.spectators || []) { const s = clients.get(id); if (s) stopSpectating(s, why); }
+  room.spectators = null;
 }
 function sendRoom(room) { broadcast(room, { t: 'room', room: roomView(room) }); }
 
@@ -282,7 +309,8 @@ function leaveRoom(c, reason) {
   c.ready = false;
   if (!room) return;
   room.players.delete(c.id);
-  if (!room.players.size) { rooms.delete(room.code); return; }
+  if (!room.players.size) { endSpectators(room, 'The match is over'); rooms.delete(room.code); return; }
+  for (const id of room.spectators || []) { const s = clients.get(id); if (s && s.watching === c.id) stopSpectating(s, `${c.name} left the match`); }
   if (room.hostId === c.id) {
     room.hostId = pickHost(room);
     if (room.state === 'playing' && room.phase === 'match') {
@@ -440,6 +468,8 @@ function handle(c, data) {
       if (room.phase === 'match' && m.payload && Array.isArray(m.payload.roster)) {
         for (const e of m.payload.roster.slice(0, 64)) if (e && Number.isInteger(e.i)) room.roster.set(e.i, { o: e.o | 0, h: !!e.h });
         room.ref = new Referee(room, m.payload.roster.slice(0, 64), room.hostId);
+        room.beginPayload = m.payload;
+        room.log = [];
         // every player's mech in the match must fit that player's level and the mode's budget
         const budget = room.settings.mode === 'rush' ? 250 : E.BUDGET;
         const bad = m.payload.roster.find((e) => e && e.h && clients.get(e.o | 0) && E.mechProblem(e.bp && e.bp.parts, accounts.level(clients.get(e.o | 0)), budget));
@@ -472,6 +502,8 @@ function handle(c, data) {
       }
       room.state = 'lobby';
       room.phase = null;
+      room.beginPayload = room.log = null;
+      endSpectators(room, 'The match is over');
       for (const id of room.players) clients.get(id).ready = false;
       // matchmaking rooms: whoever stays gets a fresh search (players' games leave for a new search on "Play again")
       if (room.auto) { room.bots = []; room.searchEnds = Date.now() + SEARCH; }
@@ -484,6 +516,7 @@ function handle(c, data) {
       if (!room || room.state !== 'playing') break;
       m.from = c.id;
       if (room.ref) room.ref.check(c.id, m);
+      if (room.log && Array.isArray(m.e)) for (const e of m.e) if (e && LOGGED.has(e.k) && room.log.length < LOG_MAX) room.log.push({ e, from: c.id });
       // a player's own game saying they were knocked out (nobody reports their own elimination falsely)
       if (Array.isArray(m.e) && room.roster) {
         for (const e of m.e) {
@@ -495,6 +528,14 @@ function handle(c, data) {
       else broadcast(room, m, c.id);
       break;
     case 'ping': c.ws.send({ t: 'pong', at: m.at }); break;
+    // watch a friend's match (accounts only, friends only)
+    case 'spectate': {
+      const target = accounts.friendClient(c, m.name);
+      if (!target) return c.ws.send({ t: 'err', msg: 'You can watch friends who are online' });
+      spectate(c, target);
+      break;
+    }
+    case 'specLeave': stopSpectating(c); break;
   }
 }
 
@@ -538,6 +579,7 @@ server.on('upgrade', (req, sock) => {
     if (!clients.has(c.id)) return;
     const n = (perIp.get(ip) || 1) - 1;
     if (n > 0) perIp.set(ip, n); else perIp.delete(ip);
+    stopSpectating(c);
     leaveRoom(c, 'disconnected'); accounts.onClose(c); clients.delete(c.id);
   };
 });

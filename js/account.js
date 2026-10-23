@@ -737,6 +737,7 @@
           ${f.on && !inParty(f.name) ? `<button class="ws-btn" data-party="${esc(f.name)}" title="Invite to your party">🎉 Party</button>` : ''}
           ${f.on && inRoom ? `<button class="ws-btn" data-inv="${esc(f.name)}" title="Invite to the room you're in">📨 Invite</button>` : ''}
           ${f.room && (!net.room || net.room.code !== f.room) ? `<button class="ws-btn on" data-join="${esc(f.room)}" title="Join their room">▶ Join</button>` : ''}
+          ${f.watch ? `<button class="ws-btn on" data-watch="${esc(f.name)}" title="Watch their match (they'll see you're watching)">👁 Watch</button>` : ''}
           <button class="ws-btn" data-rem="${esc(f.name)}" title="Remove friend">✖</button></div>`).join('') : '<div class="small">No friends yet. Add someone by their username!</div>') +
         (this.reqOut.length ? `<h3>Sent requests</h3>${this.reqOut.map((n) => `<div class="fr-row"><b>${esc(n)}</b><span class="small">waiting…</span><button class="ws-btn" data-dec="${esc(n)}">Cancel</button></div>`).join('')}` : '');
       $('frForm').onsubmit = (e) => { e.preventDefault(); const n = $('frName').value.trim(); if (n) net.send({ t: 'friendAdd', name: n }); $('frName').value = ''; };
@@ -746,6 +747,7 @@
       on('[data-party]', (b) => net.send({ t: 'partyInvite', name: b.dataset.party }));
       on('[data-inv]', (b) => net.send({ t: 'invite', name: b.dataset.inv }));
       on('[data-join]', (b) => { this.game.meta.closePanel(); net.openOnline(b.dataset.join); });
+      on('[data-watch]', (b) => { this.game.meta.closePanel(); net.spectate(b.dataset.watch); });
       on('[data-rem]', (b) => { if (confirm(`Remove ${b.dataset.rem} from your friends?`)) net.send({ t: 'friendRemove', name: b.dataset.rem }); });
       on('[data-view]', (b) => this.showPlayer(b.dataset.view, 'friends'));
     }

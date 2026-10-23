@@ -936,6 +936,8 @@
   .party-row { gap: 6px !important; margin: 4px 0 !important; }
   .party-m { font-size: 20px !important; padding: 3px 6px !important; min-width: 54px !important; background: rgba(255, 255, 255, .05) !important; border: 1px solid var(--line2) !important; }
   .party-m.lead { border-color: rgba(92, 225, 255, .5) !important; }
+  #specBar { position: absolute; top: 58px; left: 50%; transform: translateX(-50%); z-index: 6; display: flex; gap: 10px; align-items: center; padding: 6px 12px; border-radius: 10px; background: rgba(14, 20, 42, .55); border: 1px solid var(--line2); font-weight: 700; zoom: var(--z); }
+  #specBar b { color: var(--hl); }
   .pass-tier .tier-n { color: var(--muted2) !important; font-family: 'Nunito', sans-serif !important; font-weight: 700 !important; font-size: 13px !important; }
   .pass-tier.reached .tier-n { color: var(--hl) !important; }
   .ach-pop { background: rgba(255, 255, 255, .05) !important; border: 1px solid var(--line2) !important; box-shadow: none !important; color: var(--txt) !important; }
@@ -1200,6 +1202,7 @@
   </div>
 
   <!-- HUD -->
+  <div id="specBar" class="hidden">👁 Watching <b id="specName"></b> <button id="specLeave" class="ws-btn">Leave (Esc)</button></div>
   <div id="hud" class="hidden">
     <div id="vignette"></div>
     <div id="tags"></div>

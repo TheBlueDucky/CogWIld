@@ -639,6 +639,7 @@
         if (!this.keys[code]) this.pressed[code] = true;
         this.keys[code] = true;
         if (this.state === 'match' && ['Space', 'Tab', 'ShiftLeft'].includes(code)) e.preventDefault();
+        if (e.code === 'Escape' && this.state === 'match' && this.spectator) { this.net.stopSpectating(); return; }
         if (e.code === 'Escape' && this.state === 'match') { if (this.paused) this.resume(); else this.pause(); }
         if (code === 'KeyT' && this.state === 'match' && this.modeId === 'test') this.openWorkshop();
         if (this.state === 'match' && this.net.active && /^Digit[1-8]$/.test(e.code)) this.net.chat(+e.code.slice(5) - 1);
@@ -1155,6 +1156,7 @@
       this.cam.yaw -= this.mouse.dx * sens;
       this.cam.pitch = clamp(this.cam.pitch - this.mouse.dy * sens * (this.settings.invertY ? -1 : 1), -1.2, 0.85);
       this.mouse.dx = this.mouse.dy = 0;
+      if (this.spectator) return;
       const ePressed = this.pressed.KeyE;
       if (c.mech && c.mech.alive && c.mech.occupied) {
         const m = c.mech;

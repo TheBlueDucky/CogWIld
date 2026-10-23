@@ -473,6 +473,7 @@ class Accounts {
       const room = oc.room && this.h.rooms.get(oc.room);
       // friends can hop into your room while it's waiting in the lobby
       if (room && room.state === 'lobby' && room.players.size < this.h.maxPlayers) v.room = room.code;
+      if (room && room.state === 'playing' && room.phase === 'match') v.watch = true; // friends can watch
     }
     v.party = this.partyOf.get(k) || null;
     if (oc && oc.showBp) v.bp = oc.showBp;
@@ -1015,6 +1016,12 @@ class Accounts {
       const c = this.h.clients.get(id);
       if (c) this.send(c, { t: 'note', kind: 'info', msg: "⚠ This match's result didn't add up, so no trophies changed." });
     }
+  }
+  // an online friend's connection (for watching their match)
+  friendClient(c, name) {
+    const u = this.me(c), k = key(name);
+    if (!u || !u.friends.includes(k)) return null;
+    return this.online.get(k) || null;
   }
   // the referee noted this player in a match: kept on the account (for a closer look later)
   noted(c, why) {

@@ -103,6 +103,7 @@
       }
       const inRoom = !!this.room;
       this.room = null;
+      if (this.spectating) { this.spectating = null; g.spectator = false; $('specBar').classList.add('hidden'); }
       this.building = false;
       $('netWait').classList.add('hidden');
       if (this.active || inRoom) {
@@ -147,6 +148,8 @@
         case 'st': this.onState(m); break;
         case 'left': this.onLeft(m.id); break;
         case 'host': this.onNewHost(m.id, m.old); break;
+        case 'specBegin': this.onSpectate(m); break;
+        case 'specEnd': if (this.spectating) { g.toast('👁 ' + (m.why || 'Stopped watching')); this.stopSpectating(true); } break;
         case 'hostLeft':
           if (this.active || this.building) {
             this.stopMatch();
@@ -161,6 +164,7 @@
     // ======================= screens =======================
     bindUi() {
       $('srCancel').onclick = () => this.cancelSearch();
+      $('specLeave').onclick = () => this.stopSpectating();
       $('srMech').onchange = (e) => { this.bpIndex = +e.target.value; this.sendReady(); this.renderSearch(); };
       $('onBack').onclick = () => this.game.showMenu();
       $('onCreate').onclick = () => this.withServer(() => this.send({ t: 'create', pub: $('onPublic').checked, settings: this.defaultSettings() }));
@@ -839,7 +843,7 @@
         case 'open': if (hostMsg) g.chests.netOpen(e.id, C(e.c), e.kinds || []); break;
         case 'obj': if (hostMsg && g.obj && g.obj.netApply) g.obj.netApply(e.s); break;
         case 'wave': if (hostMsg) g.netWave(e); break;
-        case 'end': if (hostMsg) g.netEnd(e); break;
+        case 'end': if (hostMsg) { if (this.spectating) { g.toast('👁 The match is over'); this.stopSpectating(true); } else g.netEnd(e); } break;
         case 'super': g.supers.onRemote(e); break;
         case 'gadget': g.gadgets.onRemote(e); break;
       }
@@ -893,6 +897,39 @@
         sv.waveT = 0;
       }
       this.objT = 0;
+    }
+    // ======================= watching a friend's match =======================
+    spectate(name) {
+      if (this.room || this.active) return this.game.toast('Leave your room or match first');
+      this.withServer(() => this.send({ t: 'spectate', name }));
+    }
+    // the match as it is: its start, then everything that happened since, then live updates
+    onSpectate(m) {
+      const g = this.game;
+      this.spectating = { name: m.name, target: m.target };
+      this.room = { code: m.code, hostId: m.hostId, players: [], bots: [], settings: { mode: m.mode }, auto: true, spectate: true };
+      g.spectator = true;
+      this.isHost = false;
+      this.onBegin(m.payload);
+      g.countdown = 0;
+      const friend = g.combatants.find((c) => c.human && c.owner === m.target);
+      if (friend) g.player = friend;
+      for (const x of m.log || []) { try { this.onEvent(x.e, x.from); } catch (err) { /* skip what no longer fits */ } }
+      $('specBar').classList.remove('hidden');
+      $('hint').classList.add('hidden');
+      $('specName').textContent = m.name;
+      g.feed(`👁 Watching ${m.name}. Press Esc to leave.`, 'good');
+    }
+    stopSpectating(quiet) {
+      if (!this.spectating) return;
+      if (!quiet) this.send({ t: 'specLeave' });
+      this.spectating = null;
+      this.room = null;
+      this.game.spectator = false;
+      $('specBar').classList.add('hidden');
+      $('hint').classList.remove('hidden');
+      this.stopMatch();
+      this.game.showMenu();
     }
     // the host's game: tell everyone the match is over
     matchEnded(winner, places) {

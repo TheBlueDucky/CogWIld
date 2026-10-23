@@ -533,6 +533,38 @@ async function main() {
     q.host.ws.close(); q.other.ws.close();
     return !r;
   };
+  // watching a friend's match
+  {
+    const pl = await player(), wt = await player();
+    pl.send({ t: 'acctLogin', name: 'FromGuest', pass: 'guest1234' });
+    await pl.next('acctOk');
+    wt.send({ t: 'acctLogin', name: 'Spender', pass: 'spend1234' });
+    await wt.next('acctOk');
+    wt.send({ t: 'spectate', name: 'FromGuest' });
+    check(/watch friends/.test((await wt.next('err')).msg), 'you can only watch friends');
+    pl.send({ t: 'friendAdd', name: 'Spender' });
+    await wt.next('note', (m) => m.kind === 'friendReq');
+    wt.send({ t: 'friendAccept', name: 'FromGuest' });
+    await pl.next('friends', (m) => m.list.some((f) => f.name === 'Spender'));
+    wt.send({ t: 'spectate', name: 'FromGuest' });
+    check(/isn't in a match/.test((await wt.next('err')).msg), "you can't watch a friend who isn't playing");
+    pl.send({ t: 'quick', mode: 'koth', arena: 'swamp' });
+    await pl.next('autostart', null, 8000);
+    const bp = { parts: [{ t: 'core', x: 0, y: 0, z: 0 }, { t: 'wheel', x: 1, y: 0, z: 0 }] };
+    pl.send({ t: 'begin', payload: { kind: 'match', arena: 'swamp', roster: [{ i: 1, o: pl.id, h: 1, bp }, { i: 2, o: pl.id, h: 0, bp }] } });
+    await wait(200);
+    pl.send({ t: 'st', s: [{ i: 1, l: 0, m: [0, 2, 0] }], e: [{ k: 'wreck', c: 2, by: 1, l: 0 }] });
+    await wait(200);
+    wt.send({ t: 'spectate', name: 'FromGuest' });
+    const sb = await wt.next('specBegin');
+    check(sb.payload.roster.length === 2 && sb.log.some((x) => x.e.k === 'wreck') && sb.target === pl.id, 'a watcher gets the match start and what happened so far');
+    check(/is watching you/.test((await pl.next('note', (m) => /watching/.test(m.msg))).msg), 'the player is told who is watching');
+    pl.send({ t: 'st', s: [{ i: 1, l: 0, m: [5, 2, 0] }] });
+    check(!!(await wt.next('st', null, 2000).catch(() => null)), 'the watcher sees the match live');
+    pl.send({ t: 'end', res: { [pl.id]: 1 }, n: 2 });
+    check(/over/.test((await wt.next('specEnd')).why), 'when the match ends, the watcher is sent home');
+    pl.ws.close(); wt.ws.close();
+  }
   // the referee: spoofed hits, impossible damage, impossible speed
   {
     const q = await pair('koth', 'jungle');
