@@ -13,8 +13,58 @@ const VER = 'cogwild-net-6';
 let server;
 let failed = 0;
 
+// a fake mail server (plain SMTP) that keeps every email it gets, and a fake Google key set
+const net = require('net'), http = require('http'), crypto = require('crypto');
+const SMTP_PORT = PORT + 200, CERTS_PORT = PORT + 300;
+const mails = [];
+net.createServer((sock) => {
+  let buf = '', data = null, auth = 0;
+  sock.on('error', () => {});
+  sock.write('220 fake\r\n');
+  sock.on('data', (d) => {
+    buf += d;
+    let i;
+    while ((i = buf.indexOf('\r\n')) >= 0) {
+      const line = buf.slice(0, i);
+      buf = buf.slice(i + 2);
+      if (data !== null) {
+        if (line === '.') { mails.push(data); data = null; sock.write('250 ok\r\n'); } else data += line + '\n';
+        continue;
+      }
+      const cmd = line.slice(0, 4).toUpperCase();
+      if (cmd === 'EHLO') sock.write('250-fake\r\n250 AUTH LOGIN\r\n');
+      else if (cmd === 'AUTH') { auth = 1; sock.write('334 VXNlcm5hbWU6\r\n'); }
+      else if (auth === 1) { auth = 2; sock.write('334 UGFzc3dvcmQ6\r\n'); }
+      else if (auth === 2) { auth = 0; sock.write('235 ok\r\n'); }
+      else if (cmd === 'MAIL' || cmd === 'RCPT') sock.write('250 ok\r\n');
+      else if (cmd === 'DATA') { data = ''; sock.write('354 go\r\n'); }
+      else if (cmd === 'QUIT') { sock.write('221 bye\r\n'); sock.end(); }
+      else sock.write('500 what\r\n');
+    }
+  });
+}).listen(SMTP_PORT, '127.0.0.1');
+const gkey = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+http.createServer((req, res) => { res.end(JSON.stringify({ keys: [Object.assign(gkey.publicKey.export({ format: 'jwk' }), { kid: 'k1', alg: 'RS256', use: 'sig' })] })); }).listen(CERTS_PORT, '127.0.0.1');
+function googleToken(email, aud = 'test-client') {
+  const enc = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const head = enc({ alg: 'RS256', kid: 'k1', typ: 'JWT' }), body = enc({ iss: 'https://accounts.google.com', aud, email, email_verified: true, exp: Math.floor(Date.now() / 1000) + 600 });
+  return `${head}.${body}.${crypto.sign('RSA-SHA256', Buffer.from(head + '.' + body), gkey.privateKey).toString('base64url')}`;
+}
+// the 6-digit code from the newest email to this address
+function codeFor(email) {
+  for (let i = mails.length - 1; i >= 0; i--) {
+    if (!mails[i].includes('To: ' + email)) continue;
+    const body = Buffer.from(mails[i].split('\n\n').slice(1).join('').replace(/\s/g, ''), 'base64').toString('utf8');
+    const m = /code is (\d{6})/.exec(body);
+    if (m) return m[1];
+  }
+  return null;
+}
+
 function start() {
-  server = spawn(process.execPath, [path.join(__dirname, 'server.js')], { env: Object.assign({}, process.env, { PORT, DATA_DIR: DATA, SEARCH_SECS: '2', TROPHY_MIN_SECS: '0' }), stdio: process.env.TEST_LOG ? 'inherit' : 'ignore' });
+  server = spawn(process.execPath, [path.join(__dirname, 'server.js')], { env: Object.assign({}, process.env, { PORT, DATA_DIR: DATA, SEARCH_SECS: '2', TROPHY_MIN_SECS: '0',
+    MAIL_SMTP_HOST: '127.0.0.1', MAIL_SMTP_PORT: String(SMTP_PORT), MAIL_SMTP_SECURE: 'none', MAIL_SMTP_USER: 'game@test.dev', MAIL_SMTP_PASS: 'mailpass123', MAIL_FROM: 'Cogwild <game@test.dev>',
+    GOOGLE_CLIENT_ID: 'test-client', GOOGLE_CERTS_URL: `http://127.0.0.1:${CERTS_PORT}/certs` }), stdio: process.env.TEST_LOG ? 'inherit' : 'ignore' });
   return wait(700);
 }
 function stop() { return new Promise((res) => { server.once('exit', res); server.kill('SIGTERM'); }); }
@@ -43,7 +93,7 @@ function player() {
       setTimeout(() => { clearInterval(timer); rej(new Error(`no "${t}" message`)); }, ms);
     });
     p.last = (t) => [...p.got].reverse().find((x) => x.t === t);
-    ws.onmessage = (e) => { const m = JSON.parse(e.data); p.got.push(m); if (m.t === 'welcome') { p.id = m.id; p.send({ t: 'hello', name: 'Guest', ver: VER }); resolve(p); } };
+    ws.onmessage = (e) => { const m = JSON.parse(e.data); p.got.push(m); if (m.t === 'welcome') { p.login = m.login; p.id = m.id; p.send({ t: 'hello', name: 'Guest', ver: VER }); resolve(p); } };
     ws.onerror = reject;
   });
 }
@@ -271,12 +321,66 @@ async function main() {
   check(!!(await gu2.next('kicked', null, 2000).catch(() => null)), 'a host who starts a match with a mech that is not allowed is removed');
   gu2.ws.close();
 
+  console.log('email and Google login');
+  const em = await player();
+  check(em.login && em.login.email === true && em.login.google === 'test-client', 'the server says email and Google login are on');
+  em.send({ t: 'emailStart', email: 'not-an-email' });
+  check(/email address/.test((await em.next('acctErr')).msg), 'a bad address is refused');
+  em.send({ t: 'emailStart', email: 'Pilot.One@Example.com' });
+  await em.next('acctCodeSent');
+  const code1 = codeFor('pilot.one@example.com');
+  check(/^\d{6}$/.test(code1 || ''), 'the login code arrives by email (real SMTP conversation)');
+  em.send({ t: 'emailCode', email: 'pilot.one@example.com', code: code1 === '000000' ? '111111' : '000000' });
+  check(/isn't right/.test((await em.next('acctErr')).msg), 'a wrong code is refused');
+  em.send({ t: 'emailCode', email: 'pilot.one@example.com', code: code1 });
+  const pick = await em.next('acctPickName');
+  check(/^pilotone$/i.test(pick.suggest), `a new email picks a username (suggested ${pick.suggest})`);
+  em.send({ t: 'emailName', name: 'PilotOne' });
+  const eok = await em.next('acctOk');
+  check(eok.me.name === 'PilotOne' && eok.email === 'pilot.one@example.com' && eok.hasPass === false, 'the account is made with that email');
+  em.ws.close();
+  const em2 = await player();
+  em2.send({ t: 'acctLogin', name: 'PilotOne', pass: 'anything' });
+  check(/Wrong/.test((await em2.next('acctErr')).msg), 'an email account has no password to guess');
+  em2.send({ t: 'emailStart', email: 'pilot.one@example.com' });
+  await em2.next('acctCodeSent');
+  em2.send({ t: 'emailCode', email: 'pilot.one@example.com', code: codeFor('pilot.one@example.com') });
+  check((await em2.next('acctOk')).me.name === 'PilotOne', 'the same email logs back in to the same account');
+  em2.ws.close();
+  const gg = await player();
+  gg.send({ t: 'googleLogin', credential: googleToken('someone@gmail.com', 'other-app') });
+  check(/not for this game/.test((await gg.next('acctErr')).msg), 'a Google token for another app is refused');
+  gg.send({ t: 'googleLogin', credential: googleToken('someone@gmail.com').replace(/.$/, 'A') });
+  check(!!(await gg.next('acctErr')), 'a tampered Google token is refused');
+  gg.send({ t: 'googleLogin', credential: googleToken('someone@gmail.com') });
+  await gg.next('acctPickName');
+  gg.send({ t: 'emailName', name: 'GoogleFan' });
+  check((await gg.next('acctOk')).email === 'someone@gmail.com', 'Google sign-in makes an account with the Google email');
+  gg.ws.close();
+  // an old username + password account adds an email, then logs in with it
+  const ol = await player();
+  ol.send({ t: 'acctLogin', name: 'Spender', pass: 'spend1234' });
+  await ol.next('acctOk');
+  ol.send({ t: 'emailStart', email: 'spender@outlook.com' });
+  await ol.next('acctCodeSent');
+  ol.send({ t: 'emailCode', email: 'spender@outlook.com', code: codeFor('spender@outlook.com') });
+  check((await ol.next('acctEmailSet')).email === 'spender@outlook.com', 'an old account can add an email');
+  ol.ws.close();
+  const ol2 = await player();
+  ol2.send({ t: 'emailStart', email: 'spender@outlook.com' });
+  await ol2.next('acctCodeSent');
+  ol2.send({ t: 'emailCode', email: 'spender@outlook.com', code: codeFor('spender@outlook.com') });
+  check((await ol2.next('acctOk')).me.name === 'Spender', 'and then logs in with that email');
+  ol2.ws.close();
+
   console.log('clubs');
   const cA = await player(), cB = await player();
   cA.send({ t: 'acctLogin', name: 'Spender', pass: 'spend1234' });
   await cA.next('acctOk');
   cB.send({ t: 'acctLogin', name: 'Newbie', pass: 'newbie123' }); // locked by the wrong-password test? log in another way below
-  const nb = await Promise.race([cB.next('acctOk').then(() => true), cB.next('acctErr').then(() => false)]);
+  await wait(1500);
+  const nb = cB.got.some((m) => m.t === 'acctOk');
+  cB.cursor = cB.got.length;
   if (!nb) { cB.send({ t: 'acctLogin', name: 'Alice_1', pass: 'newpass456' }); await cB.next('acctOk'); }
   cA.send({ t: 'clubCreate', name: '<b>', badge: 3 });
   check(/Club names/.test((await cA.next('acctErr')).msg), 'bad club names are refused');

@@ -615,7 +615,7 @@
     closeTop() {
       const open = (id) => $(id) && !$(id).classList.contains('hidden');
       if (open('modal')) { this.closeModal(); return true; }
-      if (open('acct')) { $('acct').classList.add('hidden'); return true; }
+      if (open('acct')) { if (!this.account.loginRequired()) $('acct').classList.add('hidden'); return true; }
       if (open('panel')) { this.meta.closePanel(); return true; }
       if (this.state === 'picker' || this.state === 'online' || this.state === 'modes') { this.showMenu(); return true; }
       return false;

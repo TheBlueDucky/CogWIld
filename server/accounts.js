@@ -7,10 +7,14 @@ const path = require('path');
 const crypto = require('crypto');
 const FEATURED = require('../js/featured.js');
 const E = require('../js/economy.js');
+const mailer = require('./mailer');
+const google = require('./google');
 
 const DATA_DIR = process.env.DATA_DIR || path.resolve(__dirname, '..', 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 const NAME_RE = /^[A-Za-z0-9_]{3,16}$/;
+const EMAIL_RE = /^[^\s@<>"'`,;]{1,64}@[A-Za-z0-9.-]{1,180}\.[A-Za-z]{2,24}$/;
+const CODE_LIFE = 10 * 60000; // login codes work for 10 minutes, 5 tries
 // names kids shouldn't see (substring match, case-insensitive) and names that pretend to be staff
 const BLOCKED = ['fuck', 'shit', 'bitch', 'cunt', 'nigg', 'fag', 'dick', 'cock', 'pussy', 'whore', 'slut', 'rape', 'nazi', 'hitler', 'porn', 'sexy', 'penis', 'vagina', 'retard', 'admin', 'moderator', 'official', 'cogwild'];
 const MAX_FRIENDS = 100;
@@ -56,10 +60,13 @@ class Accounts {
     this.regByIp = new Map(); // ip -> [timestamps] (sign-up spam limit)
     this.fails = new Map(); // 'n:'+name / 'i:'+ip -> [timestamps] of wrong passwords
     this.guestByIp = new Map(); // ip -> [timestamps] (new guest records)
+    this.codes = new Map(); // email -> { hash, exp, tries } (email login codes waiting to be typed in)
+    this.mailByIp = new Map(); // ip -> [timestamps] and 'e:'+email -> [timestamps] (codes sent)
     // forget old sign-up and wrong-password records so the maps stay small
     setInterval(() => {
       const now = Date.now();
-      for (const [m, win] of [[this.regByIp, 3600000], [this.fails, FAIL_WINDOW], [this.guestByIp, 3600000]]) {
+      for (const [k, v] of this.codes) if (v.exp < now) this.codes.delete(k);
+      for (const [m, win] of [[this.regByIp, 3600000], [this.fails, FAIL_WINDOW], [this.guestByIp, 3600000], [this.mailByIp, 3600000]]) {
         for (const [k, list] of m) { const keep = list.filter((x) => now - x < win); if (keep.length) m.set(k, keep); else m.delete(k); }
       }
       // guests nobody has seen for half a year are forgotten
@@ -86,6 +93,8 @@ class Accounts {
     this.db.guests = Object.assign(Object.create(null), this.db.guests || {});
     this.clubLog = new Map(); // club id -> the last 30 quick-chat lines (not saved)
     for (const [k, u] of Object.entries(this.db.users)) for (const t of u.tokens || []) this.byToken.set(t, k);
+    this.byEmail = new Map(); // email -> user key
+    for (const [k, u] of Object.entries(this.db.users)) if (u.email) this.byEmail.set(u.email, k);
     console.log(`accounts: ${Object.keys(this.db.users).length} players in ${DB_FILE}`);
   }
   dirty() {
@@ -142,7 +151,7 @@ class Accounts {
     u.seen = Date.now();
     this.online.set(k, c);
     this.dirty();
-    this.send(c, { t: 'acctOk', token, me: this.publicCard(u), created: u.created, save: this.withWallet(u, u.save) || null, claimed: this.wallet(u).road, wallet: this.walletView(u) });
+    this.send(c, { t: 'acctOk', token, email: u.email || null, hasPass: !!u.hash, me: this.publicCard(u), created: u.created, save: this.withWallet(u, u.save) || null, claimed: this.wallet(u).road, wallet: this.walletView(u) });
     this.sendFriends(c);
     this.sendParty(k);
     this.friendsChanged(k);
@@ -193,7 +202,7 @@ class Accounts {
   // returns true when the message was an account message
   handle(c, m) {
     const t = m.t;
-    if (!/^(acct|friend|party|invite|top|profile|save|status|earn|gift|buy|roadClaim|passClaim|club|guest)/.test(t)) return false;
+    if (!/^(acct|friend|party|invite|top|profile|save|status|earn|gift|buy|roadClaim|passClaim|club|guest|email|google)/.test(t)) return false;
     const fn = {
       acctRegister: () => this.register(c, m), acctLogin: () => this.login(c, m), acctAuth: () => this.auth(c, m),
       acctLogout: () => this.logout(c), acctPass: () => this.changePass(c, m), acctDelete: () => this.remove(c, m),
@@ -202,13 +211,93 @@ class Accounts {
       partyInvite: () => this.partyInvite(c, m), partyAccept: () => this.partyAccept(c, m), partyLeave: () => c.user && this.leaveParty(c.user), partyKick: () => this.partyKick(c, m),
       clubCreate: () => this.clubCreate(c, m), clubJoin: () => this.clubJoin(c, m), clubLeave: () => this.clubLeave(c), clubKick: () => this.clubKick(c, m),
       clubList: () => this.clubList(c, m), clubInfo: () => this.clubInfo(c, m), clubChat: () => this.clubChat(c, m), clubEdit: () => this.clubEdit(c, m),
-      guest: () => this.guestHello(c, m), earn: () => this.earn(c, m), gift: () => this.gift(c), buy: () => this.buy(c, m), roadClaim: () => this.roadClaim(c, m), passClaim: () => this.passClaim(c, m),
+      guest: () => this.guestHello(c, m), earn: () => this.earn(c, m),
+      emailStart: () => this.emailStart(c, m), emailCode: () => this.emailCode(c, m), emailName: () => this.emailName(c, m), googleLogin: () => this.googleLogin(c, m), gift: () => this.gift(c), buy: () => this.buy(c, m), roadClaim: () => this.roadClaim(c, m), passClaim: () => this.passClaim(c, m),
       invite: () => this.inviteRoom(c, m), top: () => this.top(c, m), status: () => { c.busy = !!m.busy; if (c.user) this.friendsChanged(c.user); },
     }[t];
     if (!fn) return true;
     const r = fn();
     if (r && r.catch) r.catch((e) => { console.error('accounts', t, e); this.err(c, 'Something went wrong. Try again.'); });
     return true;
+  }
+
+  // ======================= email and Google login =======================
+  // what this server can do (sent with 'welcome'): the game asks for a login when either works
+  loginOptions() { return { email: mailer.ready, google: google.clientId || null }; }
+  // 1) send a 6-digit code to an email address
+  async emailStart(c, m) {
+    const email = String(m.email || '').trim().toLowerCase();
+    if (!mailer.ready) return this.err(c, "Email login isn't set up on this server yet");
+    if (email.length > 254 || !EMAIL_RE.test(email)) return this.err(c, "That doesn't look like an email address");
+    const now = Date.now();
+    const byIp = (this.mailByIp.get(c.ip) || []).filter((x) => now - x < 3600000);
+    const byMail = (this.mailByIp.get('e:' + email) || []).filter((x) => now - x < 600000);
+    if (byIp.length >= 12 || byMail.length >= 3) return this.err(c, 'Too many codes asked for. Wait a few minutes and try again.');
+    this.mailByIp.set(c.ip, byIp.concat(now));
+    this.mailByIp.set('e:' + email, byMail.concat(now));
+    const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+    this.codes.set(email, { hash: sha(email + ':' + code), exp: now + CODE_LIFE, tries: 0 });
+    try {
+      await mailer.send(email, `Your Cogwild code: ${code}`, `Your Cogwild login code is ${code}\n\nIt works for 10 minutes. If you didn't ask for it, you can ignore this email.\n\nBlueDucky Games · Cogwild`);
+    } catch (e) {
+      console.error('mail failed', e.message);
+      this.codes.delete(email);
+      return this.err(c, "We couldn't send the email right now. Try again in a minute.");
+    }
+    this.send(c, Object.assign({ t: 'acctCodeSent', email }, mailer.dev ? { devCode: code } : {}));
+  }
+  // 2) the code from the email
+  emailCode(c, m) {
+    const email = String(m.email || '').trim().toLowerCase();
+    const p = this.codes.get(email);
+    if (!p || p.exp < Date.now()) return this.err(c, 'That code ran out. Ask for a new one.');
+    if (++p.tries > 5) { this.codes.delete(email); return this.err(c, 'Too many wrong codes. Ask for a new one.'); }
+    if (!same(sha(email + ':' + String(m.code || '').trim()), p.hash)) return this.err(c, "That code isn't right");
+    this.codes.delete(email);
+    this.emailVerified(c, email);
+  }
+  async googleLogin(c, m) {
+    if (this.slowDown(c)) return;
+    let email;
+    try { email = await google.verify(m.credential); } catch (e) { return this.err(c, 'Google sign-in failed: ' + e.message); }
+    this.emailVerified(c, email);
+  }
+  // a proven email: log in to its account, add it to the account you're in, or start a new account
+  emailVerified(c, email) {
+    const k = this.byEmail.get(email);
+    if (c.user) {
+      const u = this.me(c);
+      if (k && k !== c.user) return this.err(c, 'That email belongs to another account');
+      if (u.email && u.email !== email) this.byEmail.delete(u.email);
+      u.email = email;
+      this.byEmail.set(email, c.user);
+      this.dirty();
+      return this.send(c, { t: 'acctEmailSet', email });
+    }
+    if (k && this.db.users[k]) return this.attach(c, k, this.addToken(k));
+    c.newEmail = email;
+    const base = email.split('@')[0].replace(/[^A-Za-z0-9_]/g, '').slice(0, 12) || 'Pilot';
+    let suggest = base.length >= 3 ? base : base + '123';
+    for (let i = 0; this.user(suggest) && i < 50; i++) suggest = base.slice(0, 12) + crypto.randomInt(10, 9999);
+    this.send(c, { t: 'acctPickName', email, suggest });
+  }
+  // 3) a new player picks their username
+  emailName(c, m) {
+    const email = c.newEmail;
+    if (!email) return this.err(c, 'Log in with your email first');
+    const name = String(m.name || '').trim();
+    if (!NAME_RE.test(name)) return this.err(c, 'Usernames are 3-16 letters, numbers or _');
+    if (BLOCKED.some((b) => key(name).includes(b))) return this.err(c, 'Please pick a different username');
+    if (this.user(name)) return this.err(c, 'That username is taken');
+    if (this.byEmail.has(email)) { c.newEmail = null; return this.attach(c, this.byEmail.get(email), this.addToken(this.byEmail.get(email))); }
+    const now = Date.now();
+    const k = key(name);
+    const guest = c.guest && this.db.guests[c.guest];
+    this.db.users[k] = { name, email, salt: null, hash: null, created: now, seen: now, av: Math.floor(Math.random() * E.FREE_AVATARS), tro: 0, best: 0, wins: 0, played: 0, streak: 0, lv: 1, friends: [], reqIn: [], reqOut: [], claimed: [], tokens: [] };
+    if (guest && guest.w) { this.db.users[k].w = guest.w; delete this.db.guests[c.guest]; }
+    this.byEmail.set(email, k);
+    c.newEmail = null;
+    this.attach(c, k, this.addToken(k));
   }
 
   async register(c, m) {
@@ -238,8 +327,8 @@ class Accounts {
     const u = this.user(m.name);
     const pass = String(m.pass || '');
     // same work and same message whether or not the name exists, so names can't be probed
-    const hash = (await scrypt(pass.slice(0, 72), u ? u.salt : 'nobody')).toString('hex');
-    if (!u || !same(hash, u.hash)) { this.failed(c, m.name); return this.err(c, 'Wrong username or password'); }
+    const hash = (await scrypt(pass.slice(0, 72), u && u.salt ? u.salt : 'nobody')).toString('hex');
+    if (!u || !u.hash || !same(hash, u.hash)) { this.failed(c, m.name); return this.err(c, 'Wrong username or password'); }
     this.attach(c, key(u.name), this.addToken(key(u.name)));
   }
   auth(c, m) {
@@ -255,6 +344,7 @@ class Accounts {
   async changePass(c, m) {
     const u = this.me(c);
     if (!u || this.slowDown(c) || this.locked(c, u.name)) return;
+    if (!u.hash) return this.err(c, 'This account logs in with its email, so it has no password');
     const old = (await scrypt(String(m.old || '').slice(0, 72), u.salt)).toString('hex');
     if (!same(old, u.hash)) { this.failed(c, u.name); return this.err(c, 'Your current password is wrong'); }
     const pass = String(m.pass || '');
@@ -271,8 +361,11 @@ class Accounts {
   async remove(c, m) {
     const u = this.me(c);
     if (!u || this.slowDown(c) || this.locked(c, u.name)) return;
-    const h = (await scrypt(String(m.pass || '').slice(0, 72), u.salt)).toString('hex');
-    if (!same(h, u.hash)) { this.failed(c, u.name); return this.err(c, 'Wrong password'); }
+    if (!u.hash) { if (String(m.pass || '') !== u.name) return this.err(c, 'Type your username to confirm'); }
+    else {
+      const h = (await scrypt(String(m.pass || '').slice(0, 72), u.salt)).toString('hex');
+      if (!same(h, u.hash)) { this.failed(c, u.name); return this.err(c, 'Wrong password'); }
+    }
     const k = c.user;
     if (!this.db.users[k]) return; // deleted meanwhile (two delete requests at once)
     this.detach(c);
@@ -285,6 +378,7 @@ class Accounts {
     }
     for (const t of u.tokens || []) this.byToken.delete(t);
     if (u.club) this.dropMember(u.club, k);
+    if (u.email) this.byEmail.delete(u.email);
     delete this.db.users[k];
     this.dirty();
     this.send(c, { t: 'acctOut', reason: 'Account deleted' });

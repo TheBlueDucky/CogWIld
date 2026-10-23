@@ -892,6 +892,13 @@
   .bs-btn.play-btn { background: linear-gradient(180deg, #1597b5, #0d6a82) !important; color: #fff !important; border: 1px solid rgba(255, 255, 255, .18) !important; box-shadow: 0 4px 0 #084456, 0 6px 16px rgba(0, 0, 0, .3) !important; text-shadow: none !important; }
   .bs-btn.play-btn:hover { filter: brightness(1.08); }
   .mode-opt.on { outline: none !important; transform: none !important; }
+  .acct-row { display: flex; gap: 8px; margin: 8px 0; }
+  .acct-row input { flex: 1; padding: 10px 12px; font-size: 16px; }
+  .acct-or { text-align: center; color: var(--muted2); font-size: 13px; margin: 8px 0 2px; }
+  #gBtn { display: flex; justify-content: center; min-height: 44px; }
+  #acct.required #acctGuest { display: none; }
+  .mail-link { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 6px 0; }
+  .mail-link input { padding: 6px 8px; }
   .shop-item.is-deal { background: rgba(255, 255, 255, .045) !important; }
   #toast { background: var(--bg2); border: 1px solid var(--line2); box-shadow: 0 6px 20px rgba(0, 0, 0, .35); font-weight: 700; }
   .feat-chip b { color: var(--hl) !important; }
@@ -1207,9 +1214,19 @@
   </div>
   <!-- ACCOUNT: log in / sign up -->
   <div id="acct" class="hidden">
-    <form id="acctForm" class="acct-box" autocomplete="on">
-      <h2 class="title-font">👤 Your Cogwild account</h2>
-      <div class="small" id="acctWhy"></div>
+    <div class="acct-box">
+    <h2 class="title-font">👤 Log in to Cogwild</h2>
+    <div class="small" id="acctWhy"></div>
+    <!-- email (a 6-digit code) or Google: the way in for everyone -->
+    <div id="acctMail">
+      <div id="gBtnWrap" class="hidden"><div id="gBtn"></div><div class="acct-or">or with your email</div></div>
+      <form id="mailForm" class="acct-row"><input id="acctEmail" type="email" maxlength="254" placeholder="you@gmail.com" autocomplete="email" spellcheck="false" autocapitalize="off"><button class="btn big go" id="mailGo">Send me a code</button></form>
+      <form id="codeForm" class="hidden"><div class="small" id="codeSentTo"></div><div class="acct-row"><input id="acctCode" inputmode="numeric" maxlength="6" placeholder="6-digit code" autocomplete="one-time-code"><button class="btn big go">Log in</button></div><button type="button" id="codeBack" class="ws-btn">Use another email</button></form>
+      <form id="nameForm" class="hidden"><div class="small">Welcome! Pick your username. Other players see it, so don't use your real name.</div><div class="acct-row"><input id="acctNewName" maxlength="16" spellcheck="false" autocapitalize="off" placeholder="Username"><button class="btn big go">Start playing</button></div></form>
+      <div class="small">By logging in you agree to the <a class="site-link" href="terms.html" target="_blank" rel="noopener">Terms</a> and <a class="site-link" href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>. Under 13? Ask a parent first.</div>
+      <div class="menu-btns"><button type="button" id="acctOld" class="ws-btn">I have a username and password</button></div>
+    </div>
+    <form id="acctForm" class="hidden" autocomplete="on">
       <div class="acct-tabs"><button type="button" id="acctTabSign" class="ws-btn">✨ Sign up</button><button type="button" id="acctTabLogin" class="ws-btn">▶ Log in</button></div>
       <label>Username<input id="acctName" name="username" maxlength="16" spellcheck="false" autocomplete="username" autocapitalize="off"></label>
       <label>Password<input id="acctPass" name="password" type="password" maxlength="72"></label>
@@ -1217,9 +1234,11 @@
       <label class="check"><input type="checkbox" id="acctShow"> Show password</label>
       <div class="small" id="acctHint"></div>
       <div class="small" id="acctAgree">By creating an account you agree to the <a class="site-link" href="terms.html" target="_blank" rel="noopener">Terms</a> and <a class="site-link" href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>. Under 13? Ask a parent first.</div>
-      <div class="acct-err" id="acctErr"></div>
-      <div class="menu-btns"><button id="acctGo" class="btn">Go</button><button type="button" id="acctGuest" class="ws-btn">Play as guest</button></div>
+      <div class="menu-btns"><button id="acctGo" class="btn">Go</button><button type="button" id="acctBack" class="ws-btn">← Log in with email</button></div>
     </form>
+    <div class="acct-err" id="acctErr"></div>
+    <div class="menu-btns"><button type="button" id="acctGuest" class="ws-btn">Play as guest</button></div>
+    </div>
   </div>
   <div id="notes"></div>
   <div id="rotate"><b>📱</b>Turn your phone sideways to play Cogwild</div>

@@ -69,7 +69,7 @@
         ws.onmessage = (e) => {
           let m;
           try { m = JSON.parse(e.data); } catch (err) { return; }
-          if (m.t === 'welcome') { clearTimeout(timeout); this.id = m.id; this.setStatus('online'); resolve(); if (this.game.account) this.game.account.onWelcome(); }
+          if (m.t === 'welcome') { clearTimeout(timeout); this.id = m.id; this.setStatus('online'); resolve(); if (this.game.account) this.game.account.onWelcome(m); }
           try { this.onMessage(m); } catch (err) { console.error('net message', m.t, err); }
         };
         ws.onclose = () => {

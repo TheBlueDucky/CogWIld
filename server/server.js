@@ -66,7 +66,10 @@ const SECURITY = {
   'Referrer-Policy': 'strict-origin-when-cross-origin',
   'Strict-Transport-Security': 'max-age=15552000',
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
-  'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'",
+  // (Google's sign-in button only when it's set up: its script, its pop-up frame and its style sheet)
+  'Content-Security-Policy': process.env.GOOGLE_CLIENT_ID
+    ? "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; img-src 'self' data: blob: https://*.googleusercontent.com; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss: https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+    : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'",
 };
 function reply(res, code, text) { res.writeHead(code, Object.assign({ 'Content-Type': 'text/plain; charset=utf-8' }, SECURITY)); res.end(text); }
 
@@ -506,7 +509,7 @@ server.on('upgrade', (req, sock) => {
   const c = { id: nextId++, ws, ip, name: 'Pilot', room: null, ready: false, bp: null, tokens: RATE * 2, bytes: BYTE_RATE * 4, last: Date.now() };
   ws.lastPong = Date.now();
   clients.set(c.id, c);
-  ws.send({ t: 'welcome', id: c.id, ver: NET_VERSION });
+  ws.send({ t: 'welcome', id: c.id, ver: NET_VERSION, login: accounts.loginOptions() });
   ws.onmessage = (data) => {
     // token-bucket rate limit: spammy clients get messages dropped, then disconnected
     const now = Date.now();

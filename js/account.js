@@ -56,10 +56,16 @@
     connect() { if (this.net.canConnect()) this.net.connect().catch(() => {}); }
 
     // ======================= from the net layer =======================
-    onWelcome() {
+    onWelcome(m) {
+      this.loginOpts = (m && m.login) || {};
       if (this.session) return this.net.send({ t: 'acctAuth', token: this.session.token });
       this.helloGuest();
+      // when the server can log people in by email or Google, everyone plays with an account
+      // (not on game portals like Poki and CrazyGames, which don't allow a forced login)
+      if (this.loginRequired()) this.openLogin('Log in with your email to play. Your progress is saved to your account.');
     }
+    mailLogin() { return !!this.loginOpts && !!(this.loginOpts.email || this.loginOpts.google); }
+    loginRequired() { return !CW.PORTAL && !!this.loginOpts && !!(this.loginOpts.email || this.loginOpts.google) && !this.loggedIn; }
     // no account: this device's guest wallet (the first time, the progress it already has comes along, capped)
     helloGuest() {
       const token = load('cogwild.guest', null);
@@ -85,6 +91,19 @@
       const g = this.game;
       switch (m.t) {
         case 'acctOk': this.onLogin(m); break;
+        case 'acctCodeSent':
+          if (this.loggedIn) { g.toast(`📧 We sent a code to ${m.email}`); break; } // adding an email to your account
+          this.mailStep('code');
+          $('codeSentTo').textContent = `We sent a 6-digit code to ${m.email}. Check your inbox (and spam).`;
+          if (m.devCode) $('acctCode').value = m.devCode; // local testing only
+          setTimeout(() => $('acctCode').focus(), 50);
+          break;
+        case 'acctPickName':
+          this.mailStep('name');
+          $('acctNewName').value = m.suggest || '';
+          setTimeout(() => $('acctNewName').focus(), 50);
+          break;
+        case 'acctEmailSet': this.myEmail = m.email; g.toast(`📧 ${m.email} is now your login`); this.linkStep = null; this.rerender(); break;
         case 'guestOk':
           if (m.token) keep('cogwild.guest', m.token);
           this.guestOn = true;
@@ -144,6 +163,8 @@
     onLogin(m) {
       const g = this.game;
       this.me = m.me;
+      this.myEmail = m.email || null;
+      this.hasPass = !!m.hasPass;
       this.retry = 0;
       this.session = { token: m.token, name: m.me.name };
       keep('cogwild.session', this.session);
@@ -235,18 +256,68 @@
       $('acctTabLogin').onclick = () => this.loginTab('login');
       $('acctTabSign').onclick = () => this.loginTab('sign');
       $('acctGuest').onclick = () => $('acct').classList.add('hidden');
-      $('acct').addEventListener('pointerdown', (e) => { if (e.target === $('acct')) $('acct').classList.add('hidden'); });
+      $('acct').addEventListener('pointerdown', (e) => { if (e.target === $('acct') && !this.loginRequired()) $('acct').classList.add('hidden'); });
       $('acctForm').onsubmit = (e) => { e.preventDefault(); this.submitLogin(); };
+      // email login: address -> code -> (new players) username
+      $('mailForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const email = $('acctEmail').value.trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return ($('acctErr').textContent = "That doesn't look like an email address");
+        $('acctErr').textContent = 'Sending…';
+        try { await this.net.connect(); } catch (err) { $('acctErr').textContent = "Can't reach the server. Check your internet."; return; }
+        $('acctErr').textContent = '';
+        this.mailAddr = email;
+        this.net.send({ t: 'emailStart', email });
+      };
+      $('codeForm').onsubmit = (e) => { e.preventDefault(); $('acctErr').textContent = ''; this.net.send({ t: 'emailCode', email: this.mailAddr, code: $('acctCode').value.trim() }); };
+      $('nameForm').onsubmit = (e) => { e.preventDefault(); $('acctErr').textContent = ''; this.welcomeToast = `🎉 Welcome to Cogwild, ${$('acctNewName').value.trim()}!`; this.net.send({ t: 'emailName', name: $('acctNewName').value.trim() }); };
+      $('codeBack').onclick = () => this.mailStep('mail');
+      $('acctOld').onclick = () => { $('acctMail').classList.add('hidden'); $('acctForm').classList.remove('hidden'); this.loginTab('login'); };
+      $('acctBack').onclick = () => { $('acctForm').classList.add('hidden'); $('acctMail').classList.remove('hidden'); $('acctErr').textContent = ''; };
       $('acctShow').onchange = (e) => { const t = e.target.checked ? 'text' : 'password'; $('acctPass').type = t; $('acctPass2').type = t; };
+    }
+    // which part of the email login shows: 'mail' (address), 'code' or 'name'
+    mailStep(step) {
+      $('mailForm').classList.toggle('hidden', step !== 'mail');
+      $('codeForm').classList.toggle('hidden', step !== 'code');
+      $('nameForm').classList.toggle('hidden', step !== 'name');
+      $('gBtnWrap').classList.toggle('hidden', step !== 'mail' || !this.googleReady);
+      $('acctErr').textContent = '';
+    }
+    // the Google button (websites only: Google doesn't allow its sign-in inside app web views)
+    setupGoogle() {
+      const id = this.loginOpts && this.loginOpts.google;
+      if (!id || CW.APP || CW.PORTAL || location.protocol !== 'https:' || this.googleTried) return;
+      this.googleTried = true;
+      const s = document.createElement('script');
+      s.src = 'https://accounts.google.com/gsi/client';
+      s.async = true;
+      s.onload = () => {
+        try {
+          google.accounts.id.initialize({ client_id: id, callback: (r) => { $('acctErr').textContent = ''; this.net.send({ t: 'googleLogin', credential: r.credential }); } });
+          google.accounts.id.renderButton($('gBtn'), { theme: 'filled_black', size: 'large', text: 'continue_with', shape: 'rectangular', width: 300 });
+          this.googleReady = true;
+          if (!$('mailForm').classList.contains('hidden')) $('gBtnWrap').classList.remove('hidden');
+        } catch (e) { /* the email code still works */ }
+      };
+      document.head.appendChild(s);
     }
     openLogin(why) {
       if (!this.net.canConnect()) return this.game.toast('Accounts need the game to be opened from its web address');
       $('acct').classList.remove('hidden');
+      $('acct').classList.toggle('required', this.loginRequired());
+      // email/Google when the server offers it; otherwise the username + password form
+      const mail = this.mailLogin();
+      $('acctMail').classList.toggle('hidden', !mail);
+      $('acctForm').classList.toggle('hidden', mail);
+      $('acctTabSign').classList.toggle('hidden', mail); // new accounts are made with an email
+      this.mailStep('mail');
+      this.setupGoogle();
       $('acctWhy').textContent = why || 'Save your progress in the cloud, earn trophies and play with friends.';
       $('acctErr').textContent = '';
-      this.loginTab(this.tab || 'sign');
+      this.loginTab(mail ? 'login' : this.tab || 'sign');
       this.busy(false);
-      setTimeout(() => $('acctName').focus(), 50);
+      setTimeout(() => (mail ? $('acctEmail') : $('acctName')).focus(), 50);
     }
     loginTab(tab) {
       this.tab = tab;
@@ -578,17 +649,29 @@
         <h3>Your numbers</h3><div class="stat-grid"><div><b>${s.matches}</b><span>Matches (all modes)</span></div><div><b>${s.wins}</b><span>Wins (all modes)</span></div><div><b>${s.wrecks}</b><span>Mechs wrecked</span></div><div><b>${Object.keys(g.profile.achievements || {}).length}/${CW.ACHIEVEMENTS.length}</b><span>Achievements</span></div></div>
         <h3>Account</h3>
         <div class="small">${this.sync.dirty ? '☁ Backing up your progress…' : '☁ Your progress is backed up to your account.'} Log in on any device (web, Windows or Android) to play with it.</div>
+        <div class="small" style="margin-top:6px">📧 ${this.myEmail ? `You log in with <b>${esc(this.myEmail)}</b>` : 'No email yet: add one so you can always log in with a code'}</div>
+        ${this.mailLogin() ? `<form id="linkForm" class="mail-link">${this.linkStep === 'code'
+          ? `<input id="linkCode" inputmode="numeric" maxlength="6" placeholder="Code from the email"><button class="ws-btn on">Confirm</button>`
+          : `<input id="linkMail" type="email" maxlength="254" placeholder="you@gmail.com" value="${esc(this.myEmail || '')}"><button class="ws-btn">${this.myEmail ? 'Change email' : 'Add email'}</button>`}</form>` : ''}
         <div class="menu-btns" style="justify-content:flex-start;margin-top:8px">
-          <button class="ws-btn" id="profPass">🔑 Change password</button>
+          ${this.hasPass ? '<button class="ws-btn" id="profPass">🔑 Change password</button>' : ''}
           <button class="ws-btn" id="profOut">🚪 Log out</button>
           <button class="ws-btn" id="profDel">🗑 Delete account…</button>
         </div>
         <form id="profPassForm" class="acct-mini hidden"><input type="password" id="ppOld" placeholder="Current password" autocomplete="current-password"><input type="password" id="ppNew" placeholder="New password (6+)" autocomplete="new-password"><button class="ws-btn on">Save new password</button><div class="small">Other devices will be logged out.</div></form>
-        <form id="profDelForm" class="acct-mini hidden"><div class="small">This removes <b>${esc(me.name)}</b>, its trophies, friends and cloud backup <b>forever</b>.</div><input type="password" id="pdPass" placeholder="Your password" autocomplete="current-password"><button class="ws-btn bad">Delete my account</button></form>`;
+        <form id="profDelForm" class="acct-mini hidden"><div class="small">This removes <b>${esc(me.name)}</b>, its trophies, friends and cloud backup <b>forever</b>.</div><input type="${this.hasPass ? 'password' : 'text'}" id="pdPass" placeholder="${this.hasPass ? 'Your password' : 'Type your username to confirm'}" autocomplete="off"><button class="ws-btn bad">Delete my account</button></form>`;
       body.querySelectorAll('[data-av]').forEach((b) => (b.onclick = () => this.net.send({ t: 'profileSet', av: +b.dataset.av })));
       body.querySelectorAll('[data-shop]').forEach((b) => (b.onclick = () => g.meta.openPanel('shop')));
       $('profOut').onclick = () => this.logout();
-      $('profPass').onclick = () => { $('profPassForm').classList.toggle('hidden'); $('ppOld').focus(); };
+      if ($('profPass')) $('profPass').onclick = () => { $('profPassForm').classList.toggle('hidden'); $('ppOld').focus(); };
+      if ($('linkForm')) $('linkForm').onsubmit = (e) => {
+        e.preventDefault();
+        if (this.linkStep === 'code') return this.net.send({ t: 'emailCode', email: this.linkMail, code: $('linkCode').value.trim() });
+        this.linkMail = $('linkMail').value.trim();
+        this.linkStep = 'code';
+        this.net.send({ t: 'emailStart', email: this.linkMail });
+        this.rerender();
+      };
       $('profDel').onclick = () => { $('profDelForm').classList.toggle('hidden'); $('pdPass').focus(); };
       $('profPassForm').onsubmit = (e) => {
         e.preventDefault();
