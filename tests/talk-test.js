@@ -102,11 +102,31 @@ app.whenReady().then(async () => {
   for (let i = 0; i < 20 && !heard; i++) { await wait(300); heard = await js(B, `[...${G}.voice.peers.values()].some((p) => p.talking)`); }
   check(heard, 'B hears A talking (the 🔊 name shows)');
   await shot(B, 'talk-voice-talking');
-  // mute: A's mic stops sending
+  // mute (M): the microphone is let go completely; unmute opens it again
+  await js(A, `${G}.talk.close(); true`);
+  A.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'M' });
+  A.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'M' });
+  await wait(500);
+  check(await js(A, `${G}.voice.stream === null && ${G}.voice.joined`), 'M mutes: the microphone is released (you still hear others)');
   await js(A, `${G}.voice.toggleMute(); true`);
+  await wait(1500);
+  check(await js(A, `!!${G}.voice.stream`), 'unmuting opens the microphone again');
+  // deafen (N): hear nobody, microphone off too
+  A.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'N' });
+  A.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'N' });
+  await wait(500);
+  check(await js(A, `${G}.voice.deaf && ${G}.voice.stream === null && [...${G}.voice.peers.values()].every((p) => !p.audio || p.audio.muted)`), 'N deafens: nobody is heard and the microphone is off');
+  await shot(A, 'talk-deafened');
+  await js(A, `${G}.voice.toggleDeaf(); true`);
+  await wait(1500);
+  check(await js(A, `!${G}.voice.deaf && !!${G}.voice.stream && [...${G}.voice.peers.values()].every((p) => !p.audio || !p.audio.muted)`), 'undeafening brings sound and the microphone back');
+  // a key can be turned off
+  await js(A, `${G}.settings.vcDeaf = 'none'; true`);
+  A.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'N' });
+  A.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'N' });
   await wait(300);
-  check(await js(A, `${G}.voice.stream.getAudioTracks().every((t) => !t.enabled)`), 'M mutes the microphone');
-  await js(A, `${G}.voice.toggleMute(); true`);
+  check(await js(A, `!${G}.voice.deaf`), 'a voice key set to "No key" does nothing');
+  await js(A, `delete ${G}.settings.vcDeaf; true`);
   // push to talk: nothing is sent until the key is held
   await js(A, `${G}.talk.close(); ${G}.settings.vcMode = 'ptt'; ${G}.voice.applyMic(); true`); // (keys don't count while typing in the chat)
   check(await js(A, `${G}.voice.stream.getAudioTracks().every((t) => !t.enabled)`), 'push to talk: silent while the key is up');
@@ -116,6 +136,34 @@ app.whenReady().then(async () => {
   A.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'B' });
   await wait(200);
   await js(A, `${G}.settings.vcMode = 'open'; ${G}.voice.applyMic(); true`);
+  // T opens the chat (when it's closed and nothing is being typed)
+  await js(B, `${G}.talk.close(); document.activeElement && document.activeElement.blur(); true`);
+  B.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'T' });
+  B.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'T' });
+  await wait(300);
+  check(await js(B, `${G}.talk.isOpen`), 'T opens the chat');
+  await shot(B, 'talk-see-through');
+  await js(B, `${G}.talk.close(); true`);
+  // message a friend straight from the Friends list
+  await js(B, `${G}.meta.openPanel('friends'); true`);
+  await wait(500);
+  await js(B, `document.querySelector('#panelBody [data-dm]').click(); true`);
+  await wait(500);
+  check(await js(B, `${G}.talk.isOpen && ${G}.talk.tab === 'friends' && ${G}.talk.thread === '${nameA}'`), '💬 Message in the Friends list opens a chat with that friend');
+  await js(B, `${G}.talk.close(); ${G}.meta.closePanel(); true`);
+  // your own picture (made here instead of picked from a file), cropped square and shown as a circle
+  await js(A, `(() => { const c = document.createElement('canvas'); c.width = 600; c.height = 400; const g = c.getContext('2d'); const gr = g.createLinearGradient(0, 0, 600, 400); gr.addColorStop(0, '#ff8c42'); gr.addColorStop(1, '#5ce1ff'); g.fillStyle = gr; g.fillRect(0, 0, 600, 400); g.fillStyle = '#121a33'; g.font = 'bold 160px sans-serif'; g.fillText('A', 240, 260); const img = new Image(); img.onload = () => CW.cropImage(img, (b64) => ${G}.net.send({ t: 'picSet', kind: 'u', data: b64 })); img.src = c.toDataURL(); })(); true`);
+  await wait(700);
+  await shot(A, 'talk-crop');
+  check(await js(A, `!document.getElementById('picCrop').classList.contains('hidden')`), 'the picture cropper opens');
+  await js(A, `document.getElementById('cropOk').click(); true`);
+  await wait(1500);
+  check(await js(A, `${G}.account.me.pv > 0`), 'the picture is saved on the account');
+  await js(B, `${G}.meta.openPanel('friends'); true`);
+  await wait(1200);
+  check(await js(B, `(() => { const i = document.querySelector('#panelBody img.pfp'); return !!i && i.complete && i.naturalWidth === 256 && getComputedStyle(i).borderRadius === '50%'; })()`), 'friends see the picture as a circle (256×256, square)');
+  await shot(B, 'talk-friends-picture');
+  await js(B, `${G}.meta.closePanel(); true`);
   // Settings > Voice chat
   await js(B, `${G}.meta.setTab = 'voice'; ${G}.meta.openPanel('settings'); true`);
   await wait(900);
@@ -137,6 +185,30 @@ app.whenReady().then(async () => {
   await shot(B, 'talk-quick-only');
   await js(B, `${G}.talk.close(); ${G}.talk.setMode('free'); true`);
   await wait(800);
+
+  // Cog Pass: hold the left button and drag to scroll; the "how to tier up" boxes take you there
+  await js(B, `${G}.meta.openPanel('pass'); true`);
+  await wait(800);
+  const sc = await js(B, `(() => { const s = document.querySelector('.pt-scroll'); s.scrollLeft = 0; const r = s.getBoundingClientRect(); const z = parseFloat(getComputedStyle(document.getElementById('panel')).zoom) || 1; return { x: (r.left + r.width * 0.7) * z, y: (r.top + r.height * 0.5) * z }; })()`);
+  B.webContents.sendInputEvent({ type: 'mouseDown', x: Math.round(sc.x), y: Math.round(sc.y), button: 'left', clickCount: 1 });
+  for (let i = 1; i <= 10; i++) { B.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(sc.x - i * 40), y: Math.round(sc.y), button: 'left' }); await wait(20); }
+  B.webContents.sendInputEvent({ type: 'mouseUp', x: Math.round(sc.x - 400), y: Math.round(sc.y), button: 'left', clickCount: 1 });
+  await wait(300);
+  check(await js(B, `document.querySelector('.pt-scroll').scrollLeft > 200`), 'dragging the Cog Pass to the left scrolls it to the right');
+  await js(B, `document.querySelector('[data-way="challenges"]').click(); true`);
+  await wait(300);
+  check(await js(B, `${G}.meta.panel === 'challenges'`), '"Daily challenges" opens the challenges');
+  await js(B, `${G}.meta.openPanel('pass'); true`);
+  await wait(500);
+  await js(B, `document.querySelector('[data-way="gift"]').click(); true`);
+  await wait(300);
+  check(await js(B, `${G}.meta.panel === 'shop'`), '"Daily gift" opens the Shop');
+  await js(B, `${G}.meta.openPanel('pass'); true`);
+  await wait(500);
+  await js(B, `document.querySelector('[data-way="play"]').click(); true`);
+  await wait(400);
+  check(await js(B, `document.getElementById('panel').classList.contains('hidden') && document.getElementById('btnPlay').classList.contains('hint-pulse')`), '"Play matches" goes to the menu and points at PLAY');
+  await shot(B, 'talk-play-hint');
 
   // achievements: how close you are
   await js(B, `${G}.meta.openPanel('ach'); true`);
@@ -178,9 +250,22 @@ app.whenReady().then(async () => {
   P.webContents.sendInputEvent({ type: 'mouseUp', x: Math.round(btn.x * zP), y: Math.round(btn.y * zP), button: 'left', clickCount: 1 });
   await wait(500);
   check(await js(P, `!document.getElementById('panel').classList.contains('hidden') && ${G}.meta.panel === 'shop'`), 'with no menu open, the same tap opens the Shop');
-  await js(P, `${G}.meta.closePanel(); ${G}.talk.open('friends'); true`);
-  await wait(300);
+  await js(P, `${G}.net.connect().then(() => ${G}.net.send({ t: 'acctRegister', name: 'TalkP${tag}', pass: 'talkpass1' }))`);
+  await wait(2500);
+  await js(P, `${G}.meta.closePanel(); document.getElementById('vcAsk').classList.add('hidden'); ${G}.talk.openDm('${nameA}'); true`);
+  await wait(500);
   await shot(P, 'talk-phone-chat');
+  await js(P, `document.getElementById('chatInput').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' })); document.getElementById('chatInput').focus(); true`);
+  await wait(300);
+  check(await js(P, `document.body.classList.contains('talk-portrait')`), 'phone: typing in the menu switches the chat to upright');
+  P.setContentSize(412, 915);
+  await wait(800);
+  await shot(P, 'talk-phone-portrait');
+  check(await js(P, `getComputedStyle(document.getElementById('rotate')).display === 'none' && document.getElementById('chat').getBoundingClientRect().width > 380`), 'upright: the chat fills the screen (no "turn your phone" screen)');
+  await js(P, `document.getElementById('chatDone').click(); true`);
+  P.setContentSize(915, 412);
+  await wait(500);
+  check(await js(P, `!document.body.classList.contains('talk-portrait')`), 'Done goes back to sideways');
   await js(P, `${G}.talk.close(); true`);
 
   // chat during a match (A's party tab), with the 💬 and 🎙 buttons on the HUD
@@ -212,6 +297,10 @@ app.whenReady().then(async () => {
   await wait(300);
   check(await js(L, `!document.getElementById('fLogin').classList.contains('hidden')`), 'older accounts can still log in with email and password');
 
+  // leaving the party: no one to talk to, so the microphone is let go
+  await js(B, `${G}.net.send({ t: 'partyLeave' }); true`);
+  await wait(2500);
+  check(await js(B, `!${G}.voice.joined && ${G}.voice.stream === null`), 'out of the party (and no match): the microphone is released');
   console.log('errors', errors.length, errors.slice(0, 10).join('\n'));
   console.log(failed ? `${failed} check(s) FAILED` : 'all checks passed');
   app.exit(failed ? 1 : 0);

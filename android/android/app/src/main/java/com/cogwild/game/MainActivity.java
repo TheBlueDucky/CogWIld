@@ -1,6 +1,7 @@
 package com.cogwild.game;
 
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.WindowManager;
@@ -26,6 +27,12 @@ public class MainActivity extends BridgeActivity {
                 Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
                 i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 try { startActivity(i); } catch (Exception e) { /* no browser */ }
+            }
+            // typing in the chat from the menu: upright, then back to sideways
+            @JavascriptInterface
+            public void setOrientation(String o) {
+                final int want = "portrait".equals(o) ? ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT : ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE;
+                runOnUiThread(() -> setRequestedOrientation(want));
             }
         }, "CogwildNative");
         hideSystemBars();

@@ -23,6 +23,7 @@
       this.tab = null;
       this.thread = null; // the friend whose messages are open
       this.who = null; // the name tapped (profile / block / report row)
+      this.cards = {}; // name -> { name, av, pv } of people you message who aren't friends (club-mates)
       this.bindUi();
     }
     get acct() { return this.game.account; }
@@ -41,15 +42,22 @@
         if (!x) { if (this.game.state === 'match') this.close(); return; } // Enter on an empty line closes it
         if (this.say({ x })) $('chatInput').value = '';
       };
-      // Enter opens the chat (not while typing somewhere else)
+      // Enter, or the chat key (T unless changed or turned off in Settings › Chat), opens the chat; not while typing
       window.addEventListener('keydown', (e) => {
-        if (e.code !== 'Enter' && e.code !== 'NumpadEnter') return;
+        const key = this.game.meta.optKey('chatKey');
+        if (e.code !== 'Enter' && e.code !== 'NumpadEnter' && (key === 'none' || e.code !== key)) return;
         const t = e.target;
         if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
-        if (this.isOpen || !['menu', 'match', 'results'].includes(this.game.state) || !$('acct').classList.contains('hidden')) return;
+        if (e.code === 'KeyT' && this.game.state === 'match' && this.game.modeId === 'test') return; // T = back to the Workshop there
+        if (e.repeat || this.isOpen || !['menu', 'match', 'results'].includes(this.game.state) || !$('acct').classList.contains('hidden')) return;
         e.preventDefault();
         this.open();
       });
+      // phones: typing in the menu turns the phone upright (easier to type), Done turns it back
+      const upright = () => { if (this.game.touch.on && this.game.state === 'menu') this.portrait(true); };
+      $('chatInput').addEventListener('focus', upright);
+      $('chatInput').addEventListener('pointerdown', upright);
+      $('chatDone').onclick = () => { $('chatInput').blur(); this.portrait(false); };
     }
 
     // ======================= from the server =======================
@@ -70,7 +78,12 @@
           this.refresh();
           return true;
         }
-        case 'dmLog': this.dms[m.with] = m.list; delete this.unread[m.with]; this.refresh(); return true;
+        case 'dmLog':
+          this.dms[m.with] = m.list;
+          if (m.card) this.cards[m.with] = m.card;
+          delete this.unread[m.with];
+          this.refresh();
+          return true;
         case 'partyMsg': {
           const p = this.acct.party;
           if (p) p.log = (p.log || []).concat(m.msg).slice(-40);
@@ -140,6 +153,28 @@
       $('chat').classList.add('hidden');
       $('chatInput').blur();
       this.who = null;
+      this.portrait(false);
+    }
+    // straight to a private message with someone (Friends list, club members)
+    openDm(name) {
+      if (!this.acct.loggedIn) return this.acct.openLogin('Log in to message players');
+      this.thread = name;
+      this.who = null;
+      this.net.send({ t: 'dmOpen', name });
+      if (!$('panel').classList.contains('hidden') && $('panel').classList.contains('full')) this.game.meta.closePanel();
+      this.open('friends');
+    }
+    // phones in the menu: the chat fills the screen upright while typing (the app turns the phone; on the website
+    // the game asks the browser, and otherwise the player turns it)
+    portrait(on) {
+      if (!!this.upright === on) return;
+      this.upright = on;
+      document.body.classList.toggle('talk-portrait', on);
+      try {
+        if (window.CogwildNative && window.CogwildNative.setOrientation) window.CogwildNative.setOrientation(on ? 'portrait' : 'landscape');
+        else if (screen.orientation && screen.orientation.lock) screen.orientation.lock(on ? 'portrait' : 'landscape').catch(() => {});
+      } catch (e) { /* the player turns the phone */ }
+      setTimeout(() => window.dispatchEvent(new Event('resize')), 300);
     }
     toggle() { if (this.isOpen) this.close(); else this.open(); }
     // something changed: redraw the window if it's open, and the badges either way
@@ -189,16 +224,24 @@
         body = `<div class="chat-empty">Join a club to chat with its members<br><button class="ws-btn on" data-clubs="1">🛡 Find a club</button></div>`;
       } else if (tab === 'friends' && !this.thread) {
         // the friends list: who's online, unread messages
-        const fr = this.acct.friends.slice().sort((a, b) => (b.on - a.on) || ((this.unread[b.name] | 0) - (this.unread[a.name] | 0)) || a.name.localeCompare(b.name));
-        body = fr.length ? fr.map((f) => `<button class="chat-friend ${f.on ? 'on' : ''}" data-dm="${esc(f.name)}"><span class="av">${CW.avatar(f.av)}</span><b>${esc(f.name)}</b><small>${this.isBlocked(f.name) ? '🚫 blocked' : f.on ? '🟢 online' : '⚫ offline'}</small>${this.unread[f.name] ? `<i class="badge">${this.unread[f.name]}</i>` : ''}</button>`).join('')
-          : '<div class="chat-empty">No friends yet. Add someone in 👥 Friends.</div>';
+        const fr = this.acct.friends.slice();
+        const club = (this.acct.club && this.acct.club.list) || [];
+        // club-mates you talked with (or who wrote to you) are listed too
+        for (const n of new Set([...Object.keys(this.dms), ...Object.keys(this.unread)])) {
+          if (fr.some((f) => f.name === n)) continue;
+          const c = club.find((p) => p.name === n) || this.cards[n];
+          if (c) fr.push(Object.assign({ on: !!c.on, club: true }, c));
+        }
+        fr.sort((a, b) => ((this.unread[b.name] | 0) - (this.unread[a.name] | 0)) || (b.on - a.on) || a.name.localeCompare(b.name));
+        body = fr.length ? fr.map((f) => `<button class="chat-friend ${f.on ? 'on' : ''}" data-dm="${esc(f.name)}"><span class="av">${CW.face(f)}</span><b>${esc(f.name)}</b><small>${this.isBlocked(f.name) ? '🚫 blocked' : (f.club ? '🛡 ' : '') + (f.on ? '🟢 online' : '⚫ offline')}</small>${this.unread[f.name] ? `<i class="badge">${this.unread[f.name]}</i>` : ''}</button>`).join('')
+          : '<div class="chat-empty">No friends yet. Add someone in 👥 Friends, or message a club member from 🛡 Clubs.</div>';
       } else {
         if (tab === 'friends') sub = `<button class="ws-btn chat-back" data-back="1">←</button><b class="chat-who" data-who="${esc(this.thread)}">${esc(this.thread)}</b>`;
         else if (tab === 'club') sub = `<b>🛡 ${esc(this.acct.club.name)}</b><span class="small">${this.acct.club.list.filter((p) => p.on).length} online</span>`;
         else sub = `<b>🎉 Party</b><span class="small">${this.acct.party.members.map((p) => esc(p.name)).join(', ')}</span>`;
         const list = this.lines(tab).filter((l) => !this.isBlocked(l.f));
         body = list.length ? list.map((l) => (l.f
-          ? `<div class="chat-line ${l.f === me ? 'me' : ''}"><b class="chat-who" data-who="${esc(l.f)}">${esc(l.f === me ? 'You' : l.f)}</b> ${esc(this.text(l))}</div>`
+          ? `<div class="chat-line ${l.f === me ? 'me' : ''}"><span class="chat-face">${CW.face({ name: l.f, av: l.a, pv: l.pv })}</span><span><b class="chat-who" data-who="${esc(l.f)}">${esc(l.f === me ? 'You' : l.f)}</b> ${esc(this.text(l))}</span></div>`
           : `<div class="chat-line sys">${esc(this.text(l))}</div>`)).join('')
           : `<div class="chat-empty">${tab === 'friends' ? `Say hi to ${esc(this.thread)}!` : 'No messages yet. Say hi!'}</div>`;
         quick = QUICK().map((t, i) => `<button class="chat-q" data-q="${i}">${t}</button>`);

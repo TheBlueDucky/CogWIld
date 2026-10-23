@@ -341,6 +341,16 @@
       for (const id of ['menu', 'modes', 'picker', 'hud', 'results', 'pause', 'panel', 'online', 'lobby', 'search']) $(id).classList.add('hidden');
       this.workshop.close();
     }
+    // points at PLAY for a few seconds ("Play matches" in the Cog Pass)
+    hintPlay() {
+      const b = $('btnPlay');
+      b.classList.remove('hint-pulse');
+      void b.offsetWidth;
+      b.classList.add('hint-pulse');
+      clearTimeout(this.hintT);
+      this.hintT = setTimeout(() => b.classList.remove('hint-pulse'), 4500);
+      this.toast('🎮 Press PLAY to find a match');
+    }
     showMenu() {
       this.hideAll();
       this.endMatch();
@@ -652,6 +662,7 @@
     closeTop() {
       const open = (id) => $(id) && !$(id).classList.contains('hidden');
       if (open('vcAsk')) return this.voice.closeAsk();
+      if (CW.closePicCrop && CW.closePicCrop()) return true;
       if (open('confirm')) { this.meta.closeConfirm(); return true; }
       if (open('modal')) { this.closeModal(); return true; }
       if (open('acct')) { if (!this.account.loginRequired()) $('acct').classList.add('hidden'); return true; }

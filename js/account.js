@@ -18,6 +18,24 @@
   // club badges
   CW.CLUB_BADGES = ['🛡', '⚙', '🔥', '⚡', '🐉', '🦅', '🌟', '💀', '👑', '🚀', '🌊', '🍀'];
   CW.avatar = (i) => CW.AVATARS[i] || '🧑‍✈️';
+  // players' own pictures and club pictures live on the server (server/pics.js); shown as circles
+  CW.serverOrigin = () => (CW.SERVER_URL ? CW.SERVER_URL.replace(/^ws(s?):/, 'http$1:').replace(/\/ws$/, '') : location.origin);
+  CW.picUrl = (kind, id, pv) => `${CW.serverOrigin()}/pic/${kind}/${encodeURIComponent(String(id).toLowerCase())}.jpg?v=${pv | 0}`;
+  // "Quick chat only" players (kids) see the ready-made avatars instead of other players' own pictures
+  const kidsView = () => !!(window.game && window.game.talk && window.game.talk.mode === 'quick');
+  // a player's face: their own picture if they have one, else their avatar
+  CW.face = (p) => (p && p.pv && p.name && !kidsView()
+    ? `<img class="pfp" src="${CW.picUrl('u', p.name, p.pv)}" alt="" data-av="${p.av | 0}" draggable="false">`
+    : CW.avatar(p ? p.av : -1));
+  // a club's picture, else its badge
+  CW.clubFace = (cl) => (cl && cl.pv && !kidsView()
+    ? `<img class="pfp" src="${CW.picUrl('c', cl.id, cl.pv)}" alt="" data-badge="${cl.badge | 0}" draggable="false">`
+    : CW.CLUB_BADGES[(cl && cl.badge) | 0] || '🛡');
+  // a picture that can't load (offline, a portal that blocks it) falls back to the avatar or badge
+  document.addEventListener('error', (e) => {
+    const t = e.target;
+    if (t && t.classList && t.classList.contains('pfp')) t.replaceWith(document.createTextNode(t.dataset.badge != null ? CW.CLUB_BADGES[+t.dataset.badge] || '🛡' : CW.avatar(+t.dataset.av)));
+  }, true);
   // trophy tiers shown on profiles and the leaderboard
   CW.TIERS = [
     { at: 0, name: 'Bronze', icon: '🥉' }, { at: 100, name: 'Silver', icon: '🥈' }, { at: 300, name: 'Gold', icon: '🥇' },
@@ -152,7 +170,7 @@
           g.talk.refresh();
           break;
         }
-        case 'party': this.party = m.party; this.renderParty(); this.rerender(); g.talk.refresh(); break;
+        case 'party': this.party = m.party; this.renderParty(); this.rerender(); g.talk.refresh(); g.voice.apply(); break;
         case 'note': this.onNote(m); break;
         case 'trophies': this.onTrophies(m); break;
         case 'ranked': this.lastRanked = m; this.resultsLine(); break;
@@ -353,7 +371,7 @@
     // Google sign-in works on this server (then it's the way to sign up)
     get googleOn() { return !!(this.loginOpts && this.loginOpts.google); }
     // the server's https address (the apps talk to it from elsewhere)
-    origin() { return CW.SERVER_URL ? CW.SERVER_URL.replace(/^ws(s?):/, 'http$1:').replace(/\/ws$/, '') : location.origin; }
+    origin() { return CW.serverOrigin(); }
     startGoogle() {
       const bytes = new Uint8Array(24);
       crypto.getRandomValues(bytes);
@@ -406,7 +424,7 @@
     renderChips() {
       const g = this.game;
       const me = this.me;
-      $('acctChip').innerHTML = me ? `<span class="av">${CW.avatar(me.av)}</span><b>${esc(me.name)}</b>` : '👤 <b>Log in</b>';
+      $('acctChip').innerHTML = me ? `<span class="av">${CW.face(me)}</span><b>${esc(me.name)}</b>` : '👤 <b>Log in</b>';
       $('acctChip').classList.toggle('guest', !me);
       $('pName').parentElement.classList.toggle('hidden', !!me);
       // top bar: trophies and the way to the next Trophy Road reward
@@ -442,7 +460,7 @@
       if (!p) return;
       const lead = this.me && p.leader === this.me.name;
       bar.innerHTML = `<div class="pt-head"><b>🎉 Party ${p.members.length}/4</b><button class="link-btn" id="partyLeave">Leave</button></div>
-        <div class="party-row">${p.members.map((f) => `<span class="party-m ${f.name === p.leader ? 'lead' : ''}" aria-label="${esc(f.name)}${f.name === p.leader ? ' (leader)' : ''}">${CW.avatar(f.av)}<small>${f.name === p.leader ? '👑 ' : ''}${esc(f.name)}</small></span>`).join('')}</div>
+        <div class="party-row">${p.members.map((f) => `<span class="party-m ${f.name === p.leader ? 'lead' : ''}" aria-label="${esc(f.name)}${f.name === p.leader ? ' (leader)' : ''}">${CW.face(f)}<small>${f.name === p.leader ? '👑 ' : ''}${esc(f.name)}</small></span>`).join('')}</div>
         <div class="small">${lead ? 'You lead: press PLAY and your party comes along.' : `${esc(p.leader)} picks the match. You'll follow them in.`}</div>`;
       $('partyLeave').onclick = () => this.net.send({ t: 'partyLeave' });
     }
@@ -620,9 +638,9 @@
           <div class="pass-how">
             <b>How to tier up</b>
             <div class="pass-ways">
-              <span><i>🎮</i>Play matches<em>up to +${E.PASS.match}</em></span>
-              <span><i>🎯</i>Daily challenges<em>+${E.PASS.challenge} each</em></span>
-              <span><i>🎁</i>Daily gift<em>+${E.PASS.gift}</em></span>
+              <button data-way="play"><i>🎮</i>Play matches<em>up to +${E.PASS.match}</em></button>
+              <button data-way="challenges"><i>🎯</i>Daily challenges<em>+${E.PASS.challenge} each</em></button>
+              <button data-way="gift"><i>🎁</i>Daily gift<em>+${E.PASS.gift}</em></button>
             </div>
             <small>Every ${per} points = 1 tier. Wins, featured and weekly events give the most points.</small>
           </div>
@@ -641,8 +659,36 @@
       const sc = body.querySelector('.pt-scroll');
       // first look: your next tier in the middle; after a claim: stay where you were
       sc.scrollLeft = keep !== null ? keep : Math.max(0, PAD + tier * (W + G) + W / 2 - sc.clientWidth / 2);
-      // a mouse wheel scrolls the track sideways
+      // a mouse wheel scrolls the track sideways, and so does holding the left button and dragging (like a finger)
       sc.onwheel = (e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { sc.scrollLeft += e.deltaY; e.preventDefault(); } };
+      sc.onpointerdown = (e) => {
+        if (e.pointerType === 'touch' || e.pointerType === 'pen' || e.button !== 0) return; // touch screens scroll by themselves
+        const x0 = e.clientX, left0 = sc.scrollLeft;
+        let moved = false;
+        const move = (ev) => {
+          const dx = ev.clientX - x0;
+          if (!moved && Math.abs(dx) > 4) { moved = true; sc.classList.add('dragging'); }
+          if (moved) sc.scrollLeft = left0 - dx;
+        };
+        const up = () => {
+          window.removeEventListener('pointermove', move);
+          window.removeEventListener('pointerup', up);
+          sc.classList.remove('dragging');
+          // a drag isn't a click: the Claim button under the mouse stays untouched
+          if (moved) window.addEventListener('click', (ev) => { ev.stopPropagation(); ev.preventDefault(); }, { capture: true, once: true });
+        };
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', up);
+      };
+      // how to tier up: each way takes you there
+      body.querySelectorAll('[data-way]').forEach((b) => (b.onclick = () => {
+        const way = b.dataset.way, meta = this.game.meta;
+        if (way === 'challenges') return meta.openPanel('challenges');
+        if (way === 'gift') return meta.openPanel('shop'); // the daily gift is at the top of the Shop
+        meta.closePanel();
+        if (this.game.state !== 'menu') this.game.showMenu();
+        this.game.hintPlay();
+      }));
       const claim = (t) => this.net.send({ t: 'passClaim', tier: t });
       body.querySelectorAll('[data-tier]').forEach((b) => (b.onclick = () => { b.disabled = true; claim(+b.dataset.tier); }));
       if ($('passClaimAll')) $('passClaimAll').onclick = () => {
@@ -689,7 +735,7 @@
     }
     card(p, extra) {
       const t = CW.tier(p.tro);
-      return `<div class="prof-card"><div class="prof-av">${CW.avatar(p.av)}</div><div class="prof-main"><div class="prof-name">${esc(p.name)}</div>
+      return `<div class="prof-card"><div class="prof-av">${CW.face(p)}</div><div class="prof-main"><div class="prof-name">${esc(p.name)}</div>
         <div class="prof-tier">${t.icon} ${t.name} · 🏆 <b>${p.tro}</b> <span class="small">(best ${p.best})</span></div>
         <div class="small">⭐ Level ${p.lv || 1} · ${p.wins} Quick Match wins · ${p.played} played${extra || ''}</div>${p.club ? `<div class="small">🛡 Club: <b>${esc(p.club)}</b></div>` : ''}${p.rp != null ? `<div class="small">🏅 Ranked: ${CW.ECON.RANKED.rank(p.rp).icon} ${CW.ECON.RANKED.rank(p.rp).name} · ${p.rp} RP</div>` : ''}</div></div>`;
     }
@@ -699,25 +745,31 @@
       if (!this.me) { body.innerHTML = '<div class="small">Log in to join a club.</div>'; return; }
       const badge = (i) => CW.CLUB_BADGES[i | 0] || '🛡';
       const on = (sel, fn) => body.querySelectorAll(sel).forEach((b) => (b.onclick = () => fn(b)));
-      const row = (cl) => `<div class="club-row"><span style="font-size:26px">${badge(cl.badge)}</span><b>${esc(cl.name)}</b><span class="small">👥 ${cl.members}/30 · 🏆 ${cl.tro}${cl.minTro ? ` · needs ${cl.minTro}` : ''}${cl.open ? '' : ' · 🔒 closed'}</span>
+      const row = (cl) => `<div class="club-row"><span style="font-size:26px">${CW.clubFace(cl)}</span><b>${esc(cl.name)}</b><span class="small">👥 ${cl.members}/30 · 🏆 ${cl.tro}${cl.minTro ? ` · needs ${cl.minTro}` : ''}${cl.open ? '' : ' · 🔒 closed'}</span>
         <button class="ws-btn" data-peek="${esc(cl.id)}">View</button>${cl.open && cl.members < 30 && (this.me.tro | 0) >= cl.minTro ? `<button class="ws-btn on" data-join="${esc(cl.id)}">Join</button>` : ''}</div>`;
-      const members = (cl, mine) => cl.list.map((p) => `<div class="club-row"><span>${CW.avatar(p.av)}</span><b class="fr-name" data-view="${esc(p.name)}">${esc(p.name)}${p.role === 'owner' ? ' 👑' : ''}</b><span class="small">${p.on ? '🟢' : '⚫'} 🏆 ${p.tro}</span>${mine && this.club.list.some((x) => x.name === this.me.name && x.role === 'owner') && p.name !== this.me.name ? `<button class="tod-btn" data-kick="${esc(p.name)}" aria-label="Remove from the club">✖</button>` : ''}</div>`).join('');
-      const head = (cl) => `<div class="club-card"><span class="club-badge">${badge(cl.badge)}</span><div style="flex:1"><b style="font-size:20px">${esc(cl.name)}</b><div class="small">${esc(cl.desc || '')}</div><div class="small">🏆 <b>${cl.tro}</b> club trophies · 👥 ${cl.members}/30 · ${cl.open ? '🔓 open' : '🔒 closed'}${cl.minTro ? ` · needs 🏆 ${cl.minTro}` : ''}</div></div></div>`;
+      const members = (cl, mine) => cl.list.map((p) => `<div class="club-row"><span>${CW.face(p)}</span><b class="fr-name" data-view="${esc(p.name)}">${esc(p.name)}${p.role === 'owner' ? ' 👑' : ''}</b><span class="small">${p.on ? '🟢' : '⚫'} 🏆 ${p.tro}</span>${mine && p.name !== this.me.name ? `<button class="ws-btn dm-btn" data-dm="${esc(p.name)}" aria-label="Message ${esc(p.name)}">💬</button>` : ''}${mine && this.club.list.some((x) => x.name === this.me.name && x.role === 'owner') && p.name !== this.me.name ? `<button class="tod-btn" data-kick="${esc(p.name)}" aria-label="Remove from the club">✖</button>` : ''}</div>`).join('');
+      const head = (cl) => `<div class="club-card"><span class="club-badge">${CW.clubFace(cl)}</span><div style="flex:1"><b style="font-size:20px">${esc(cl.name)}</b><div class="small">${esc(cl.desc || '')}</div><div class="small">🏆 <b>${cl.tro}</b> club trophies · 👥 ${cl.members}/30 · ${cl.open ? '🔓 open' : '🔒 closed'}${cl.minTro ? ` · needs 🏆 ${cl.minTro}` : ''}</div></div></div>`;
       if (this.club) {
         const cl = this.club;
         const owner = cl.list.some((x) => x.name === this.me.name && x.role === 'owner');
         // the last few club chat lines; the whole chat is in 💬
         const talk = this.game.talk;
         const log = (cl.log || []).filter((l) => !talk.isBlocked(l.f)).slice(-4).map((l) => (l.f ? `<div><b>${esc(l.f)}:</b> ${esc(talk.text(l))}</div>` : `<div class="small">${esc(talk.text(l))}</div>`)).join('') || '<div class="small">No messages yet.</div>';
-        body.innerHTML = head(cl) + `<div class="club-chat" id="clubChat">${log}</div><div class="menu-btns" style="justify-content:flex-start"><button class="ws-btn on" id="clChat">💬 Club chat</button></div>
+        body.innerHTML = head(cl) + `<div class="club-chat" id="clubChat">${log}</div><div class="menu-btns" style="justify-content:flex-start"><button class="ws-btn" id="clChat">💬 Club chat</button></div>
           <h3>Members</h3>${members(cl, true)}
           ${owner ? `<h3>Club settings</h3><div class="club-form"><select id="clOpen"><option value="1" ${cl.open ? 'selected' : ''}>🔓 Open: anyone can join</option><option value="0" ${cl.open ? '' : 'selected'}>🔒 Closed</option></select>
             <select id="clMin">${[0, 50, 100, 200, 300, 500, 750, 1000, 1500, 2000].map((v) => `<option value="${v}" ${v === cl.minTro ? 'selected' : ''}>Needs 🏆 ${v}</option>`).join('')}</select>
-            <input id="clDesc" maxlength="80" placeholder="Description" value="${esc(cl.desc || '')}"><button class="ws-btn on" id="clSave">Save</button></div>` : ''}
+            <input id="clDesc" maxlength="80" placeholder="Description" value="${esc(cl.desc || '')}"><button class="ws-btn on" id="clSave">Save</button></div>
+            <div class="club-form"><button class="ws-btn" id="clPic">📷 ${cl.pv ? 'Change' : 'Add'} club picture</button>${cl.pv ? '<button class="ws-btn" id="clPicDel">Remove picture</button>' : ''}<span class="small">A square picture shown as a circle instead of the badge</span></div>` : ''}
           <div class="menu-btns" style="justify-content:flex-start"><button class="ws-btn" id="clLeave">🚪 Leave club</button></div>`;
         const box = $('clubChat');
         box.scrollTop = box.scrollHeight;
         $('clChat').onclick = () => this.game.talk.open('club');
+        on('[data-dm]', (b) => this.game.talk.openDm(b.dataset.dm));
+        if (owner) {
+          $('clPic').onclick = () => CW.pickPicture((data) => net.send({ t: 'picSet', kind: 'c', data }));
+          if ($('clPicDel')) $('clPicDel').onclick = () => net.send({ t: 'picSet', kind: 'c', data: null });
+        }
         on('[data-kick]', (b) => { if (confirm(`Remove ${b.dataset.kick} from the club?`)) net.send({ t: 'clubKick', name: b.dataset.kick }); });
         on('[data-view]', (b) => this.showPlayer(b.dataset.view, 'clubs'));
         $('clLeave').onclick = () => { if (confirm(`Leave ${cl.name}?${owner && cl.members > 1 ? ' The member with the most trophies becomes the owner.' : ''}`)) net.send({ t: 'clubLeave' }); };
@@ -752,11 +804,14 @@
       if (!this.me) { body.innerHTML = '<div class="small">You are playing as a guest.</div><button class="btn" id="profLogin">👤 Log in or sign up</button><h3>Stats</h3>' + g.meta.statsHtml(); $('profLogin').onclick = () => { g.meta.closePanel(); this.openLogin(); }; return; }
       const me = this.me;
       const s = g.profile.stats;
+      const kids = this.game.talk.mode === 'quick';
       body.innerHTML = this.card(me) +
-        `<h3>Pick your avatar</h3><div class="av-grid">${CW.AVATARS.map((a, i) => {
+        `<h3>Your picture</h3><div class="pic-row">${kids ? '<span class="small">Own pictures are off with Quick chat only (Settings › Chat).</span>'
+          : `<button class="ws-btn" id="profPic">📷 ${me.pv ? 'Change' : 'Use'} your own picture</button>${me.pv ? '<button class="ws-btn" id="profPicDel">Remove it</button>' : ''}<span class="small">Square, shown as a circle. Only you can use it.</span>`}</div>
+        <h3>Pick your avatar</h3><div class="av-grid">${CW.AVATARS.map((a, i) => {
           const prem = CW.SHOP.avatars.find((x) => x.idx === i);
           const locked = prem && !g.profile.owned.avatars.includes(prem.id);
-          return `<button class="av-btn ${i === me.av ? 'on' : ''} ${locked ? 'locked' : ''}" ${locked ? 'data-shop="1" aria-label="Unlock it in the Shop or on the Trophy Road"' : `data-av="${i}"`}>${a}${locked ? '<i>🔒</i>' : ''}</button>`;
+          return `<button class="av-btn ${i === me.av && !me.pv ? 'on' : ''} ${locked ? 'locked' : ''}" ${locked ? 'data-shop="1" aria-label="Unlock it in the Shop or on the Trophy Road"' : `data-av="${i}"`}>${a}${locked ? '<i>🔒</i>' : ''}</button>`;
         }).join('')}</div>
         <h3>Stats</h3>${g.meta.statsHtml()}
         <h3>Account</h3>
@@ -772,8 +827,11 @@
         </div>
         <form id="profPassForm" class="acct-mini hidden"><input type="password" id="ppOld" placeholder="Current password" autocomplete="current-password"><input type="password" id="ppNew" placeholder="New password (6+)" autocomplete="new-password"><button class="ws-btn on">Save new password</button><div class="small">Other devices will be logged out.</div></form>
         <form id="profDelForm" class="acct-mini hidden"><div class="small">This removes <b>${esc(me.name)}</b>, its trophies, friends and cloud backup <b>forever</b>.</div><input type="${this.hasPass ? 'password' : 'text'}" id="pdPass" placeholder="${this.hasPass ? 'Your password' : 'Type your username to confirm'}" autocomplete="off"><button class="ws-btn bad">Delete my account</button></form>`;
-      body.querySelectorAll('[data-av]').forEach((b) => (b.onclick = () => this.net.send({ t: 'profileSet', av: +b.dataset.av })));
+      // picking an avatar also stops using your own picture
+      body.querySelectorAll('[data-av]').forEach((b) => (b.onclick = () => { this.net.send({ t: 'profileSet', av: +b.dataset.av }); if (me.pv) this.net.send({ t: 'picSet', kind: 'u', data: null }); }));
       body.querySelectorAll('[data-shop]').forEach((b) => (b.onclick = () => g.meta.openPanel('shop')));
+      if ($('profPic')) $('profPic').onclick = () => CW.pickPicture((data) => this.net.send({ t: 'picSet', kind: 'u', data }));
+      if ($('profPicDel')) $('profPicDel').onclick = () => this.net.send({ t: 'picSet', kind: 'u', data: null });
       $('profOut').onclick = () => this.logout();
       if ($('profPass')) $('profPass').onclick = () => { $('profPassForm').classList.toggle('hidden'); $('ppOld').focus(); };
       if ($('linkForm')) $('linkForm').onsubmit = (e) => {
@@ -821,12 +879,13 @@
         <div class="small">Your username is <b>${esc(this.me.name)}</b>: tell your friends so they can add you.</div>` +
         (this.reqIn.length ? `<h3>Requests</h3>${this.reqIn.map((n) => `<div class="fr-row"><b>${esc(n)}</b><span class="small">wants to be friends</span><button class="ws-btn on" data-acc="${esc(n)}">Accept</button><button class="ws-btn" data-dec="${esc(n)}">Decline</button></div>`).join('')}` : '') +
         `<h3>Friends (${this.friends.filter((f) => f.on).length} online / ${this.friends.length})</h3>` +
-        (order.length ? order.map((f) => `<div class="fr-row ${f.on ? 'on' : ''}"><span class="av">${CW.avatar(f.av)}</span><b class="fr-name" data-view="${esc(f.name)}">${esc(f.name)}</b>
+        (order.length ? order.map((f) => `<div class="fr-row ${f.on ? 'on' : ''}"><span class="av">${CW.face(f)}</span><b class="fr-name" data-view="${esc(f.name)}">${esc(f.name)}</b>
           <span class="small">${f.on ? STATUS[f.st] || '🟢 Online' : '⚫ Offline'} · 🏆 ${f.tro}</span>
           ${f.on && !inParty(f.name) ? `<button class="ws-btn" data-party="${esc(f.name)}" aria-label="Invite to your party">🎉 Party</button>` : ''}
           ${f.on && inRoom ? `<button class="ws-btn" data-inv="${esc(f.name)}" aria-label="Invite to the room you're in">📨 Invite</button>` : ''}
           ${f.room && (!net.room || net.room.code !== f.room) ? `<button class="ws-btn on" data-join="${esc(f.room)}" aria-label="Join their room">▶ Join</button>` : ''}
           ${f.watch ? `<button class="ws-btn on" data-watch="${esc(f.name)}" aria-label="Watch their match (they'll see you're watching)">👁 Watch</button>` : ''}
+          <button class="ws-btn" data-dm="${esc(f.name)}" aria-label="Message ${esc(f.name)}">💬 Message${this.game.talk.unread[f.name] ? ` <i class="badge inline">${this.game.talk.unread[f.name]}</i>` : ''}</button>
           <button class="ws-btn" data-rem="${esc(f.name)}" aria-label="Remove friend">✖</button></div>`).join('') : '<div class="small">No friends yet. Add someone by their username!</div>') +
         (this.reqOut.length ? `<h3>Sent requests</h3>${this.reqOut.map((n) => `<div class="fr-row"><b>${esc(n)}</b><span class="small">waiting…</span><button class="ws-btn" data-dec="${esc(n)}">Cancel</button></div>`).join('')}` : '');
       $('frForm').onsubmit = (e) => { e.preventDefault(); const n = $('frName').value.trim(); if (n) net.send({ t: 'friendAdd', name: n }); $('frName').value = ''; };
@@ -839,6 +898,7 @@
       on('[data-watch]', (b) => { this.game.meta.closePanel(); net.spectate(b.dataset.watch); });
       on('[data-rem]', (b) => { if (confirm(`Remove ${b.dataset.rem} from your friends?`)) net.send({ t: 'friendRemove', name: b.dataset.rem }); });
       on('[data-view]', (b) => this.showPlayer(b.dataset.view, 'friends'));
+      on('[data-dm]', (b) => this.game.talk.openDm(b.dataset.dm));
     }
     roadPanel(body) {
       const best = this.me ? this.me.best | 0 : 0;
@@ -870,10 +930,10 @@
       body.querySelectorAll('[data-view]').forEach((b) => (b.onclick = () => this.showPlayer(b.dataset.view, 'top')));
     }
     lbRow(p, rank, ranked) {
-      if (ranked) { const rk = CW.ECON.RANKED.rank(p.rp); return `<div class="fr-row lb-row ${this.me && p.name === this.me.name ? 'me' : ''}"><span class="lb-rank">${['🥇', '🥈', '🥉'][rank - 1] || '#' + rank}</span><span class="av">${CW.avatar(p.av)}</span><b class="fr-name" data-view="${esc(p.name)}">${esc(p.name)}</b><span class="small">${rk.icon} ${rk.name}</span><b class="lb-tro">🏅 ${p.rp}</b></div>`; }
+      if (ranked) { const rk = CW.ECON.RANKED.rank(p.rp); return `<div class="fr-row lb-row ${this.me && p.name === this.me.name ? 'me' : ''}"><span class="lb-rank">${['🥇', '🥈', '🥉'][rank - 1] || '#' + rank}</span><span class="av">${CW.face(p)}</span><b class="fr-name" data-view="${esc(p.name)}">${esc(p.name)}</b><span class="small">${rk.icon} ${rk.name}</span><b class="lb-tro">🏅 ${p.rp}</b></div>`; }
       const me = this.me && p.name === this.me.name;
       const medal = ['🥇', '🥈', '🥉'][rank - 1] || '#' + rank;
-      return `<div class="fr-row lb-row ${me ? 'me' : ''}"><span class="lb-rank">${medal}</span><span class="av">${CW.avatar(p.av)}</span><b class="fr-name" data-view="${esc(p.name)}">${esc(p.name)}${p.club ? `<span class="club-tag">${esc(p.club)}</span>` : ''}</b><span class="small">${CW.tier(p.tro).icon} ⭐${p.lv || 1}</span><b class="lb-tro">🏆 ${p.tro}</b></div>`;
+      return `<div class="fr-row lb-row ${me ? 'me' : ''}"><span class="lb-rank">${medal}</span><span class="av">${CW.face(p)}</span><b class="fr-name" data-view="${esc(p.name)}">${esc(p.name)}${p.club ? `<span class="club-tag">${esc(p.club)}</span>` : ''}</b><span class="small">${CW.tier(p.tro).icon} ⭐${p.lv || 1}</span><b class="lb-tro">🏆 ${p.tro}</b></div>`;
     }
   }
 

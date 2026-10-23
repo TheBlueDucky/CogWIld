@@ -11,6 +11,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { Accounts } = require('./accounts');
 const { Talk } = require('./talk');
+const { Pics } = require('./pics');
 const google = require('./google');
 const E = require('../js/economy.js');
 const { Referee } = require('./referee');
@@ -90,6 +91,7 @@ function serveStatic(req, res) {
     return res.end();
   }
   if (url === '/auth/google/done') url = '/auth.html';
+  if (url.startsWith('/pic/') && accounts.pics.serve(url, res, SECURITY)) return;
   if (url === '/health') {
     res.writeHead(200, Object.assign({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, SECURITY));
     return res.end(JSON.stringify({ ok: true, version: NET_VERSION, rooms: rooms.size, players: clients.size }));
@@ -238,7 +240,7 @@ function roomView(room) {
     players: [...room.players].map((id) => {
       const c = clients.get(id);
       const u = accounts.me(c);
-      return { id, name: c.name, ready: c.ready, bp: c.bp || null, bpName: c.bp ? clean(c.bp.name, 24) : '', acct: !!u, av: u ? u.av | 0 : -1, tro: u ? u.tro | 0 : 0 };
+      return { id, name: c.name, ready: c.ready, bp: c.bp || null, bpName: c.bp ? clean(c.bp.name, 24) : '', acct: !!u, av: u ? u.av | 0 : -1, pv: u ? u.pv | 0 : 0, tro: u ? u.tro | 0 : 0 };
     }),
     // bots waiting in the lobby: the host's game gives their names to the first bots it makes
     bots: room.bots.map((b) => ({ id: b.id, name: b.name })),
@@ -387,6 +389,8 @@ function publicRooms() {
 const accounts = new Accounts({ clients, rooms, joinRoom, maxPlayers: MAX_PLAYERS });
 // chat (friends, party, club) and voice chat set-up (server/talk.js)
 accounts.talk = new Talk(accounts, { clients, rooms });
+// players' own profile pictures and club pictures (server/pics.js)
+accounts.pics = new Pics(accounts, path.join(process.env.DATA_DIR || path.resolve(__dirname, '..', 'data'), 'pics'));
 
 // mech parts from players: only short part names and small whole-number positions are relayed
 const coord = (v) => Math.max(-64, Math.min(64, v | 0));

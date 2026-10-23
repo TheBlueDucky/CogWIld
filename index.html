@@ -1067,7 +1067,13 @@
   .pass-how > b { font-size: 14px; color: var(--muted2); }
   .pass-how > small { font-size: 12px; color: #7484ad; }
   .pass-ways { display: flex; gap: 8px; flex-wrap: wrap; }
-  .pass-ways span { flex: 1 1 0; min-width: 84px; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 4px; border-radius: 8px; background: rgba(255, 255, 255, .05); font-size: 12px; font-weight: 700; text-align: center; }
+  .pass-ways button { flex: 1 1 0; min-width: 84px; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 4px; border-radius: 8px; background: rgba(255, 255, 255, .05); border: 1px solid transparent; color: var(--txt); font: 700 12px 'Nunito', sans-serif; text-align: center; cursor: pointer; }
+  .pt-scroll { cursor: grab; }
+  .pt-scroll.dragging { cursor: grabbing; }
+  .pt-scroll.dragging .pt-col { pointer-events: none; }
+  /* "Play matches" in the Cog Pass points at PLAY */
+  .play-btn.hint-pulse { animation: hintPulse 1.1s ease-in-out 4; }
+  @keyframes hintPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(92, 225, 255, 0); } 50% { box-shadow: 0 0 0 6px rgba(92, 225, 255, .75); } }
   .pass-ways i { font-style: normal; font-size: 20px; }
   .pass-ways em { font-style: normal; color: var(--hl); font-size: 13px; }
   #panel.full[data-kind=pass] #panelBody { justify-content: center; }
@@ -1115,7 +1121,7 @@
     .pass-badge { width: 50px; height: 50px; }
     .pass-badge b { font-size: 22px; }
     .pass-how > small { display: none; }
-    .pass-ways span { min-width: 64px; padding: 3px; font-size: 11px; }
+    .pass-ways button { min-width: 64px; padding: 3px; font-size: 11px; }
     .pass-ways i { font-size: 15px; }
     .pt-scroll { min-height: 0; }
     .pt-card { height: 118px; }
@@ -1143,7 +1149,9 @@
   /* ---- chat and voice ---- */
   .chat-btn, .vc-btn { position: relative; }
   .vc-btn[data-vc=off], .vc-btn[data-vc=wait] { filter: grayscale(1); opacity: .7; }
-  .vc-btn[data-vc=muted] { color: #ff8a8a; }
+  .vc-btn[data-vc=muted], .vc-btn[data-vc=deaf] { color: #ff8a8a; }
+  .key-pair { display: flex; gap: 6px; align-items: center; }
+  .key-off { background: transparent !important; border: 1px solid var(--line2) !important; padding: 4px 10px !important; font-size: 13px !important; }
   .vc-btn.talking { outline: 2px solid var(--hl) !important; outline-offset: -1px; }
   #hudTalk { position: absolute; top: 12px; right: 194px; display: flex; gap: 6px; pointer-events: auto; }
   #hudTalk button { position: relative; width: 40px; height: 40px; border-radius: var(--rad); background: rgba(11, 15, 30, .42); border: 1px solid rgba(255, 255, 255, .14); color: #fff; font-size: 18px; cursor: pointer; }
@@ -1189,6 +1197,43 @@
   .vc-meter { width: 200px; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, .1); overflow: hidden; }
   .vc-meter i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #2bb8e0, #5ce1ff); transition: width .1s; }
   .set-note { padding: 6px 10px; border: 1px solid var(--line2); border-radius: 8px; margin-bottom: 6px; color: var(--muted2); }
+  /* ---- the chat (v1.7.1): small and see-through on every device ---- */
+  #chat { left: 12px; top: 64px; bottom: auto; width: min(340px, calc(100% - 24px)); height: min(420px, calc(100% - 140px)); border-radius: var(--rad);
+    background: rgba(12, 18, 40, .42); border: 1px solid rgba(255, 255, 255, .14); box-shadow: 0 6px 24px rgba(0, 0, 0, .2); backdrop-filter: blur(1.5px); -webkit-backdrop-filter: blur(1.5px); }
+  #chat .chat-head, #chat .chat-sub, #chat .chat-quick { border-color: rgba(255, 255, 255, .1); }
+  #chat .chat-line, #chat .chat-empty, #chat .chat-sub, #chat .chat-tab, #chat .chat-friend { text-shadow: 0 1px 3px rgba(0, 0, 0, .8); }
+  #chat .chat-form input { background: rgba(0, 0, 0, .35); }
+  #chat .chat-q, #chat .chat-friend { background: rgba(0, 0, 0, .18); }
+  #chatDone { display: none; padding: 4px 10px !important; }
+  .chat-line { display: flex; gap: 6px; align-items: flex-start; }
+  .chat-line.sys { display: block; }
+  .chat-face { flex: none; width: 20px; height: 20px; font-size: 15px; line-height: 20px; text-align: center; }
+  .touch-ui #chat { top: 52px; width: min(330px, 46%); height: calc(100% - 64px); }
+  /* phones, typing in the menu: the chat fills the upright screen */
+  body.talk-portrait #rotate { display: none !important; }
+  body.talk-portrait #chat { inset: 0 !important; width: 100% !important; height: 100% !important; zoom: 1 !important; border: none; border-radius: 0; background: rgba(12, 18, 40, .93); }
+  body.talk-portrait #chatDone { display: inline-block; }
+  body.talk-portrait .chat-log { font-size: 16px; }
+  body.talk-portrait .chat-form input { font-size: 16px; padding: 10px 12px; }
+  /* players' own pictures and club pictures: circles */
+  img.pfp { width: 1.3em; height: 1.3em; border-radius: 50%; object-fit: cover; vertical-align: middle; background: #0d1226; -webkit-user-drag: none; }
+  .prof-av img.pfp, .club-badge img.pfp { width: 64px; height: 64px; }
+  .chat-face img.pfp { width: 20px; height: 20px; }
+  .av-btn.on { outline: 2px solid var(--hl); }
+  .pic-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .dm-btn { padding: 2px 8px !important; }
+  .badge.inline { position: static; margin-left: 4px; }
+  /* the picture cropper */
+  #picCrop { position: absolute; inset: 0; z-index: 32; background: rgba(6, 10, 24, .78); display: flex; align-items: center; justify-content: center; padding: 16px; zoom: var(--z); }
+  .crop-box { width: min(340px, 100%); }
+  .crop-area { position: relative; width: 280px; height: 280px; max-width: 100%; touch-action: none; }
+  #cropCv { display: block; width: 100%; height: 100%; border-radius: 8px; cursor: grab; }
+  .crop-ring { position: absolute; inset: 0; pointer-events: none; border-radius: 8px; background: radial-gradient(circle at center, transparent 0, transparent 69.5%, rgba(6, 10, 24, .6) 70%); }
+  .crop-ring::after { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .85); }
+  .crop-zoom { display: flex; align-items: center; gap: 8px; width: 100%; }
+  .crop-zoom input { flex: 1; }
+  /* 🎧 deafen */
+  #hudTalk .deaf-btn { font-size: 17px; }
 </style>
 </head>
 <body>
@@ -1222,7 +1267,8 @@
       <div class="lt-right">
         <button id="btnRanks" class="bs-chip lvl-chip" aria-label="Your level and rank: level up to unlock parts and movement types"><span class="lvl-star"><b id="pLevel">1</b></span><span class="lvl-info"><b id="pRank">Mono</b><span class="xpbar mini"><i id="pXp"></i></span></span></button>
         <button id="coinChip" class="bs-chip coins" aria-label="Coins: spend them in the Shop">🪙 <b id="pCoins">0</b></button>
-        <button id="btnVoice" class="bs-icon vc-btn" aria-label="Voice chat">🎤</button>
+        <button id="btnVoice" class="bs-icon vc-btn" aria-label="Voice chat: mute">🎤</button>
+        <button id="btnDeaf" class="bs-icon vc-btn deaf-btn" aria-label="Voice chat: deafen">🎧</button>
         <button id="btnChat" class="bs-icon chat-btn" aria-label="Chat">💬<i class="badge hidden" id="badgeChat">0</i></button>
         <button id="btnSettings" class="bs-icon" aria-label="Settings">⚙</button>
       </div>
@@ -1419,7 +1465,7 @@
   <div id="specBar" class="hidden">👁 Watching <b id="specName"></b> <button id="specLeave" class="ws-btn">Leave (Esc)</button></div>
   <div id="hud" class="hidden">
     <div id="vignette"></div>
-    <div id="hudTalk"><button id="hudVoice" class="vc-btn" aria-label="Voice chat">🎤</button><button id="hudChat" aria-label="Chat (Enter)">💬<i class="badge hidden" id="hudChatBadge">0</i></button></div>
+    <div id="hudTalk"><button id="hudVoice" class="vc-btn" aria-label="Voice chat: mute">🎤</button><button id="hudDeaf" class="vc-btn deaf-btn" aria-label="Voice chat: deafen">🎧</button><button id="hudChat" aria-label="Chat (Enter)">💬<i class="badge hidden" id="hudChatBadge">0</i></button></div>
     <div id="tags"></div>
     <div id="crosshair"></div>
     <div id="topInfo"></div>
@@ -1504,7 +1550,7 @@
   </div>
   <!-- CHAT (js/talk.js) -->
   <div id="chat" class="hidden" role="dialog" aria-label="Chat">
-    <div class="chat-head"><div class="chat-tabs" id="chatTabs"></div><button id="chatX" class="ws-btn" aria-label="Close (Esc)">✕</button></div>
+    <div class="chat-head"><div class="chat-tabs" id="chatTabs"></div><button id="chatDone" class="ws-btn" aria-label="Back to the game">↩ Done</button><button id="chatX" class="ws-btn" aria-label="Close (Esc)">✕</button></div>
     <div class="chat-sub hidden" id="chatSub"></div>
     <div class="chat-log" id="chatLog"></div>
     <div class="small chat-note hidden" id="chatNote">Quick chat only is on (Settings › Chat)</div>
@@ -1615,28 +1661,29 @@
 </div>
 
 <!-- three.js: from the CDN, or the local copy in js/vendor/ when offline (desktop build / no internet) -->
-<script src="js/vendor/three.min.js?v=21"></script>
-<script src="js/economy.js?v=21"></script>
-<script src="js/parts.js?v=21"></script>
-<script src="js/platform.js?v=21"></script>
-<script src="js/featured.js?v=21"></script>
-<script src="js/world.js?v=21"></script>
-<script src="js/entities.js?v=21"></script>
-<script src="js/meta.js?v=21"></script>
-<script src="js/extras.js?v=21"></script>
-<script src="js/modes.js?v=21"></script>
-<script src="js/tutorial.js?v=21"></script>
-<script src="js/clips.js?v=21"></script>
-<script src="js/gamepad.js?v=21"></script>
-<script src="js/workshop.js?v=21"></script>
-<script src="js/config.js?v=21"></script>
-<script src="js/net.js?v=21"></script>
-<script src="js/account.js?v=21"></script>
-<script src="js/touch.js?v=21"></script>
-<script src="js/supers.js?v=21"></script>
-<script src="js/gadgets.js?v=21"></script>
-<script src="js/talk.js?v=21"></script>
-<script src="js/voice.js?v=21"></script>
-<script src="js/game.js?v=21"></script>
+<script src="js/vendor/three.min.js?v=22"></script>
+<script src="js/economy.js?v=22"></script>
+<script src="js/parts.js?v=22"></script>
+<script src="js/platform.js?v=22"></script>
+<script src="js/featured.js?v=22"></script>
+<script src="js/world.js?v=22"></script>
+<script src="js/entities.js?v=22"></script>
+<script src="js/meta.js?v=22"></script>
+<script src="js/extras.js?v=22"></script>
+<script src="js/modes.js?v=22"></script>
+<script src="js/tutorial.js?v=22"></script>
+<script src="js/clips.js?v=22"></script>
+<script src="js/gamepad.js?v=22"></script>
+<script src="js/workshop.js?v=22"></script>
+<script src="js/config.js?v=22"></script>
+<script src="js/net.js?v=22"></script>
+<script src="js/account.js?v=22"></script>
+<script src="js/touch.js?v=22"></script>
+<script src="js/supers.js?v=22"></script>
+<script src="js/gadgets.js?v=22"></script>
+<script src="js/pics.js?v=22"></script>
+<script src="js/talk.js?v=22"></script>
+<script src="js/voice.js?v=22"></script>
+<script src="js/game.js?v=22"></script>
 </body>
 </html>

@@ -1,56 +1,70 @@
 // Cogwild — voice chat: talk with your party, and (if you choose) everyone in your match.
 //
-// The games call each other directly (WebRTC, audio only); the server (server/talk.js) only says who to call
-// and passes the call set-up along. Needs an account; off with "Quick chat only" and on game portals.
-// Settings > Voice: on/off, who you hear, open mic or push-to-talk, the keys (push-to-talk B, mute M),
-// microphone, speakers/headphones and volume. The first time (and after an update or on a new account)
+// The games call each other through the server's relay (WebRTC, audio only); the server (server/talk.js) only says
+// who to call and passes the call set-up along. Needs an account; off with "Quick chat only" and on game portals.
+// You're in voice only while there's someone to talk to: in a party, or in a room/match when you chose to hear your
+// match. The microphone is only opened then, and only while you're not muted or deafened (it's released otherwise).
+// Settings > Voice: on/off, who you hear, open mic or push-to-talk, the keys (push-to-talk B, mute M, deafen N; any can
+// be turned off), microphone, speakers/headphones and volume. The first time (and after an update or on a new account)
 // the game asks whether you want it.
 (function () {
   const CW = window.CW;
   const $ = (id) => document.getElementById(id);
   const esc = CW.esc;
+  // default keys; 'none' = no key
+  CW.VOICE_KEYS = { vcPtt: 'KeyB', vcMute: 'KeyM', vcDeaf: 'KeyN' };
 
   class Voice {
     constructor(game) {
       this.game = game;
-      this.peers = new Map(); // client id -> { pc, name, audio, level, talking, queue }
-      this.stream = null;
-      this.muted = false;
+      this.peers = new Map(); // client id -> { pc, tx, name, audio, talking, queue }
+      this.stream = null; // the microphone (only while needed)
+      this.joined = false; // told the server we're in voice
       this.ptt = false; // push-to-talk key held
       this.ice = null;
       this.bindUi();
       setInterval(() => this.tick(), 120);
+      setInterval(() => { if (this.shouldJoin !== this.joined) this.apply(); }, 1000); // a party or match started/ended
     }
     get s() { return this.game.settings; }
     get net() { return this.game.net; }
     get acct() { return this.game.account; }
     get supported() { return !!(window.RTCPeerConnection && navigator.mediaDevices && navigator.mediaDevices.getUserMedia); }
-    // should voice be running right now?
+    // voice is on in Settings and may be used here
     get wanted() { return !!this.s.voice && this.supported && !CW.PORTAL && !!this.acct.loggedIn && this.game.talk.mode !== 'quick'; }
-    get live() { return !!this.stream; }
+    // ...and there's someone to talk to: your party, or your room/match when you hear your match
+    get inContext() { return !!this.acct.party || (this.s.vcHear !== 'party' && !!this.net.room); }
+    get shouldJoin() { return this.wanted && this.inContext && this.net.status === 'online'; }
+    get muted() { return !!this.s.vcMuted; }
+    get deaf() { return !!this.s.vcDeafened; }
     get talkMode() { return this.s.vcMode === 'ptt' ? 'ptt' : 'open'; }
+    key(id) { const k = this.s[id]; return k === undefined || k === '' ? CW.VOICE_KEYS[id] : k; }
+    get sending() { return !!this.stream && !this.muted && !this.deaf && (this.talkMode === 'open' || this.ptt); }
 
     bindUi() {
-      // the 🎤 buttons: tap to mute/unmute (open mic) or hold to talk (push-to-talk); voice off: open its settings
+      // 🎤: tap to mute/unmute (or hold to talk with push-to-talk); 🎧: tap to deafen. Voice off: opens its settings
       for (const id of ['btnVoice', 'hudVoice']) {
         const b = $(id);
-        b.addEventListener('pointerdown', (e) => { if (this.live && this.talkMode === 'ptt') { e.preventDefault(); this.ptt = true; this.applyMic(); } });
-        const up = () => { if (this.ptt && this.talkMode === 'ptt') { this.ptt = false; this.applyMic(); } };
+        b.addEventListener('pointerdown', (e) => { if (this.joined && this.talkMode === 'ptt' && !this.muted && !this.deaf) { e.preventDefault(); this.ptt = true; this.applyMic(); } });
+        const up = () => { if (this.ptt) { this.ptt = false; this.applyMic(); } };
         b.addEventListener('pointerup', up);
         b.addEventListener('pointerleave', up);
         b.addEventListener('click', () => {
-          if (!this.s.voice || !this.live) return this.openSettings();
-          if (this.talkMode === 'open') this.toggleMute();
+          if (!this.s.voice) return this.openSettings();
+          if (this.talkMode === 'open' || this.muted || this.deaf) this.toggleMute();
         });
       }
-      // keys: push-to-talk (hold) and mute (press); never while typing
+      for (const id of ['btnDeaf', 'hudDeaf']) $(id).addEventListener('click', () => (this.s.voice ? this.toggleDeaf() : this.openSettings()));
+      // keys: push-to-talk (hold), mute and deafen (press); never while typing
       const typing = (e) => { const t = e.target; return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable); };
       window.addEventListener('keydown', (e) => {
-        if (!this.live || typing(e) || this.game.listening) return;
-        if (e.code === (this.s.vcPtt || 'KeyB') && this.talkMode === 'ptt' && !this.ptt) { this.ptt = true; this.applyMic(); }
-        if (e.code === (this.s.vcMute || 'KeyM') && !e.repeat && this.game.state !== 'workshop') this.toggleMute();
+        if (!this.s.voice || !this.wanted || typing(e) || e.repeat) return;
+        if (this.game.state === 'workshop') return; // the Workshop has its own keys (M = mirror)
+        if (e.code === this.key('vcPtt') && this.talkMode === 'ptt' && !this.ptt) { this.ptt = true; this.applyMic(); }
+        if (e.code === this.key('vcMute')) this.toggleMute();
+        if (e.code === this.key('vcDeaf')) this.toggleDeaf();
       });
-      window.addEventListener('keyup', (e) => { if (e.code === (this.s.vcPtt || 'KeyB') && this.ptt) { this.ptt = false; this.applyMic(); } });
+      window.addEventListener('keyup', (e) => { if (e.code === this.key('vcPtt') && this.ptt) { this.ptt = false; this.applyMic(); } });
       window.addEventListener('blur', () => { if (this.ptt) { this.ptt = false; this.applyMic(); } });
       // the first-time question
       $('vcYes').onclick = () => { this.answer(true); };
@@ -61,10 +75,21 @@
       this.game.meta.setTab = 'voice';
       this.game.meta.openPanel('settings');
     }
+    // mute: the microphone is let go (no app is listening); unmuting also undeafens
     toggleMute() {
-      this.muted = !this.muted;
-      this.applyMic();
-      this.game.toast(this.muted ? '🔇 Microphone muted' : '🎤 Microphone on');
+      const muteNow = !(this.muted || this.deaf);
+      this.s.vcMuted = muteNow;
+      if (!muteNow) this.s.vcDeafened = false;
+      this.game.saveProfile();
+      this.apply();
+      this.game.toast(muteNow ? '🔇 Microphone muted' : '🎤 Microphone on');
+    }
+    // deafen: you hear nobody (and your microphone is off too, like most voice apps)
+    toggleDeaf() {
+      this.s.vcDeafened = !this.deaf;
+      this.game.saveProfile();
+      this.apply();
+      this.game.toast(this.deaf ? '🔕 Deafened: you hear nobody' : '🎧 You hear voice chat again');
     }
 
     // ======================= asking first =======================
@@ -76,16 +101,16 @@
       // still logging in (or the game wants a login first): ask once we know who's playing
       if ((this.acct.session && !this.acct.me) || this.acct.loginRequired()) return;
       // not on top of the login box, a menu or the first-time welcome
-      if (!$('acct').classList.contains('hidden') || !$('panel').classList.contains('hidden') || !$('confirm').classList.contains('hidden') || document.querySelector('#menu .first-run:not(.hidden)')) {
+      if (!$('acct').classList.contains('hidden') || !$('panel').classList.contains('hidden') || !$('confirm').classList.contains('hidden') || this.game.talk.isOpen || document.querySelector('#menu .first-run:not(.hidden)')) {
         clearTimeout(this.askT);
         this.askT = setTimeout(() => this.maybeAsk(), 3000);
         return;
       }
       this.askStamp = stamp;
-      const pc = !this.game.touch.on;
+      const pc = !this.game.touch.on, k = (id) => (this.key(id) === 'none' ? null : CW.keyName(this.key(id)));
       $('vcAskKeys').innerHTML = pc
-        ? `Your mic is on while you're in voice. Press <b>${CW.keyName(this.s.vcMute || 'KeyM')}</b> to mute, or switch to push-to-talk (hold <b>${CW.keyName(this.s.vcPtt || 'KeyB')}</b>) in Settings › 🎤 Voice.`
-        : 'Tap 🎤 to mute or unmute. Change who you hear, push-to-talk, your mic and speaker in Settings › 🎤 Voice.';
+        ? `Your mic is only used while you're in a party or a match. ${k('vcMute') ? `Press <b>${k('vcMute')}</b> to mute` : 'Click 🎤 to mute'}${k('vcDeaf') ? `, <b>${k('vcDeaf')}</b> to stop hearing others` : ''}, or switch to push-to-talk${k('vcPtt') ? ` (hold <b>${k('vcPtt')}</b>)` : ''} in Settings › 🎤 Voice chat.`
+        : "Your mic is only used while you're in a party or a match. Tap 🎤 to mute, 🎧 to stop hearing others. More in Settings › 🎤 Voice chat.";
       $('vcAsk').classList.remove('hidden');
     }
     answer(on, show) {
@@ -100,35 +125,62 @@
     closeAsk() { if (!$('vcAsk').classList.contains('hidden')) { this.answer(false); return true; } return false; }
 
     // ======================= on / off =======================
-    // call after anything that may turn voice on or off (settings, log in/out, chat mode)
+    // call after anything that may change voice (settings, log in/out, chat mode, party, room, mute, deafen)
     async apply() {
-      if (this.wanted && !this.stream && !this.starting) {
-        this.starting = true;
-        try {
-          this.stream = await navigator.mediaDevices.getUserMedia({ audio: this.constraints() });
-          this.watchLevel(this.stream, (v) => { this.myLevel = v; });
-          this.applyMic();
-          this.net.send({ t: 'vcState', on: true, hear: this.s.vcHear === 'party' ? 'party' : 'game' });
-        } catch (e) {
-          this.stream = null;
-          this.game.toast(e && e.name === 'NotAllowedError' ? '🎤 The game may not use your microphone. Allow it to use voice chat.' : '🎤 No microphone found');
-        }
-        this.starting = false;
-        if (!this.wanted) this.stop();
-      } else if (!this.wanted && this.stream) this.stop();
-      else if (this.stream) this.net.send({ t: 'vcState', on: true, hear: this.s.vcHear === 'party' ? 'party' : 'game' });
+      const join = this.shouldJoin;
+      if (join !== this.joined) {
+        this.joined = join;
+        this.net.send({ t: 'vcState', on: join, hear: this.s.vcHear === 'party' ? 'party' : 'game' });
+        if (!join) for (const id of [...this.peers.keys()]) this.drop(id);
+      } else if (join && this.hearSent !== this.s.vcHear) this.net.send({ t: 'vcState', on: true, hear: this.s.vcHear === 'party' ? 'party' : 'game' });
+      this.hearSent = this.s.vcHear;
+      // the microphone: only while in voice and not muted or deafened
+      const needMic = join && !this.muted && !this.deaf;
+      if (needMic && !this.stream) await this.openMic();
+      else if (!needMic && this.stream) this.releaseMic();
+      for (const p of this.peers.values()) if (p.audio) p.audio.muted = this.deaf;
+      this.applyMic();
+    }
+    async openMic() {
+      if (this.opening) return;
+      this.opening = true;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: this.constraints() });
+        if (!(this.joined && !this.muted && !this.deaf)) stream.getTracks().forEach((t) => t.stop()); // not needed anymore
+        else this.useStream(stream);
+      } catch (e) {
+        this.game.toast(e && e.name === 'NotAllowedError' ? '🎤 The game may not use your microphone. Allow it to use voice chat.' : '🎤 No microphone found');
+        this.s.vcMuted = true;
+      }
+      this.opening = false;
       this.render();
     }
-    stop() {
-      for (const id of [...this.peers.keys()]) this.drop(id);
+    useStream(stream) {
+      if (this.stream) this.stream.getTracks().forEach((t) => t.stop());
+      this.stream = stream;
+      this.watchLevel(stream);
+      const track = stream.getAudioTracks()[0] || null;
+      for (const p of this.peers.values()) if (p.tx) p.tx.sender.replaceTrack(track).catch(() => {});
+      this.applyMic();
+    }
+    releaseMic() {
+      for (const p of this.peers.values()) if (p.tx) p.tx.sender.replaceTrack(null).catch(() => {});
       if (this.stream) this.stream.getTracks().forEach((t) => t.stop());
       this.stream = null;
+      this.myLevel = 0;
+      this.render();
+    }
+    // turn everything off (Settings, logging out)
+    stop() {
+      for (const id of [...this.peers.keys()]) this.drop(id);
+      this.releaseMic();
+      if (this.joined && this.net.status === 'online') this.net.send({ t: 'vcState', on: false });
+      this.joined = false;
       this.ptt = false;
-      if (this.net.status === 'online') this.net.send({ t: 'vcState', on: false });
       this.render();
     }
     // the server lost us (reconnecting): calls end, voice comes back once logged in again
-    onDisconnect() { for (const id of [...this.peers.keys()]) this.drop(id); }
+    onDisconnect() { for (const id of [...this.peers.keys()]) this.drop(id); this.joined = false; this.releaseMic(); }
     constraints() {
       const a = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
       if (this.s.vcMic) a.deviceId = { exact: this.s.vcMic };
@@ -137,27 +189,17 @@
     // a new microphone was picked
     async changeMic() {
       if (!this.stream) return this.apply();
-      try {
-        const next = await navigator.mediaDevices.getUserMedia({ audio: this.constraints() });
-        const track = next.getAudioTracks()[0];
-        for (const p of this.peers.values()) for (const snd of p.pc.getSenders()) if (snd.track && snd.track.kind === 'audio') snd.replaceTrack(track);
-        this.stream.getTracks().forEach((t) => t.stop());
-        this.stream = next;
-        this.watchLevel(next, (v) => { this.myLevel = v; });
-        this.applyMic();
-      } catch (e) { this.game.toast('🎤 That microphone could not be used'); }
+      try { this.useStream(await navigator.mediaDevices.getUserMedia({ audio: this.constraints() })); } catch (e) { this.game.toast('🎤 That microphone could not be used'); }
     }
     changeOutput() { for (const p of this.peers.values()) this.sink(p.audio); }
     sink(audio) { if (audio && audio.setSinkId && this.s.vcOut) audio.setSinkId(this.s.vcOut).catch(() => {}); }
     changeVolume() { for (const p of this.peers.values()) if (p.audio) p.audio.volume = this.vol(); }
     vol() { return Math.max(0, Math.min(1, this.s.vcVol == null ? 1 : this.s.vcVol)); }
-    // the mic sends sound only when not muted and (open mic, or push-to-talk held)
+    // push-to-talk: the microphone sends sound only while the key (or 🎤) is held
     applyMic() {
-      const on = !this.muted && (this.talkMode === 'open' || this.ptt);
-      if (this.stream) this.stream.getAudioTracks().forEach((t) => (t.enabled = on));
+      if (this.stream) this.stream.getAudioTracks().forEach((t) => (t.enabled = this.sending));
       this.render();
     }
-    get sending() { return !!this.stream && !this.muted && (this.talkMode === 'open' || this.ptt); }
     async devices() {
       try { return await navigator.mediaDevices.enumerateDevices(); } catch (e) { return []; }
     }
@@ -169,7 +211,7 @@
       return false;
     }
     sync(list) {
-      if (!this.stream) return;
+      if (!this.joined) return;
       const ids = new Set(list.map((p) => p.id));
       for (const id of [...this.peers.keys()]) if (!ids.has(id)) this.drop(id);
       for (const p of list) {
@@ -181,19 +223,24 @@
     call(id, name, start) {
       // through the server's relay when it has one: other players never learn your internet address
       const pc = new RTCPeerConnection({ iceServers: this.ice || [{ urls: 'stun:stun.l.google.com:19302' }], iceTransportPolicy: this.relay ? 'relay' : 'all' });
-      const peer = { pc, name, audio: null, level: 0, talking: false, queue: [] };
+      const peer = { pc, tx: null, name, audio: null, talking: false, queue: [] };
       this.peers.set(id, peer);
-      for (const t of this.stream.getAudioTracks()) pc.addTrack(t, this.stream);
+      // one audio line both ways; your microphone goes in only while it's open
+      if (start) {
+        peer.tx = pc.addTransceiver('audio', { direction: 'sendrecv' });
+        if (this.stream) peer.tx.sender.replaceTrack(this.stream.getAudioTracks()[0] || null);
+      }
       pc.onicecandidate = (e) => { if (e.candidate) this.net.send({ t: 'vcSig', to: id, d: { ice: e.candidate.toJSON() } }); };
       pc.ontrack = (e) => {
         const audio = new Audio();
         audio.autoplay = true;
         audio.srcObject = e.streams[0] || new MediaStream([e.track]);
         audio.volume = this.vol();
+        audio.muted = this.deaf;
         this.sink(audio);
         audio.play().catch(() => {});
         peer.audio = audio;
-        this.watchLevel(audio.srcObject, (v) => { peer.level = v; });
+        this.watchLevel(audio.srcObject);
       };
       pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed') { this.drop(id); this.render(); } };
       if (start) {
@@ -214,6 +261,12 @@
           await pc.setRemoteDescription(d.sdp);
           for (const c of peer.queue.splice(0)) await pc.addIceCandidate(c).catch(() => {});
           if (d.sdp.type === 'offer') {
+            // the other side made the audio line: answer on it, with your microphone if it's open
+            peer.tx = pc.getTransceivers().find((t) => t.receiver.track && t.receiver.track.kind === 'audio') || pc.getTransceivers()[0];
+            if (peer.tx) {
+              peer.tx.direction = 'sendrecv';
+              await peer.tx.sender.replaceTrack(this.stream ? this.stream.getAudioTracks()[0] || null : null);
+            }
             await pc.setLocalDescription(await pc.createAnswer());
             this.net.send({ t: 'vcSig', to: from, d: { sdp: pc.localDescription.toJSON() } });
           }
@@ -228,33 +281,27 @@
       if (!p) return;
       try { p.pc.close(); } catch (e) { /* closed */ }
       if (p.audio) { p.audio.pause(); p.audio.srcObject = null; }
-      if (p.stopLevel) p.stopLevel();
       this.peers.delete(id);
     }
 
     // ======================= who's talking =======================
-    watchLevel(stream, set) {
+    watchLevel(stream) {
       try {
         this.ctx = this.ctx || new (window.AudioContext || window.webkitAudioContext)();
         if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
-        const src = this.ctx.createMediaStreamSource(stream);
         const an = this.ctx.createAnalyser();
         an.fftSize = 512;
-        src.connect(an);
+        this.ctx.createMediaStreamSource(stream).connect(an);
         const buf = new Uint8Array(an.fftSize);
         stream._level = () => { an.getByteTimeDomainData(buf); let m = 0; for (const v of buf) m = Math.max(m, Math.abs(v - 128)); return m / 128; };
-        set(0);
-        stream._set = set;
       } catch (e) { /* no meter */ }
     }
     level(stream) { return stream && stream._level ? stream._level() : 0; }
     tick() {
-      if (!this.stream) return;
       this.myLevel = this.sending ? this.level(this.stream) : 0;
       let changed = false;
       for (const p of this.peers.values()) {
-        const v = p.audio ? this.level(p.audio.srcObject) : 0;
-        const talking = v > 0.06;
+        const talking = !this.deaf && !!p.audio && this.level(p.audio.srcObject) > 0.06;
         if (talking !== p.talking) { p.talking = talking; changed = true; }
       }
       const me = this.myLevel > 0.06;
@@ -263,25 +310,32 @@
       const meter = $('vcMeter');
       if (meter) meter.style.width = Math.min(100, Math.round(this.myLevel * 250)) + '%';
     }
-    // the 🎤 buttons and the list of who's talking
+    // the 🎤 / 🎧 buttons and the list of who's talking
     render() {
       const on = !!this.s.voice;
-      const state = !on ? 'off' : !this.live ? 'wait' : this.muted ? 'muted' : this.sending ? 'live' : 'ptt';
-      const icon = state === 'muted' ? '🔇' : '🎤';
+      const state = !on ? 'off' : this.deaf ? 'deaf' : this.muted ? 'muted' : !this.joined ? 'wait' : this.sending ? 'live' : 'ptt';
+      const hide = CW.PORTAL || !this.supported || this.game.talk.mode === 'quick';
       for (const id of ['btnVoice', 'hudVoice']) {
         const b = $(id);
         if (!b) continue;
-        b.firstChild.textContent = icon;
+        b.firstChild.textContent = state === 'muted' || state === 'deaf' ? '🔇' : '🎤';
         b.dataset.vc = state;
         b.classList.toggle('talking', !!this.meTalking && state === 'live');
-        b.classList.toggle('hidden', CW.PORTAL || !this.supported || this.game.talk.mode === 'quick');
+        b.classList.toggle('hidden', hide);
+      }
+      for (const id of ['btnDeaf', 'hudDeaf']) {
+        const b = $(id);
+        if (!b) continue;
+        b.firstChild.textContent = this.deaf ? '🔕' : '🎧';
+        b.dataset.vc = on ? (this.deaf ? 'deaf' : 'on') : 'off';
+        b.classList.toggle('hidden', hide);
       }
       const talking = [...this.peers.values()].filter((p) => p.talking);
       $('vcTalk').innerHTML = talking.map((p) => `<span>🔊 ${esc(p.name)}</span>`).join('');
       $('vcTalk').classList.toggle('hidden', !talking.length);
       $('vcTalk').classList.toggle('in-match', this.game.state === 'match');
       const n = $('vcCount');
-      if (n) n.textContent = this.live ? (this.peers.size ? `${this.peers.size} in voice` : 'nobody else yet') : '';
+      if (n) n.textContent = !on ? '' : this.deaf ? 'deafened' : this.muted ? 'muted' : !this.joined ? '(on when you join a party or a match)' : this.peers.size ? `${this.peers.size} in voice` : 'nobody else yet';
     }
   }
 

@@ -5,7 +5,7 @@ You build a mech from parts in the Workshop, then fight online (bots fill empty 
 It runs in the browser (three.js r128, no build step), as a Windows app (Electron) and an Android app (Capacitor),
 and on game portals (itch.io, CrazyGames, Poki). The online server is zero-dependency Node.js.
 
-**Live:** https://cogwild.duckdns.org (download page `/download`) · **Current version:** v1.7.0 · **Online protocol:** `cogwild-net-9`
+**Live:** https://cogwild.duckdns.org (download page `/download`) · **Current version:** v1.7.1 · **Online protocol:** `cogwild-net-9`
 The user is not a programmer: explain things in plain words, test everything yourself, and show screenshots as proof.
 
 ## How the user wants things done
@@ -23,7 +23,9 @@ The user is not a programmer: explain things in plain words, test everything you
   buttons (not PLAY, not settings rows: their text turns the title gray-blue `--muted2` on hover), no gold/yellow focus outlines,
   Esc closes any menu/pop-up (also the Workshop). No hover text on anything (no `title=`; use `aria-label`).
   Shop cards are clickable as a whole (gray-blue `--muted2` outline all around on hover) and ask "Buy it?" first.
-  Shop, Cog Pass (sideways tier track, Brawl Stars-like) and Settings (a button per category) are full screens. Brawl Stars-like, but not a copy. Must fit phones (Galaxy A57 sideways
+  Shop, Cog Pass (sideways tier track, Brawl Stars-like; mouse-drag scrolls it) and Settings (a button per category) are full screens.
+  The chat is small and see-through (top-left); on phones in the menu it goes upright full-screen while typing (Done = back).
+  Players' own pictures and club pictures are circles; "Quick chat only" players see the preset avatars instead. Brawl Stars-like, but not a copy. Must fit phones (Galaxy A57 sideways
   ≈ 915×412; also check 780×350).
 - Lobby layout: left = Shop, Workshop, Challenges, Achievements, Help; right = Friends, Clubs, Leaderboard, Trophy
   Road, News; top-left chip = Profile (stats live in Profile); bottom-left = party card, Cog Pass bar, one challenge;
@@ -43,12 +45,14 @@ The user is not a programmer: explain things in plain words, test everything you
 | `js/net.js` | online: rooms, matchmaking, sync (host runs bots/rules; each player runs their own mech), host migration, spectating |
 | `js/account.js` | login/sign-up box (Google in the player's browser: `startGoogle`), wallet (server coins), Cog Pass panel, clubs, friends, party, Trophy Road, leaderboard |
 | `js/talk.js` | the chat window (💬 / Enter): Match (quick chat only), Party, Club, Friends (private messages); tap a name: profile / block / report |
-| `js/voice.js` | voice chat (WebRTC audio, through the server's TURN relay), mute/push-to-talk keys, devices, the first-time "Use voice chat?" question |
+| `js/voice.js` | voice chat (WebRTC audio, through the server's TURN relay): only joined in a party (or a room when hearing "my match"), mic opened only while unmuted/undeafened; push-to-talk B, mute M, deafen N (any can be "No key"), devices, the first-time "Use voice chat?" question |
+| `js/pics.js` | picking your own / your club's picture: square cropper (shown as a circle), sends a 256×256 JPEG |
 | `js/meta.js` | shop, challenges, settings, panels, the PLAY panel (modes/arenas/weekly/ranked/gadgets), What's new |
 | `js/supers.js`, `js/gadgets.js` | supers (X) and gadgets (G, 3 uses) |
 | `js/touch.js` | phone controls (right-thumb arc, up/down by the stick, Exit needs a hold) |
 | `server/server.js` | HTTP + WebSocket server, rooms, matchmaking (`quick`, kinds weekly/ranked), result checks, mech checks, spectating, security headers/CSP |
-| `server/talk.js` | typed chat (DMs kept in `db.dms`, party/club lines in memory), Quick chat only (`u.cm`), block (`u.blocked`), reports (`db.reports`), voice peers + signaling, TURN logins |
+| `server/pics.js` | own profile + club pictures: square JPEGs ≤64 KB in DATA_DIR/pics, served at `/pic/u/<name>.jpg`, `/pic/c/<id>.jpg` (`pv` = version) |
+| `server/talk.js` | typed chat (DMs in `db.dms`, club chat in `db.clubChat`, both deleted after 7 days; party lines in memory; DMs between friends or club-mates), Quick chat only (`u.cm`), block (`u.blocked`), reports (`db.reports`), voice peers + signaling, TURN logins |
 | `auth.html`, `js/auth-done.js` | the page Google sends players back to (`/auth/google/done`); posts the token to `/auth/google/finish` |
 | `server/accounts.js` | accounts + JSON DB (`db.users`, `db.guests`, `db.clubs`), wallet (coins/XP/unlocks/pass), email/Google login, friends, parties, clubs, trophies, Ranked |
 | `server/referee.js` | checks every match message: hits only from whoever controls the shooter, damage capped by the mech's weapons, speed and "ignores damage" notes |

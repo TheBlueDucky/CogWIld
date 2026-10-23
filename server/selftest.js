@@ -88,6 +88,17 @@ function post(url, obj) {
   });
 }
 const nonceOf = (s) => crypto.createHash('sha256').update('cogwild-google:' + s).digest('hex');
+// a tiny JPEG-shaped file (the server reads only its markers): w×h
+function fakeJpeg(w, h) {
+  const com = Buffer.concat([Buffer.from([0xff, 0xfe, 0x00, 0xca]), Buffer.alloc(200, 7)]);
+  const sof = Buffer.from([0xff, 0xc0, 0x00, 0x11, 8, h >> 8, h & 255, w >> 8, w & 255, 3, 1, 0x22, 0, 2, 0x11, 1, 3, 0x11, 1]);
+  return Buffer.concat([Buffer.from([0xff, 0xd8]), com, sof, Buffer.from([0xff, 0xd9])]).toString('base64');
+}
+function fetchPic(url) {
+  return new Promise((res) => {
+    require('http').get({ host: '127.0.0.1', port: PORT, path: url }, (r) => { const parts = []; r.on('data', (d) => parts.push(d)); r.on('end', () => res({ status: r.statusCode, type: r.headers['content-type'], bytes: Buffer.concat(parts).length })); }).on('error', () => res({ status: 0 }));
+  });
+}
 function check(ok, what) { console.log(`${ok ? '  ok  ' : ' FAIL '} ${what}`); if (!ok) failed++; }
 
 // a player: a socket plus a log of everything it received
@@ -522,6 +533,30 @@ async function main() {
   check(!!(await cA.next('club', (m) => m.club && m.club.list.length === 2)), 'the owner sees them join');
   cB.send({ t: 'clubSay', x: 'hi club' });
   check((await cA.next('clubMsg')).msg.x === 'hi club', 'club chat reaches members');
+  // players in the same club can message each other without being friends
+  const cBname = cB.last('acctOk').me.name;
+  await wait(600);
+  cA.send({ t: 'dmSend', to: cBname, x: 'hello club-mate' });
+  check((await cB.next('dm')).msg.x === 'hello club-mate', 'club-mates can message each other');
+  // pictures: square JPEGs only, shown to others, club picture by the owner only
+  cA.send({ t: 'picSet', kind: 'u', data: fakeJpeg(256, 200) });
+  check(/square/.test((await cA.next('acctErr')).msg), 'a picture that isn\'t square is refused');
+  await wait(5100);
+  cA.send({ t: 'picSet', kind: 'u', data: Buffer.from('<svg onload=alert(1)>').toString('base64') });
+  check(/couldn't be used/.test((await cA.next('acctErr')).msg), 'something that isn\'t a JPEG is refused');
+  await wait(5100);
+  cA.send({ t: 'picSet', kind: 'u', data: fakeJpeg(256, 256) });
+  const pv = (await cA.next('acctMe', (m) => m.me.pv > 0)).me.pv;
+  const pic = await fetchPic('/pic/u/spender.jpg?v=' + pv);
+  check(pic.status === 200 && pic.type === 'image/jpeg' && pic.bytes > 200, 'your own square picture is saved and shown');
+  check(!!(await cB.next('club', (m) => m.club && m.club.list.some((p) => p.name === 'Spender' && p.pv > 0))), 'club members see the new picture');
+  cB.send({ t: 'picSet', kind: 'c', data: fakeJpeg(128, 128) });
+  check(/Only the club owner/.test((await cB.next('acctErr')).msg), 'only the club owner can change the club picture');
+  await wait(5100);
+  cA.send({ t: 'picSet', kind: 'c', data: fakeJpeg(128, 128) });
+  const cpv = await cA.next('club', (m) => m.club && m.club.pv > 0);
+  check((await fetchPic(`/pic/c/${cpv.club.id}.jpg?v=1`)).status === 200, 'the club owner sets a club picture');
+  check((await fetchPic('/pic/u/..%2Fdb.jpg')).status === 404 && (await fetchPic('/pic/u/nobody.jpg')).status === 404, 'other files and missing pictures are not served');
   cA.send({ t: 'profile', name: cB.last('acctOk').me.name });
   check((await cA.next('profile')).p.club === 'Gear Heads', 'profiles show the club');
   cA.send({ t: 'clubLeave' });
@@ -532,6 +567,15 @@ async function main() {
   cB.send({ t: 'clubList' });
   check(!(await cB.next('clubs')).list.length, 'an empty club is closed');
   cA.ws.close(); cB.ws.close();
+
+  // friends' and club messages are deleted after a week
+  {
+    const { Talk } = require('./talk');
+    const old = Date.now() - 8 * 86400000, now = Date.now();
+    const fake = { db: { users: {}, dms: { 'a|b': [{ f: 'a', x: 'old', at: old }, { f: 'a', x: 'new', at: now }] }, clubChat: { c1: [{ f: 'a', x: 'old', at: old }] } }, dirty() {} };
+    new Talk(fake, { clients: new Map(), rooms: new Map() });
+    check(fake.db.dms['a|b'].length === 1 && fake.db.dms['a|b'][0].x === 'new' && !fake.db.clubChat.c1, 'messages older than a week are deleted');
+  }
 
   console.log('weekly event + ranked');
   const E = require('../js/economy.js');

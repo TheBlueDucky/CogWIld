@@ -14,6 +14,8 @@
   };
   const swatchStyle = (c, tex) => `background:${hex(c)} url(${CW.texURL(tex || 'panel')}) center/160% auto;background-blend-mode:multiply`;
   const SHOP_LABEL = { paints: 'Paint', trails: 'Dash trail', avatars: 'Avatar' };
+  // keys that can be turned off: voice chat (push-to-talk, mute, deafen) and opening the chat
+  const OPT_KEYS = { vcPtt: 'KeyB', vcMute: 'KeyM', vcDeaf: 'KeyN', chatKey: 'KeyT' };
 
   // the Shop's catalog lives in js/economy.js (CW.SHOP), shared with the server
 
@@ -36,7 +38,7 @@
     graphics: 'auto', showFps: false, tutorialDone: false, clips: true, arena: 'random', timeOfDay: 'random', difficulty: 'normal', music: true, sens: 1, fov: 80, invertY: false, camMode: 'first', autoSteer: true, shake: true, dmgNumbers: true, volume: 0.6,
     musicVol: 1, keys: {}, touch: 'auto', touchSize: 1, vibrate: true, aimAssist: true, friendOnline: true, otherChat: true,
     // chat and voice chat (js/talk.js, js/voice.js); voice: undefined until the game has asked
-    chatNotes: true, vcHear: 'game', vcMode: 'open', vcPtt: 'KeyB', vcMute: 'KeyM', vcVol: 1, vcMic: '', vcOut: '',
+    chatNotes: true, vcHear: 'game', vcMode: 'open', vcVol: 1, vcMic: '', vcOut: '',
   };
   // keys you can change in Settings (Esc always pauses); def is the key the game reads internally
   CW.KEY_ACTIONS = [
@@ -320,6 +322,11 @@
         const outOk = !!(window.HTMLMediaElement && HTMLMediaElement.prototype.setSinkId);
         const blockedRows = talk.blocked.length ? talk.blocked.map((n) => `<div class="set-row"><span>${CW.esc(n)}</span><button class="ws-btn" data-unblock="${CW.esc(n)}">Unblock</button></div>`).join('')
           : '<div class="small">Nobody. Tap a name in the chat to block or report a player.</div>';
+        // keys you can change or turn off (voice chat and the chat)
+        const optKey = (label, id) => {
+          const k = this.optKey(id);
+          return `<div class="set-row key-row"><span>${label}</span><span class="key-pair"><button class="ws-btn key-btn" data-vkey="${id}">${k === 'none' ? 'No key' : CW.keyName(k)}</button><button class="ws-btn key-off ${k === 'none' ? 'hidden' : ''}" data-vkeyoff="${id}" aria-label="No key">✕</button></span></div>`;
+        };
         const tabs = [['account', '👤', 'Account'], ['display', '🖥', 'Display'], ['controls', '🎮', 'Controls'], ['keys', '⌨', 'Keys'], ['touch', '📱', 'Touch screen'], ['sound', '🔊', 'Sound'], ['voice', '🎤', 'Voice chat'], ['chat', '💬', 'Chat'], ['online', '🌐', 'Online'], ['save', '💾', 'Save data']];
         body.innerHTML = `<div class="set-wrap"><nav class="set-tabs">${tabs.map(([id, ico, name]) => `<button class="set-tab" data-settab="${id}"><i>${ico}</i><span>${name}</span></button>`).join('')}</nav><div class="set-main">
           <section class="set-sec" data-sec="account"><h3>👤 Account</h3>
@@ -357,8 +364,9 @@
           <label class="set-row chk"><input type="checkbox" id="setVoice"><span>Voice chat: talk with your party and the players in your match</span></label>
           <label class="set-row"><span>Who you hear</span><select id="setVcHear"><option value="game">My party and my match</option><option value="party">My party only</option></select></label>
           <label class="set-row"><span>How your mic works</span><select id="setVcMode"><option value="open">Open mic: always on (mute with the key below)</option><option value="ptt">Push to talk: only while you hold the key</option></select></label>
-          <div class="set-row key-row"><span>Push to talk (hold)</span><button class="ws-btn key-btn" data-vkey="vcPtt">${CW.keyName(s.vcPtt || 'KeyB')}</button></div>
-          <div class="set-row key-row"><span>Mute / unmute</span><button class="ws-btn key-btn" data-vkey="vcMute">${CW.keyName(s.vcMute || 'KeyM')}</button></div>
+          ${optKey('Push to talk (hold)', 'vcPtt')}
+          ${optKey('Mute / unmute your mic', 'vcMute')}
+          ${optKey('Deafen: stop hearing others (also mutes you)', 'vcDeaf')}
           <label class="set-row"><span>Microphone</span><select id="setVcMic"><option value="">Default microphone</option></select></label>
           <label class="set-row ${outOk ? '' : 'hidden'}"><span>Speakers / headphones</span><select id="setVcOut"><option value="">Default speakers</option></select></label>
           <label class="set-row"><span>Voice volume <b id="setVcVolV"></b></span><input type="range" id="setVcVol" min="0" max="1" step="0.05"></label>
@@ -367,6 +375,7 @@
           </section><section class="set-sec" data-sec="chat"><h3>💬 Chat</h3>
           <label class="set-row"><span>Chat with friends, party and club</span><select id="setChatMode"><option value="free">Free chat: type anything</option><option value="quick">Quick chat only (for kids): ready-made messages, no voice chat</option></select></label>
           <div class="small">${acct && acct.loggedIn ? 'Saved on your account, on every device.' : 'Log in to chat with friends, your party and your club.'} Matches always use quick chat (keys 1-8). Open the chat with 💬 or Enter.</div>
+          ${optKey('Open the chat (Enter works too)', 'chatKey')}
           <label class="set-row chk"><input type="checkbox" id="setChat"><span>Show other players' quick chat in matches</span></label>
           <label class="set-row chk"><input type="checkbox" id="setChatNotes"><span>Show new messages while the chat is closed</span></label>
           <h3>🚫 Blocked players</h3>
@@ -448,6 +457,7 @@
         bindRange('setVcVol', 'vcVol', (v) => Math.round(v * 100) + '%');
         $('setVcVol').addEventListener('input', () => voice.changeVolume());
         body.querySelectorAll('[data-vkey]').forEach((b) => (b.onclick = () => this.listenVoiceKey(b)));
+        body.querySelectorAll('[data-vkeyoff]').forEach((b) => (b.onclick = () => { s[b.dataset.vkeyoff] = 'none'; this.apply(); this.renderPanel(); }));
         voice.devices().then((list) => {
           const fill = (id, kind, key, def) => {
             const el = $(id);
@@ -497,6 +507,7 @@
         body.innerHTML = `<div class="small">${n} / ${CW.ACHIEVEMENTS.length} unlocked. Each one pays coins.</div><div class="ach-grid">${CW.ACHIEVEMENTS.map((a) => `<div class="ach ${got[a.id] ? 'got' : ''}"><b>${got[a.id] ? '🏆' : '🔒'} ${a.name}</b><span class="small">${a.desc}</span>${got[a.id] ? '' : prog(a)}<div class="small">+${a.reward} 🪙</div></div>`).join('')}</div>`;
       } else if (k === 'news') {
         body.innerHTML = `<ul class="news">
+          <li><b>v1.7.1</b>: 📷 Use <b>your own picture</b> as your profile picture (Profile), and club owners can give their club one. 💬 Message friends and club members straight from their lists, open the chat with <b>T</b>, and the chat is now small and see-through (on phones it turns upright while you type in the menu). 🎤 The microphone is only used in a party or a match, 🎧 deafen with N, and every voice key can be turned off. 🎟 Drag the Cog Pass with the mouse, and tap "how to tier up" to go there. Friends' and club messages are deleted after a week.</li>
           <li><b>v1.7</b>: 💬 <b>Chat</b> (💬 or Enter): type to your friends, party and club, in the lobby and during matches. Matches use quick chat. Tap a name to block or report a player.</li>
           <li>🎤 <b>Voice chat</b> with your party and your match: open mic or push-to-talk (B), mute with M or 🎤, pick your microphone and speakers, and choose who you hear (Settings › Voice chat).</li>
           <li>🧒 <b>Quick chat only</b> (Settings › Chat): ready-made messages only and no voice chat, saved on your account.</li>
@@ -659,24 +670,29 @@
     }
 
     // key rebinding: the next key pressed becomes this action's key (a key used elsewhere swaps places)
-    // Settings > Voice chat: the push-to-talk and mute keys
+    // the voice chat and chat keys: the key, or 'none' when turned off
+    optKey(id) {
+      const k = this.settings[id];
+      return k === undefined || k === '' ? OPT_KEYS[id] : k;
+    }
+    // Settings > Voice chat / Chat: change one of those keys (Esc cancels; Backspace or Delete = no key)
     listenVoiceKey(btn) {
       const s = this.settings, id = btn.dataset.vkey;
-      const def = (k) => (k === 'vcPtt' ? 'KeyB' : 'KeyM');
       btn.textContent = 'Press a key…';
       btn.classList.add('on');
       const done = (e) => {
         e.preventDefault();
         e.stopImmediatePropagation();
         window.removeEventListener('keydown', done, true);
-        if (e.code !== 'Escape') {
-          const other = id === 'vcPtt' ? 'vcMute' : 'vcPtt';
-          if ((s[other] || def(other)) === e.code) s[other] = s[id] || def(id); // the two keys swap
+        if (e.code === 'Backspace' || e.code === 'Delete') s[id] = 'none';
+        else if (e.code !== 'Escape') {
+          // another of these keys had it: they swap
+          for (const other of Object.keys(OPT_KEYS)) if (other !== id && this.optKey(other) === e.code) s[other] = this.optKey(id);
           s[id] = e.code;
           const clash = CW.KEY_ACTIONS.find((a) => ((s.keys || {})[a.id] || a.def) === e.code);
           if (clash) this.game.toast(`${CW.keyName(e.code)} is also "${clash.label}"`);
-          this.apply();
         }
+        this.apply();
         this.renderPanel();
       };
       window.addEventListener('keydown', done, true);

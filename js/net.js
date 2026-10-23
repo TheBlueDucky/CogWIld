@@ -290,7 +290,7 @@
       $('srMode').textContent = `${a.icon} ${a.name} · ${fmt.label}`;
       const seats = [];
       if (r) {
-        for (const p of r.players) seats.push(`<div class="sr-p ${p.id === this.id ? 'me' : ''}"><span>${p.acct ? CW.avatar(p.av) : '🧑‍✈️'}</span><b>${esc(p.name)}</b>${p.acct ? `<small>🏆 ${p.tro | 0}</small>` : ''}</div>`);
+        for (const p of r.players) seats.push(`<div class="sr-p ${p.id === this.id ? 'me' : ''}"><span>${p.acct ? CW.face(p) : '🧑‍✈️'}</span><b>${esc(p.name)}</b>${p.acct ? `<small>🏆 ${p.tro | 0}</small>` : ''}</div>`);
         for (const b of r.bots) seats.push(`<div class="sr-p bot"><span>🤖</span><b>${esc(b.name)}</b><small>bot</small></div>`);
       }
       const total = r ? r.seats || 8 : (CW.FORMATS[CW.MM_FORMAT[modeId]] || {}).teams ? CW.FORMATS[CW.MM_FORMAT[modeId]].teams.reduce((x, y) => x + y, 0) : 8;
@@ -358,7 +358,7 @@
       $('lbCount').textContent = `${r.players.length + r.bots.length}/8`;
       $('lbPlayers').innerHTML = r.players.map((p) => `<div class="lb-player ${p.id === this.id ? 'me' : ''}">
           <span class="lb-ready">${p.id === r.hostId ? '👑' : p.ready ? '✅' : '⏳'}</span>
-          ${p.acct ? `<span class="lb-av">${CW.avatar(p.av)}</span>` : ''}
+          ${p.acct ? `<span class="lb-av">${CW.face(p)}</span>` : ''}
           <b>${esc(p.name)}${p.id === this.id ? ' (you)' : ''}</b>${p.acct ? `<span class="lb-tro-s">🏆${p.tro | 0}</span>` : ''}
           <span class="small">${mode.fromScratch ? 'builds in match' : '🤖 ' + esc(p.bpName || '?')}</span>
           ${host && p.id !== this.id ? `<button class="tod-btn" data-kick="${p.id}" aria-label="Remove from room">✖</button>` : ''}</div>`).join('') +

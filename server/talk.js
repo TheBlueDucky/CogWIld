@@ -15,8 +15,9 @@ const crypto = require('crypto');
 const E = require('../js/economy.js');
 
 const MAX_TEXT = 200;
-const DM_KEEP = 60; // messages kept per pair of friends
-const LOG_KEEP = 40; // party and club lines kept (in memory)
+const DM_KEEP = 60; // messages kept per pair of players
+const LOG_KEEP = 40; // party and club lines kept
+const KEEP_MS = 7 * 86400000; // friends' and club messages are deleted after a week (party/match chat: when it ends)
 const REPORTS_KEEP = 2000;
 const TURN_URLS = (process.env.TURN_URLS || '').split(',').map((s) => s.trim()).filter(Boolean);
 const TURN_SECRET = process.env.TURN_SECRET || '';
@@ -40,6 +41,22 @@ class Talk {
     if (!a.db.reports) a.db.reports = [];
     a.db.dms = Object.assign(Object.create(null), a.db.dms);
     setInterval(() => this.voiceTick(), 1000).unref();
+    setInterval(() => this.prune(), 600000).unref();
+    this.prune();
+  }
+  // messages older than a week are deleted (private messages and club chat)
+  prune() {
+    const old = Date.now() - KEEP_MS;
+    let changed = false;
+    for (const store of [this.db.dms, this.db.clubChat || {}]) {
+      for (const [k, list] of Object.entries(store)) {
+        const keep = list.filter((x) => (x.at || 0) > old);
+        if (keep.length === list.length) continue;
+        changed = true;
+        if (keep.length) store[k] = keep; else delete store[k];
+      }
+    }
+    if (changed) this.a.dirty();
   }
   get db() { return this.a.db; }
   send(c, m) { this.a.send(c, m); }
@@ -75,19 +92,24 @@ class Talk {
     if (m.q != null) {
       const q = m.q | 0;
       if (q < 0 || q >= E.TALK_QUICK.length) return null;
-      msg = { f: u.name, q, at: now };
+      msg = { f: u.name, a: u.av | 0, pv: u.pv | 0, q, at: now };
     } else {
       if (this.quick(u)) { this.err(c, 'Quick chat only is on (Settings > Chat)'); return null; }
       const x = cleanText(m.x);
       if (!x) return null;
-      msg = { f: u.name, x, at: now };
+      msg = { f: u.name, a: u.av | 0, pv: u.pv | 0, x, at: now };
     }
     c.talkAt.push(now);
     return msg;
   }
-  // what a quick-only reader may see of a list of lines
+  // what a quick-only reader may see of a list of lines (nothing older than a week)
   readable(list, u) {
-    return list.filter((x) => (!this.quick(u) || x.x == null) && !(u.blocked || []).includes(key(x.f)));
+    const old = Date.now() - KEEP_MS;
+    return list.filter((x) => (x.at || 0) > old && (!this.quick(u) || x.x == null) && !(u.blocked || []).includes(key(x.f)));
+  }
+  // private messages: friends, or players in the same club
+  canDm(u, o) {
+    return (u.friends || []).includes(key(o.name)) || (!!u.club && u.club === o.club);
   }
 
   setMode(c, m) {
@@ -99,12 +121,12 @@ class Talk {
     this.send(c, { t: 'talk', mode: u.cm ? 'quick' : 'free' });
   }
 
-  // ---------------- friends: private messages (kept, so offline friends get them later) ----------------
+  // ---------------- private messages (friends and club-mates; kept a week, so offline players get them later) ----------------
   pair(a, b) { return [key(a), key(b)].sort().join('|'); }
   dmSend(c, m) {
     const u = this.a.me(c), o = this.a.user(m.to);
     if (!u) return this.err(c, 'Log in to message friends');
-    if (!o || !(u.friends || []).includes(key(o.name))) return this.err(c, 'You can only message friends');
+    if (!o || o === u || !this.canDm(u, o)) return this.err(c, 'You can only message friends and players in your club');
     if ((u.blocked || []).includes(key(o.name))) return this.err(c, `You blocked ${o.name}. Unblock them first.`);
     if (this.blocked(u, o)) return this.err(c, `You can't message ${o.name}`);
     if (m.x != null && this.quick(o)) return this.err(c, `${o.name} uses quick chat only: send a quick message`);
@@ -124,7 +146,7 @@ class Talk {
     if (!u || !o) return;
     const list = this.db.dms[this.pair(u.name, o.name)] || [];
     if (u.unread && u.unread[o.name]) { delete u.unread[o.name]; this.a.dirty(); }
-    this.send(c, { t: 'dmLog', with: o.name, list: this.readable(list, u) });
+    this.send(c, { t: 'dmLog', with: o.name, list: this.readable(list, u), card: { name: o.name, av: o.av | 0, pv: o.pv | 0 } });
   }
   dmRead(c, m) {
     const u = this.a.me(c), o = this.a.user(m.name);

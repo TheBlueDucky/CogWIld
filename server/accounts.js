@@ -95,7 +95,13 @@ class Accounts {
     this.db.users = Object.assign(Object.create(null), this.db.users || {});
     this.db.clubs = Object.assign(Object.create(null), this.db.clubs || {});
     this.db.guests = Object.assign(Object.create(null), this.db.guests || {});
-    this.clubLog = new Map(); // club id -> the last club chat lines (not saved, see server/talk.js)
+    // club chat: saved with the rest, the last 40 lines per club, each deleted after a week (server/talk.js prune)
+    this.db.clubChat = Object.assign(Object.create(null), this.db.clubChat || {});
+    this.clubLog = {
+      get: (id) => this.db.clubChat[id],
+      set: (id, v) => { this.db.clubChat[id] = v; this.dirty(); },
+      delete: (id) => { delete this.db.clubChat[id]; this.dirty(); },
+    };
     for (const [k, u] of Object.entries(this.db.users)) for (const t of u.tokens || []) this.byToken.set(t, k);
     this.byEmail = new Map(); // email -> user key
     for (const [k, u] of Object.entries(this.db.users)) if (u.email) this.byEmail.set(u.email, k);
@@ -141,7 +147,7 @@ class Accounts {
   }
   publicCard(u) {
     const club = u.club && this.db.clubs[u.club];
-    return { name: u.name, av: u.av | 0, tro: u.tro | 0, best: u.best | 0, lv: u.lv | 0, wins: u.wins | 0, played: u.played | 0, club: club ? club.name : null, rp: (u.best | 0) >= E.RANKED.unlockAt ? this.rp(u) : null };
+    return { name: u.name, av: u.av | 0, pv: u.pv | 0, tro: u.tro | 0, best: u.best | 0, lv: u.lv | 0, wins: u.wins | 0, played: u.played | 0, club: club ? club.name : null, rp: (u.best | 0) >= E.RANKED.unlockAt ? this.rp(u) : null };
   }
   // sign in this socket as user k (one live session per player: the older one is signed out)
   attach(c, k, token) {
@@ -208,6 +214,7 @@ class Accounts {
   handle(c, m) {
     const t = m.t;
     if (this.talk && this.talk.handle(c, m)) return true; // chat and voice (server/talk.js)
+    if (this.pics && this.pics.handle(c, m)) return true; // profile and club pictures (server/pics.js)
     if (!/^(acct|friend|party|invite|top|profile|save|status|earn|gift|buy|roadClaim|passClaim|club|guest|email|google)/.test(t)) return false;
     const fn = {
       acctRegister: () => this.register(c, m), acctSignup: () => this.signup(c, m), acctLogin: () => this.login(c, m), acctAuth: () => this.auth(c, m),
@@ -487,6 +494,7 @@ class Accounts {
     if (u.club) this.dropMember(u.club, k);
     if (u.email) this.byEmail.delete(u.email);
     delete this.db.users[k];
+    if (this.pics) this.pics.drop('u', k);
     this.dirty();
     this.send(c, { t: 'acctOut', reason: 'Account deleted' });
   }
@@ -742,14 +750,14 @@ class Accounts {
   clubOf(u) { return u && u.club ? this.db.clubs[u.club] || null : null; }
   clubTro(club) { return club.members.reduce((s, k) => s + ((this.db.users[k] && this.db.users[k].tro) | 0), 0); }
   clubCard(club) {
-    return { id: club.id, name: club.name, badge: club.badge | 0, desc: club.desc, open: club.open, minTro: club.minTro | 0, members: club.members.length, tro: this.clubTro(club) };
+    return { id: club.id, name: club.name, badge: club.badge | 0, pv: club.pv | 0, desc: club.desc, open: club.open, minTro: club.minTro | 0, members: club.members.length, tro: this.clubTro(club) };
   }
   // viewer: the member looking (their club wall leaves out what they may not read); none = a visitor
   clubView(club, viewer) {
     const v = this.clubCard(club);
     v.list = club.members.map((k) => {
       const u = this.db.users[k];
-      return u && { name: u.name, av: u.av | 0, tro: u.tro | 0, on: this.online.has(k), role: k === club.owner ? 'owner' : 'member' };
+      return u && { name: u.name, av: u.av | 0, pv: u.pv | 0, tro: u.tro | 0, on: this.online.has(k), role: k === club.owner ? 'owner' : 'member' };
     }).filter(Boolean).sort((a, b) => b.tro - a.tro);
     const me = viewer && this.db.users[viewer];
     v.log = me && club.members.includes(viewer) && this.talk ? this.talk.readable(this.clubLog.get(club.id) || [], me) : [];
@@ -828,7 +836,7 @@ class Accounts {
     if (u) u.club = null;
     if (!club) return;
     club.members = club.members.filter((x) => x !== k);
-    if (!club.members.length) { delete this.db.clubs[id]; this.clubLog.delete(id); this.dirty(); return; }
+    if (!club.members.length) { delete this.db.clubs[id]; this.clubLog.delete(id); if (this.pics) this.pics.drop('c', id); this.dirty(); return; }
     // the club gets a new owner: whoever has the most trophies
     if (club.owner === k) club.owner = club.members.slice().sort((a, b) => ((this.db.users[b] || {}).tro | 0) - ((this.db.users[a] || {}).tro | 0))[0];
     this.dirty();
