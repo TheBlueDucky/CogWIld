@@ -627,6 +627,8 @@
       if (open('acct')) { if (!this.account.loginRequired()) $('acct').classList.add('hidden'); return true; }
       if (open('panel')) { this.meta.closePanel(); return true; }
       if (this.state === 'picker' || this.state === 'online' || this.state === 'modes') { this.showMenu(); return true; }
+      // the Workshop closes like any other menu (not while building in a Rush match: that would leave it)
+      if (this.state === 'workshop' && !this.workshop.rush) { $('wsBack').click(); return true; }
       return false;
     }
     bindInput() {
@@ -2193,15 +2195,25 @@
       if (view !== this.player) dist += 4;
       const cp = Math.cos(this.cam.pitch), spch = Math.sin(this.cam.pitch);
       const dir = new V3(-Math.sin(this.cam.yaw) * cp, spch, -Math.cos(this.cam.yaw) * cp);
+      const ground = (v) => this.world.groundAt(v.x, v.z, v.y);
       if (firstPerson) {
-        // look out of the Camera part's lens
+        // look out of the Camera part's lens; pressed against a wall, the lens backs off so you still see
         this.cam.pos.copy(vm.camPart.wp).addScaledVector(dir, 0.4);
         this.cam.pos.y += 0.05;
+        for (let i = 0; i < 6 && this.cam.pos.clone().addScaledVector(dir, 0.6).y < ground(this.cam.pos.clone().addScaledVector(dir, 0.6)) + 0.2; i++) this.cam.pos.addScaledVector(dir, -0.35);
+        const gy = ground(this.cam.pos) + 0.35;
+        if (this.cam.pos.y < gy) this.cam.pos.y = gy;
       } else {
-        const want = pivot.clone().addScaledVector(dir, -dist);
-        const gy = this.world.groundAt(want.x, want.z, want.y) + 1.2;
+        // a cliff or building between your mech and the camera: the camera comes in front of it
+        let reach = dist;
+        for (let t = 1; t <= dist; t += 0.5) {
+          const p = pivot.clone().addScaledVector(dir, -t);
+          if (p.y < ground(p) + 0.4) { reach = Math.max(1.6, t - 0.8); break; }
+        }
+        const want = pivot.clone().addScaledVector(dir, -reach);
+        const gy = ground(want) + 1.2;
         if (want.y < gy) want.y = gy;
-        this.cam.pos.lerp(want, 1 - Math.exp(-18 * dt));
+        this.cam.pos.lerp(want, 1 - Math.exp(-(reach < dist ? 30 : 18) * dt));
       }
       // juice: shake + FOV kick
       this.cam.shake = Math.max(0, this.cam.shake - dt * 2.5);

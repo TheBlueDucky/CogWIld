@@ -201,6 +201,15 @@
           this.vel.x *= -0.2; this.vel.z *= -0.2;
         }
       }
+      // a wall face (ground much higher than your feet) stops you, even in a hop or a bump:
+      // without this, the ground check below would lift you straight onto the top of the wall
+      if (nx !== this.pos.x || nz !== this.pos.z) {
+        const wall = world.groundAt(nx, nz, bottom + 0.5);
+        if (wall > bottom + 0.9 && wall > ground + 0.6) {
+          nx = this.pos.x; nz = this.pos.z;
+          this.vel.x *= -0.2; this.vel.z *= -0.2;
+        }
+      }
       // bridge railings are solid: a mech on a deck can leave only through the ends
       const br = world.onBridge(this.pos.x, this.pos.z);
       if (br && Math.abs(bottom - br.y) < 0.6) {
