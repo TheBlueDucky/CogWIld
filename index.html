@@ -832,6 +832,69 @@
   .compact .arena-card { width: 140px; height: 84px; }
   .compact .lb-left { width: 240px; }
   .compact .quests-card { display: block; }
+
+  /* ===== v1.5 theme: one dark-blue palette, plain buttons, quiet titles ===== */
+  :root { color-scheme: dark; --bg1: #121a33; --bg2: #1a2342; --bg3: #222c52; --line2: rgba(255, 255, 255, .11); --txt: #e6ecff; --muted2: #9fb3d9; --hl: #5ce1ff; }
+  /* text fields: dark, matching the screen (never the browser's white/black default) */
+  input, select, textarea { background: var(--bg2); color: var(--txt); border: 1px solid var(--line2); border-radius: 8px; font: inherit; }
+  input::placeholder, textarea::placeholder { color: #7484ad; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: rgba(92, 225, 255, .55); }
+  select option { background: var(--bg2); color: var(--txt); }
+  .club-form input, .club-form select, .on-code, #frName, #acctName, #acctPass, #acctPass2, #modalInput, #wsName { background: var(--bg2) !important; color: var(--txt) !important; border: 1px solid var(--line2) !important; }
+  .bs-chip input { background: transparent !important; border: none !important; }
+  /* buttons: same background as what's around them, a thin line, no glow, no fat outline */
+  .ws-btn, .btn, .btn.big, .btn.primary, .tod-btn, .room-row, .fmt-btn, .av-btn, .lb-set select {
+    background: rgba(255, 255, 255, .05) !important; color: var(--txt) !important; border: 1px solid var(--line2) !important; box-shadow: none !important; text-shadow: none !important;
+    font-family: 'Nunito', sans-serif !important; font-weight: 700 !important; letter-spacing: 0 !important; border-radius: 8px !important; transform: none !important; }
+  .btn.big { font-size: 18px !important; padding: 10px 26px !important; }
+  .ws-btn:hover, .btn:hover, .tod-btn:hover, .room-row:hover, .fmt-btn:hover { background: rgba(255, 255, 255, .1) !important; border-color: rgba(255, 255, 255, .22) !important; }
+  .ws-btn.on, .tod-btn.sel, .btn.big.go, .av-btn.on { background: rgba(92, 225, 255, .12) !important; color: var(--hl) !important; border-color: rgba(92, 225, 255, .45) !important; }
+  .ws-btn:disabled, .btn:disabled { opacity: .45; }
+  .arena-opt, .mode-opt, .feat-card, .week-card, .ranked-card, .shop-item, .pass-tier, .club-card, .club-row, .fr-row, .road-step, .ach, .rank-card, .mode-card, .pick-card, .sr-p, .lb-player, .tile, .shop-gift {
+    background: rgba(255, 255, 255, .045) !important; border: 1px solid var(--line2) !important; box-shadow: none !important; color: var(--txt) !important; text-shadow: none !important; }
+  .arena-opt b, .mode-opt b, .feat-card b, .arena-opt small, .mode-opt small, .feat-card small, .shop-item b, .club-card b { color: var(--txt) !important; text-shadow: none !important; font-family: 'Nunito', sans-serif !important; font-weight: 700 !important; }
+  .arena-opt small, .mode-opt small, .feat-card small { color: var(--muted2) !important; font-weight: 600 !important; }
+  .arena-opt.on, .mode-opt.on, .feat-card.on, .pass-tier.reached, .road-step.reached, .ach.got, .rank-card.open, .pick-card.sel, .sr-p.me { background: rgba(92, 225, 255, .1) !important; border-color: rgba(92, 225, 255, .5) !important; }
+  .arena-opt.on b, .mode-opt.on b, .arena-opt.on small, .mode-opt.on small, .pass-tier.reached .tier-n { color: var(--hl) !important; }
+  .feat-card em { background: none !important; color: var(--hl) !important; font-style: normal; box-shadow: none !important; border: none !important; }
+  .pass-tier.big { border-color: rgba(92, 225, 255, .35) !important; }
+  .deal-tag { background: none !important; color: var(--hl) !important; border: 1px solid rgba(92, 225, 255, .45) !important; box-shadow: none !important; }
+  .shop-item.is-deal { border-color: rgba(92, 225, 255, .35) !important; }
+  /* panels: one background from top to bottom, a small calm title */
+  #panel { background: rgba(6, 10, 24, .72); }
+  .panel-box, .modal-box, .acct-box { background: var(--bg1) !important; border: 1px solid var(--line2) !important; box-shadow: 0 10px 40px rgba(0, 0, 0, .45) !important; }
+  .panel-head { background: var(--bg1) !important; border-bottom: 1px solid var(--line2) !important; margin: 0 -18px 10px !important; padding: 10px 14px 8px 18px !important; }
+  .panel-head h2, .modal-box h2, .acct-box h2, #srTitle { font-family: 'Nunito', sans-serif !important; font-weight: 700 !important; font-size: 20px !important; color: var(--txt) !important; letter-spacing: 0 !important; text-shadow: none !important; }
+  #panelClose { padding: 4px 12px !important; font-size: 15px !important; }
+  /* titles inside menus: gray-blue, not shouty */
+  .panel-box h3, .card h3, .ws-right h3, #wsTitle, .stat-grid b, .sb-title, .prof-name, .rk-name, #tutTitle, .fmt-btn b, .pass-head b, .shop-coins, .road-next b, .pal-cat {
+    font-family: 'Nunito', sans-serif !important; font-weight: 700 !important; color: var(--muted2) !important; text-shadow: none !important; letter-spacing: 0 !important; text-transform: none !important; }
+  .panel-box h3 { font-size: 15px !important; margin: 14px 0 6px !important; }
+  .panel-box h3 .small, .shop-coins .small { font-weight: 600; color: #7484ad; }
+  .shop-coins { font-size: 18px !important; }
+  .shop-coins b { color: #ffd23f; }
+  #wsTitle { font-size: 18px !important; }
+  .ws-right h3 { font-size: 15px !important; }
+  .stat-grid b { color: var(--txt) !important; }
+  .screen h1.title-font { font-family: 'Nunito', sans-serif !important; font-weight: 700 !important; font-size: 28px !important; color: var(--txt) !important; text-shadow: none !important; letter-spacing: 0 !important; }
+  /* the Shop: a small gift row, prices as plain text */
+  .shop-gift { padding: 6px 10px !important; margin: 2px 0 8px !important; gap: 8px !important; }
+  .shop-gift .g-ico { font-size: 20px; }
+  .shop-gift b { font-size: 14px; }
+  .shop-gift br { display: none; }
+  .shop-gift span { font-size: 13px; margin-left: 6px; }
+  .shop-gift.ready { border-color: rgba(92, 225, 255, .45) !important; }
+  .shop-item .buy, .shop-item .equip { background: none !important; border: none !important; padding: 2px 0 !important; color: var(--txt) !important; font-size: 15px !important; cursor: pointer; }
+  .shop-item .buy:hover, .shop-item .equip:hover { color: var(--hl) !important; background: none !important; }
+  .shop-item .buy s { color: #7484ad; margin-right: 4px; }
+  .shop-item .owned { color: var(--muted2); font-weight: 700; font-size: 14px; }
+  /* PLAY: dark cyan */
+  .bs-btn.play-btn { background: linear-gradient(180deg, #1597b5, #0d6a82) !important; color: #fff !important; border: 1px solid rgba(255, 255, 255, .18) !important; box-shadow: 0 4px 0 #084456, 0 6px 16px rgba(0, 0, 0, .3) !important; text-shadow: none !important; }
+  .bs-btn.play-btn:hover { filter: brightness(1.08); }
+  .mode-opt.on { outline: none !important; transform: none !important; }
+  .shop-item.is-deal { background: rgba(255, 255, 255, .045) !important; }
+  #toast { background: var(--bg2); border: 1px solid var(--line2); box-shadow: 0 6px 20px rgba(0, 0, 0, .35); font-weight: 700; }
+  .feat-chip b { color: var(--hl) !important; }
 </style>
 </head>
 <body>
@@ -910,7 +973,7 @@
       </div>
       <div class="lb-right">
         <button id="featChip" class="feat-chip"></button>
-        <button id="arenaCard" class="arena-card" title="Pick the mode and arena you want to play"><span class="ac-icon" id="acIcon">🔧</span><b id="acMode">Workshop Clash</b><small id="acName">🎲 Any arena</small><span class="ac-change">CHANGE</span></button>
+        <button id="arenaCard" class="arena-card" title="Pick the mode and arena you want to play"><span class="ac-icon" id="acIcon">🔧</span><b id="acMode">Workshop Clash</b><small id="acName">🎲 Any arena</small><span class="ac-change">Change</span></button>
         <button id="btnPlay" class="bs-btn play-btn" title="Find a match on your arena">PLAY<small>find a match</small></button>
       </div>
     </div>
@@ -925,7 +988,7 @@
   <!-- GENERIC PANEL (challenges, shop, stats, settings, how-to) -->
   <div id="panel" class="hidden">
     <div class="panel-box">
-      <div class="panel-head"><h2 class="title-font" id="panelTitle"></h2><button id="panelClose" class="ws-btn">✕ Close</button></div>
+      <div class="panel-head"><h2 class="title-font" id="panelTitle"></h2><button id="panelClose" class="ws-btn" title="Close (Esc)">✕</button></div>
       <div id="panelBody"></div>
     </div>
   </div>
@@ -986,7 +1049,7 @@
   </div>
 
   <div id="lobby" class="screen hidden">
-    <h1 class="title-font" style="font-size:44px;margin:0">ROOM <span id="lbCode"></span></h1>
+    <h1 class="title-font" style="font-size:44px;margin:0">Room <span id="lbCode"></span></h1>
     <div class="on-row"><button id="lbCopy" class="tod-btn">🔗 Copy invite link</button><span id="lbInfo" class="small"></span></div>
     <div class="lb-grid">
       <div class="card"><h3>👥 Players <span id="lbCount" class="small"></span></h3><div id="lbPlayers"></div></div>
@@ -1008,7 +1071,7 @@
   <div id="workshopUI" class="hidden">
     <div class="ws-top">
       <button id="wsBack" class="ws-btn">← Back</button>
-      <span id="wsTitle">WORKSHOP</span>
+      <span id="wsTitle">Workshop</span>
       <input id="wsName" maxlength="24" spellcheck="false">
       <div class="bolts">🔩 Bolts <div class="bolt-bar"><i id="wsBoltBar"></i></div><span id="wsBolts"></span></div>
       <div id="wsDomains"></div>
@@ -1018,7 +1081,7 @@
     </div>
     <div id="wsRush" class="hidden">
       <div id="wsTimer">0:45</div>
-      <div class="rush-info"><b>RUSH BUILD</b><br><span id="wsRushMode"></span> · Arena: <b style="font-size:13px">Canyon Lake</b> (⛰ land · 🌊 lake + river · ☁ sky)<div id="wsRushNote" class="rush-note"></div></div>
+      <div class="rush-info"><b>Rush build</b><br><span id="wsRushMode"></span> · Arena: <b style="font-size:13px">Canyon Lake</b> (⛰ land · 🌊 lake + river · ☁ sky)<div id="wsRushNote" class="rush-note"></div></div>
       <button id="wsReady" class="btn primary">READY ▶</button>
     </div>
     <div class="ws-left" id="wsPalette"></div>
@@ -1111,7 +1174,7 @@
     </div>
     <div id="confetti"></div>
     <div class="menu-btns res-btns">
-      <button id="resAgain" class="btn big">PLAY AGAIN</button>
+      <button id="resAgain" class="btn big go">Play again</button>
       <button id="resWorkshop" class="btn">🔧 Workshop</button>
       <button id="resMenu" class="btn">Menu</button>
     </div>
@@ -1122,7 +1185,7 @@
     <h1 class="title-font" style="font-size:60px;margin:0;color:var(--accent)">Menu</h1>
     <div class="small">The match keeps going while this menu is open.</div>
     <div class="menu-btns">
-      <button id="pauseResume" class="btn big">BACK TO THE FIGHT</button>
+      <button id="pauseResume" class="btn big go">Back to the fight</button>
       <button id="pauseRestart" class="btn">↻ Restart</button>
       <button id="pauseSettings" class="btn">⚙ Settings</button>
       <button id="pauseQuit" class="btn">Quit match</button>

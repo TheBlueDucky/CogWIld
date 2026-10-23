@@ -183,8 +183,8 @@
       $('panel').classList.toggle('full', kind === 'shop'); // the Shop is a whole screen of its own
       $('panelBody').parentElement.scrollTop = 0;
       const titles = {
-        challenges: '🎯 Daily Challenges', shop: '🛒 Shop', stats: '📊 Stats', settings: '⚙ Settings', howto: '❓ How to Play', ach: '🎖 Achievements', news: '📰 What\'s new',
-        profile: '👤 Profile', friends: '👥 Friends', road: '🛤 Trophy Road', pass: '🎟 Cog Pass', clubs: '🛡 Clubs', top: '📈 Leaderboard', player: '👤 Player', ranks: '⭐ Level & Ranks', arenas: '🎮 Pick a mode and arena',
+        challenges: '🎯 Daily challenges', shop: '🛒 Shop', stats: '📊 Stats', settings: '⚙ Settings', howto: '❓ How to play', ach: '🎖 Achievements', news: '📰 What\'s new',
+        profile: '👤 Profile', friends: '👥 Friends', road: '🛤 Trophy road', pass: '🎟 Cog Pass', clubs: '🛡 Clubs', top: '📈 Leaderboard', player: '👤 Player', ranks: '⭐ Level and ranks', arenas: '🎮 Pick a mode and arena',
       };
       $('panelTitle').textContent = titles[kind];
       this.renderPanel();

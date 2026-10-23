@@ -611,8 +611,19 @@
     }
 
     // ---------------- input ----------------
+    // the top-most thing Esc can close: a pop-up, the login box, a panel, the mech picker, the online screen
+    closeTop() {
+      const open = (id) => $(id) && !$(id).classList.contains('hidden');
+      if (open('modal')) { this.closeModal(); return true; }
+      if (open('acct')) { $('acct').classList.add('hidden'); return true; }
+      if (open('panel')) { this.meta.closePanel(); return true; }
+      if (this.state === 'picker' || this.state === 'online' || this.state === 'modes') { this.showMenu(); return true; }
+      return false;
+    }
     bindInput() {
       window.addEventListener('keydown', (e) => {
+        // Esc closes the top-most menu or pop-up (even while typing in it), before it pauses a match
+        if (e.code === 'Escape' && !e.repeat && this.closeTop()) { e.preventDefault(); return; }
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
         // remapped keys (Settings > Keys) are turned into the default key the game reads
         const code = this.keymap[e.code] || e.code;
@@ -1863,7 +1874,7 @@
       $('resExtra').textContent = extra;
       this.setupMatchChest(p.place, sv ? 3 : nTeams);
       $('resAch').innerHTML = achieved.map((a) => `<div class="ach-pop">🏆 <b>${a.name}</b> · ${a.desc} · +${a.reward} 🪙</div>`).join('');
-      $('resAgain').textContent = this.net.room ? 'BACK TO ROOM' : 'PLAY AGAIN';
+      $('resAgain').textContent = this.net.room ? 'Back to room' : 'Play again';
     }
 
     // Free reward chest after every match (better place = better chest). Earned, never bought.

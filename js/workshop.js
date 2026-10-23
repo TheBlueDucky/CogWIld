@@ -289,7 +289,7 @@
       $('wsRush').classList.toggle('hidden', !rush);
       $('wsTest').classList.toggle('hidden', !!rush);
       $('wsBpSection').classList.toggle('hidden', scratch);
-      $('wsTitle').textContent = rush ? 'RUSH BUILD' : 'WORKSHOP';
+      $('wsTitle').textContent = rush ? 'Rush build' : 'Workshop';
       if (rush) {
         this.rushTime = rush.time;
         $('wsRushMode').textContent = rush.modeName;
