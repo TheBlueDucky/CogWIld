@@ -108,7 +108,8 @@
     // movement simulated on this computer; returns what the animation needs (or nothing if the mech is gone)
     physics(dt, inp) {
       const world = this.game.world;
-      const g = CW.GRAV;
+      const mods = this.game.mods || {};
+      const g = CW.GRAV * (mods.grav || 1); // weekly events can change gravity and speed
       const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
       const fx = -sy, fz = -cy;
       const bottom = this.pos.y - this.baseOff;
@@ -125,7 +126,7 @@
       if (inWater) F += this.swim + this.drive * (grounded ? 0.35 : 0.08);
       if (!grounded && !inWater) F += this.rotors * 45;
       F += this.thrust * (inWater ? 0.35 : 1);
-      F *= pr * (this.turbo > 0 ? 1.4 : 1) * (this.empT > 0 ? 0.45 : 1); // an EMP slows engines
+      F *= pr * (this.turbo > 0 ? 1.4 : 1) * (this.empT > 0 ? 0.45 : 1) * (mods.speed || 1); // an EMP slows engines
       const acc = (F * inp.throttle) / this.mass;
       this.vel.x += fx * acc * dt;
       this.vel.z += fz * acc * dt;
@@ -466,6 +467,7 @@
       const net = this.game.net;
       // you see every hit land: the mech flashes white for a moment
       if (dmg > 0 && !(this.protect > 0)) this.flashT = 0.09;
+      if (!net.applying && this.game.mods && this.game.mods.dmg) dmg *= this.game.mods.dmg; // weekly event: Glass Cannons
       // the game that decides a hit also fills the shooter's super meter
       if (who && who !== this.combatant && !net.applying && this.game.supers) this.game.supers.charge(who, dmg);
       // online: the shooter's game decides what hits; the target's own game applies the damage
@@ -626,7 +628,7 @@
         this.vel.x += (tx - this.vel.x) * Math.min(1, k * dt);
         this.vel.z += (tz - this.vel.z) * Math.min(1, k * dt);
       }
-      this.vel.y -= CW.GRAV * dt;
+      this.vel.y -= CW.GRAV * ((this.game.mods && this.game.mods.grav) || 1) * dt;
       if (inWater) {
         this.vel.y += (CW.WATER_Y - 1.0 - this.pos.y) * 14 * dt;
         this.vel.y *= Math.exp(-3 * dt);

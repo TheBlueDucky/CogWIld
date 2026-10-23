@@ -29,13 +29,14 @@
     }
     type(c) { return CW.superFor((c.mech ? c.mech.parts.filter((p) => p.alive) : null) || (c.bp ? c.bp.parts : [])); }
     ready(c) { return (c.superCharge || 0) >= 1; }
+    rate() { return (this.game.mods && this.game.mods.superRate) || 1; } // weekly events: faster supers
 
     // the shooter's game counts damage it decides (online that is always the shooter's own game)
     charge(who, dmg) {
       if (!who || !who.mech || !who.mech.alive || dmg <= 0) return;
       if (who.superLock && this.game.time < who.superLock) return; // damage from your own super doesn't count
       const before = who.superCharge || 0;
-      who.superCharge = Math.min(1, before + dmg / FILL_DMG);
+      who.superCharge = Math.min(1, before + (dmg / FILL_DMG) * this.rate());
       if (who.isPlayer && before < 1 && who.superCharge >= 1) this.readyPing();
     }
     readyPing() {
@@ -146,7 +147,7 @@
         for (const c of g.combatants) {
           if (!c.alive || !c.mech || !c.mech.alive || (g.net.active && !g.net.owns(c))) continue;
           const before = c.superCharge || 0;
-          c.superCharge = Math.min(1, before + dt * PASSIVE);
+          c.superCharge = Math.min(1, before + dt * PASSIVE * this.rate());
           if (c.isPlayer && before < 1 && c.superCharge >= 1) this.readyPing();
           // bots use theirs when someone is close
           if (!c.isPlayer && !c.human && c.superCharge >= 1 && c.ai && c.ai.target) {

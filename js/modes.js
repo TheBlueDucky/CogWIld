@@ -1,4 +1,4 @@
-// Cogwild — objective game modes: King of the Hill, Gold Rush, Combat Race, Boss Battle.
+// Cogwild — objective game modes: King of the Hill, Gold Rush, Combat Race, Boss Battle, Bounty Hunt.
 // Each objective plugs into the match loop with the same small interface:
 //   start()            set up the map objects
 //   update(dt)         run the rules
@@ -520,5 +520,47 @@
     summary() { return `Titan at ${Math.round(this.bossHp() * 100)}%`; }
   }
 
-  CW.OBJECTIVES = { koth: KingOfTheHill, gold: GoldRush, race: CombatRace, boss: BossBattle };
+  // ======================= BOUNTY HUNT =======================
+  // Wreck an enemy to win the stars on their head for your team. Each wreck in a row raises YOUR bounty
+  // (up to 7), and being wrecked resets it to 1, so streaks are worth a lot and risky to carry.
+  class BountyHunt extends Objective {
+    start() { this.score = {}; this.bounty = new Map(); }
+    stars(c) { return this.bounty.get(c) || 1; }
+    teamScore(t) { return this.score[t] | 0; }
+    onWreck(victim, who) {
+      const g = this.game;
+      if (g.net.client || g.ended || !who || who === victim || CW.sameTeam(who, victim)) return;
+      const n = this.stars(victim);
+      this.score[who.team] = this.teamScore(who.team) + n;
+      this.bounty.set(who, Math.min(7, this.stars(who) + 1));
+      this.bounty.set(victim, 1);
+      if (who.isPlayer) g.feed(`🎯 +${n} star${n > 1 ? 's' : ''}! Your bounty is now ⭐${this.stars(who)}`, 'good');
+      else if (n >= 3) g.feed(`🎯 ${who.name} cashed a ⭐${n} bounty`);
+    }
+    update() {}
+    netState() {
+      const b = {};
+      for (const [c, v] of this.bounty) if (v > 1) b[c.netId] = v;
+      return { s: this.score, b };
+    }
+    netApply(s) {
+      const g = this.game;
+      const mine = this.stars(g.player);
+      this.score = s.s || {};
+      this.bounty = new Map();
+      for (const id in s.b || {}) { const c = g.net.byId.get(+id); if (c) this.bounty.set(c, s.b[id]); }
+      if (this.stars(g.player) > mine && this.stars(g.player) >= 3) g.feed(`🎯 Your bounty is ⭐${this.stars(g.player)}. Stay alive!`, 'good');
+    }
+    hud() { return `<b>🎯 Bounty Hunt</b> · ${this.scoreBars((v) => '⭐' + v)} · Your bounty <b>⭐${this.stars(this.game.player)}</b> · ${this.clock()}`; }
+    botGoal() { return null; }
+    check() {
+      for (const t of this.teams()) if (this.teamScore(t) >= this.mode.scoreToWin) return { winner: t };
+      if (this.timeLeft() <= 0) return this.byScore();
+      return null;
+    }
+    minimap() {}
+    summary(c) { return `${this.teamScore(c.team)} stars`; }
+  }
+
+  CW.OBJECTIVES = { koth: KingOfTheHill, gold: GoldRush, race: CombatRace, boss: BossBattle, bounty: BountyHunt };
 })();

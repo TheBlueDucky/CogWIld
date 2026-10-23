@@ -8,7 +8,7 @@
   // button index → keyboard code it acts like (held)
   const HOLD = { 0: 'Space', 1: 'KeyC', 6: 'KeyC', 4: 'KeyR', 8: 'Tab' };
   // button index → keyboard code it taps (pressed once)
-  const TAP = { 2: 'ShiftLeft', 3: 'KeyE', 5: 'KeyV', 9: 'Escape', 12: 'F8' };
+  const TAP = { 2: 'ShiftLeft', 3: 'KeyE', 5: 'KeyV', 9: 'Escape', 12: 'F8', 14: 'KeyX', 15: 'KeyG' }; // d-pad left: super, right: gadget
 
   class Gamepad {
     constructor(game) {

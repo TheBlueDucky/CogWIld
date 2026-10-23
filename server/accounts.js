@@ -124,7 +124,7 @@ class Accounts {
   }
   publicCard(u) {
     const club = u.club && this.db.clubs[u.club];
-    return { name: u.name, av: u.av | 0, tro: u.tro | 0, best: u.best | 0, lv: u.lv | 0, wins: u.wins | 0, played: u.played | 0, club: club ? club.name : null };
+    return { name: u.name, av: u.av | 0, tro: u.tro | 0, best: u.best | 0, lv: u.lv | 0, wins: u.wins | 0, played: u.played | 0, club: club ? club.name : null, rp: (u.best | 0) >= E.RANKED.unlockAt ? this.rp(u) : null };
   }
   // sign in this socket as user k (one live session per player: the older one is signed out)
   attach(c, k, token) {
@@ -198,7 +198,7 @@ class Accounts {
       clubCreate: () => this.clubCreate(c, m), clubJoin: () => this.clubJoin(c, m), clubLeave: () => this.clubLeave(c), clubKick: () => this.clubKick(c, m),
       clubList: () => this.clubList(c, m), clubInfo: () => this.clubInfo(c, m), clubChat: () => this.clubChat(c, m), clubEdit: () => this.clubEdit(c, m),
       earn: () => this.earn(c, m), gift: () => this.gift(c), buy: () => this.buy(c, m), roadClaim: () => this.roadClaim(c, m), passClaim: () => this.passClaim(c, m),
-      invite: () => this.inviteRoom(c, m), top: () => this.top(c), status: () => { c.busy = !!m.busy; if (c.user) this.friendsChanged(c.user); },
+      invite: () => this.inviteRoom(c, m), top: () => this.top(c, m), status: () => { c.busy = !!m.busy; if (c.user) this.friendsChanged(c.user); },
     }[t];
     if (!fn) return true;
     const r = fn();
@@ -808,12 +808,47 @@ class Accounts {
     const now = Date.now();
     return !!u && (u.disputes || []).filter((t) => now - t < 7 * 86400000).length >= 2;
   }
+  // ---------------- Ranked: points per season (half of last season's carry over) ----------------
+  canRanked(c) { const u = this.me(c); return !!u && (u.best | 0) >= E.RANKED.unlockAt; }
+  rp(u) {
+    const s = E.season().id;
+    if (u.rpS !== s) { u.rp = Math.floor((u.rp | 0) / 2); u.rpS = s; }
+    return u.rp | 0;
+  }
+  rankedResult(room, res, n) {
+    if (!room.auto || !room.settings.ranked || !res || typeof res !== 'object') return;
+    if ((Date.now() - (room.beganAt || Date.now())) / 1000 < QUICK_MIN_SECS) return;
+    for (const [id, place] of Object.entries(res)) {
+      const c = this.h.clients.get(+id);
+      const pl = place | 0;
+      if (!c || c.room !== room.code || !room.players.has(c.id) || pl < 1 || pl > n) continue;
+      const u = this.me(c);
+      if (!u) continue;
+      const before = this.rp(u);
+      u.rpStreak = pl === 1 ? (u.rpStreak | 0) + 1 : 0;
+      const d = pl === 1 ? E.RANKED.win + Math.min(10, (u.rpStreak - 1) * 2) : Math.max(-before, E.RANKED.loss);
+      u.rp = before + d;
+      u.rpBest = Math.max(u.rpBest | 0, u.rp);
+      u.rpPlayed = (u.rpPlayed | 0) + 1;
+      this.send(c, { t: 'ranked', d, rp: u.rp, place: pl, streak: u.rpStreak, rank: E.RANKED.rank(u.rp) });
+      this.friendsChanged(c.user);
+    }
+    this.rankedCache = null;
+    this.dirty();
+  }
   sorted() {
     if (!this.topCache) this.topCache = Object.values(this.db.users).sort((a, b) => (b.tro | 0) - (a.tro | 0) || (a.created || 0) - (b.created || 0));
     return this.topCache;
   }
   rankOf(u) { return this.sorted().indexOf(u) + 1; }
-  top(c) {
+  top(c, m) {
+    if (m && m.kind === 'ranked') {
+      // this season's Ranked board
+      if (!this.rankedCache) this.rankedCache = Object.values(this.db.users).filter((u) => (u.best | 0) >= E.RANKED.unlockAt && u.rpS === E.season().id && (u.rpPlayed | 0) > 0).sort((a, b) => this.rp(b) - this.rp(a));
+      const r = this.rankedCache;
+      const u = this.me(c);
+      return this.send(c, { t: 'top', kind: 'ranked', list: r.slice(0, 50).map((x) => this.publicCard(x)), me: u && r.includes(u) ? { rank: r.indexOf(u) + 1, card: this.publicCard(u) } : null, total: r.length });
+    }
     const list = this.sorted().slice(0, 50).map((u) => this.publicCard(u));
     const u = this.me(c);
     this.send(c, { t: 'top', list, me: u ? { rank: this.rankOf(u), card: this.publicCard(u) } : null, total: Object.keys(this.db.users).length });

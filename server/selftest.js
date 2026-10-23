@@ -9,7 +9,7 @@ const path = require('path');
 
 const PORT = 8800 + Math.floor(Math.random() * 100);
 const DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'cogwild-test-'));
-const VER = 'cogwild-net-4';
+const VER = 'cogwild-net-5';
 let server;
 let failed = 0;
 
@@ -169,6 +169,7 @@ async function main() {
   const dbFile = path.join(DATA, 'db.json');
   const db = JSON.parse(fs.readFileSync(dbFile, 'utf8'));
   db.users.alice_1.tro = 600;
+  db.users.alice_1.best = 600;
   fs.writeFileSync(dbFile, JSON.stringify(db));
   await start();
   const hi = await player(), lo = await player(), gst = await player();
@@ -263,6 +264,33 @@ async function main() {
   cB.send({ t: 'clubList' });
   check(!(await cB.next('clubs')).list.length, 'an empty club is closed');
   cA.ws.close(); cB.ws.close();
+
+  console.log('weekly event + ranked');
+  const E = require('../js/economy.js');
+  const wk = await player();
+  wk.send({ t: 'quick', kind: 'weekly', mode: 'clash', arena: 'canyon' });
+  const wr = (await wk.next('room')).room;
+  check(wr.settings.event === E.week().id && wr.settings.mode === E.week().mode, `the weekly event queue plays ${E.week().name}`);
+  wk.send({ t: 'quick', kind: 'ranked' });
+  check(/Ranked unlocks/.test((await wk.next('err')).msg), 'Ranked needs 600 best trophies');
+  wk.ws.close();
+  const rk = await player();
+  rk.send({ t: 'acctLogin', name: 'Alice_1', pass: 'newpass456' });
+  await rk.next('acctOk');
+  rk.send({ t: 'quick', kind: 'ranked' });
+  const rr = (await rk.next('room')).room;
+  check(rr.settings.ranked === true && E.RANKED.modes.includes(rr.settings.mode), `Ranked plays a 3v3 mode (${rr.settings.mode})`);
+  await rk.next('autostart', null, 6000);
+  rk.send({ t: 'begin', payload: { kind: 'match', arena: 'canyon', roster: [] } });
+  await wait(100);
+  rk.send({ t: 'end', res: { [rk.id]: 1 }, n: 2 });
+  const rres = await rk.next('ranked');
+  check(rres.d === E.RANKED.win && rres.rp === E.RANKED.win, 'a Ranked win gives ranked points');
+  check(!(await rk.next('trophies', null, 600).catch(() => null)), 'Ranked does not move trophies');
+  rk.send({ t: 'top', kind: 'ranked' });
+  const rtop = await rk.next('top', (m) => m.kind === 'ranked');
+  check(rtop.list[0].name === 'Alice_1' && rtop.list[0].rp === E.RANKED.win, 'the Ranked leaderboard shows the season');
+  rk.ws.close();
 
   console.log('security');
   const bad = await get('/%E0%A4%A');

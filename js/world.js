@@ -201,6 +201,26 @@
     return out.copy(C(0x3fa34d)).lerp(C(0x1f6b2f), n * 0.8 + slope * 0.3);
   }
 
+  // ---------- Arena 8: Scrap Yard (junk heaps to climb, a flooded pit, a compactor ring, a crane rail) ----------
+  const HEAPS = [[-70, -60, 30, 24], [80, -75, 32, 28], [-90, 70, 28, 22], [60, 95, 30, 24], [0, -125, 24, 18], [-132, -5, 22, 16], [128, 15, 24, 18], [-20, 115, 20, 14]];
+  function scrapHeight(x, z) {
+    let h = 3 + (fbm(x * 0.03 + 11, z * 0.03 - 5) - 0.5) * 3;
+    for (const [hx, hz, r, top] of HEAPS) {
+      const d = Math.hypot(x - hx, z - hz);
+      if (d < r) { const k = 1 - d / r; h = Math.max(h, 3 + top * Math.pow(k, 1.4) + fbm(x * 0.18 + hx, z * 0.18 + hz) * 4 * k); }
+    }
+    h = lerp(h, 2.2, ss(42, 30, Math.hypot(x, z))); // the compactor floor in the middle
+    h = lerp(h, -7, ss(28, 15, Math.hypot(x - 48, z - 22))); // flooded pit
+    if (Math.abs(z + 32) < 3.5 && Math.abs(x) < 112) h = Math.max(h, 6 * ss(112, 96, Math.abs(x)) + 3); // crane rail
+    return h + edgeRise(x, z);
+  }
+  function scrapColor(h, slope, n, out) {
+    if (h < -0.5) return out.copy(C(0x6a5a44)).lerp(C(0x2a3a3a), Math.min(1, -h / 6)); // muddy water edge
+    if (h < 2) return out.setHex(0x6e5c46);
+    if (h > 6.5 || slope > 0.75) return out.copy(C(0x8a4b2a)).lerp(C(0x6b7078), n); // rust and old steel
+    return out.copy(C(0x8c7b62)).lerp(C(0x6e5f4a), n * 0.8 + slope * 0.3); // packed dirt
+  }
+
   CW.ARENAS = {
     canyon: {
       id: 'canyon', name: 'Canyon Lake', icon: '🏞', desc: 'Meadows, a lake, a canyon river and a mountain.',
@@ -253,6 +273,13 @@
       waterCenter: { x: riverX(0), z: 0 }, crystals: { x: 0, z: 0 }, grass: true, particles: 'fireflies',
       crystalColors: [[0x2ec27e, 0x0b6b3a], [0xffd23f, 0xa06000]],
       trees: { shape: 'palm', leaf: 0x2f9e44, leaf2: 0x8b5a2b, trunk: 0x9c6b3c, rock: 0x8a8268, density: 0.35, count: 300 },
+    },
+    scrap: {
+      id: 'scrap', name: 'Scrap Yard', icon: '🏗', desc: 'Junk heaps to climb, a flooded pit, a crane rail and the compactor ring in the middle.',
+      height: scrapHeight, color: scrapColor, bridges: [],
+      waterCenter: { x: 48, z: 22 }, crystals: { x: 0, z: 0 }, grass: false, particles: 'dust', scrap: true,
+      tint: { sky: 0xd9b38c, fog: 0xb8a088 }, crystalColors: [[0xffb000, 0x8a4b00], [0x4cc9f0, 0x0b7a8c]],
+      trees: { shape: 'pine', leaf: 0x556b2f, leaf2: 0x6b8e23, trunk: 0x5a3e2b, rock: 0x7a5c48, density: 0.2, count: 50 },
     },
   };
   // harmful liquids: damage per second to mech parts touching them and to pilots in them
@@ -740,6 +767,7 @@
       const cc = this.arena.crystalColors || (this.arena.lava ? [[0xff7a1a, 0xc23a00], [0xffd23f, 0xa06000]] : [[0xff5cf0, 0x8a1a80], [0x5cf2ff, 0x177f8a]]);
       const crystalMats = cc.map(([c, e]) => CW.mat(c, { emissive: e }));
       if (this.arena.neon) this.buildNeon(rnd);
+      if (this.arena.scrap) this.buildScrap(rnd);
       for (let i = 0; i < (this.arena.neon ? 0 : 26); i++) {
         const a = rnd() * Math.PI * 2, d = 10 + rnd() * 40;
         const x = this.arena.crystals.x + Math.cos(a) * d, z = this.arena.crystals.z + Math.sin(a) * d;
@@ -751,6 +779,48 @@
         c.rotation.set(rnd() * 0.4, rnd() * 3, rnd() * 0.4);
         c.castShadow = true;
         this.scene.add(c);
+      }
+    }
+
+    // Scrap Yard: wrecked car hulks, tire stacks and two cranes over the rail
+    buildScrap(rnd) {
+      const rust = [0x8a4b2a, 0x6b7078, 0x3a6ea5, 0xa83232, 0xc9a227, 0x4a6b3a].map((c) => CW.mat(c, { metalness: 0.5, roughness: 0.7 }));
+      const dark = CW.mat(0x222222, { roughness: 0.9 });
+      const hull = new THREE.BoxGeometry(4.2, 1.6, 2.2), cab = new THREE.BoxGeometry(2.2, 1.1, 2), tire = new THREE.TorusGeometry(0.75, 0.32, 8, 16);
+      for (let i = 0; i < 70; i++) {
+        const x = (rnd() - 0.5) * 300, z = (rnd() - 0.5) * 300;
+        const h = CW.terrainHeight(x, z);
+        if (h < 0.5 || Math.hypot(x, z) < 34) continue;
+        const g = new THREE.Group();
+        if (i % 3) {
+          const m = rust[i % rust.length];
+          const b = new THREE.Mesh(hull, m), t = new THREE.Mesh(cab, m);
+          t.position.set(-0.3, 1.3, 0);
+          g.add(b, t);
+          g.rotation.set((rnd() - 0.5) * 0.5, rnd() * 6.3, (rnd() - 0.5) * (i % 5 === 0 ? 3 : 0.5));
+        } else {
+          for (let k = 0; k < 2 + (i % 3); k++) { const t = new THREE.Mesh(tire, dark); t.rotation.x = Math.PI / 2; t.position.y = 0.32 + k * 0.62; g.add(t); }
+        }
+        g.position.set(x, h + 0.6, z);
+        g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+        this.scene.add(g);
+      }
+      const steel = CW.mat(0xffb000, { metalness: 0.6, roughness: 0.5 });
+      for (const x of [-60, 70]) {
+        const g = new THREE.Group();
+        const tower = new THREE.Mesh(new THREE.BoxGeometry(2.4, 34, 2.4), steel);
+        tower.position.y = 17;
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(30, 1.6, 1.6), steel);
+        arm.position.set(10, 33, 0);
+        const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 14, 4), dark);
+        cable.position.set(22, 26, 0);
+        const magnet = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 0.8, 16), dark);
+        magnet.position.set(22, 19, 0);
+        g.add(tower, arm, cable, magnet);
+        g.position.set(x, CW.terrainHeight(x, -26), -26);
+        g.rotation.y = x < 0 ? 0.6 : 2.4;
+        g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+        this.scene.add(g);
       }
     }
 

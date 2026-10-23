@@ -2,8 +2,8 @@
 // It changes at midnight UTC. Playing it gives 2× coins, and trophy gains are 50% bigger.
 // Used by the game (window.CW.FEATURED) and by the server (require), so both always agree.
 (function (root) {
-  const MODES = ['clash', 'rush', 'koth', 'gold', 'race', 'boss', 'survival'];
-  const ARENAS = ['canyon', 'isles', 'volcano', 'desert', 'swamp', 'city', 'jungle'];
+  const MODES = ['clash', 'rush', 'koth', 'gold', 'bounty', 'race', 'boss', 'survival'];
+  const ARENAS = ['canyon', 'isles', 'volcano', 'desert', 'swamp', 'city', 'jungle', 'scrap'];
   const hash = (s) => { let h = 2166136261; for (const ch of s) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return h >>> 0; };
   function today(now) {
     const t = new Date(now || Date.now());

@@ -8,7 +8,7 @@
   const CW = window.CW;
   const V3 = THREE.Vector3;
   const $ = (id) => document.getElementById(id);
-  const NET_VERSION = 'cogwild-net-4';
+  const NET_VERSION = 'cogwild-net-5';
   const SEND_HZ = 20;
   const r2 = (v) => Math.round(v * 100) / 100;
   // names and texts from other players: plain short text only
@@ -241,26 +241,27 @@
     }
 
     // ======================= PLAY: matchmaking =======================
-    matchmake(mode, arena) {
+    matchmake(mode, arena, kind) {
       const g = this.game;
       if (this.room) { this.send({ t: 'leave' }); this.room = null; }
       this.mmArena = arena;
       this.mmMode = mode;
+      this.mmKind = kind || null;
       // the searching screen right away (it says "Connecting…" until the server answers)
       g.hideAll();
       g.endMatch();
       g.state = 'lobby';
       $('search').classList.remove('hidden');
       this.renderSearch();
-      if (!this.canConnect()) return g.playOffline(mode, arena);
+      if (!this.canConnect()) return g.playOffline(mode, arena, kind);
       this.connect().then(() => {
         if (this.mmArena !== arena || g.state !== 'lobby') return; // cancelled while connecting
         this.send({ t: 'name', name: (this.name = this.myName()) });
-        this.send({ t: 'quick', mode, arena });
+        this.send({ t: 'quick', mode, arena, kind });
       }, () => {
         if (this.mmArena !== arena || g.state !== 'lobby' || this.room) return;
         g.toast('📡 No connection: playing against bots');
-        g.playOffline(mode, arena);
+        g.playOffline(mode, arena, kind);
       });
     }
     cancelSearch() {
@@ -276,8 +277,10 @@
       const a = g.arenaInfo(r ? r.settings.arena : this.mmArena || 'random');
       const modeId = r ? r.settings.mode : this.mmMode || 'clash';
       const mode = CW.MODES[modeId], fmt = CW.FORMATS[CW.MM_FORMAT[modeId]] || CW.FORMATS.ffa;
-      $('srIcon').textContent = mode.icon;
-      $('srArena').textContent = mode.name;
+      const ranked = r ? r.settings.ranked : this.mmKind === 'ranked';
+      const ev = CW.ECON.WEEKLY.find((w) => w.id === (r ? r.settings.event : this.mmKind === 'weekly' && CW.ECON.week().id));
+      $('srIcon').textContent = ranked ? '🏅' : ev ? ev.icon : mode.icon;
+      $('srArena').textContent = ranked ? (r ? `Ranked · ${mode.name}` : 'Ranked') : ev ? `${ev.name} · ${mode.name}` : mode.name;
       $('srMode').textContent = `${a.icon} ${a.name} · ${fmt.label}`;
       const seats = [];
       if (r) {
@@ -502,9 +505,11 @@
       g.modeId = modeId;
       g.formatId = formatId;
       g.netOpts = { arena: res.arena, tod: res.tod, difficulty: res.difficulty, teams: res.teams, botNames: res.botNames || [], seed: 1 + Math.floor(Math.random() * 1000) };
+      const event = this.room && this.room.settings.event;
+      g.setEvent(event);
       g.startMatch(null, humans);
       const payload = {
-        kind: 'match', mode: modeId, format: formatId, arena: g.world.arena.id, tod: g.timeOfDay, seed: g.netOpts.seed,
+        kind: 'match', mode: modeId, format: formatId, arena: g.world.arena.id, tod: g.timeOfDay, seed: g.netOpts.seed, event: event || null,
         teamMode: g.teamMode, teamCount: g.teamCount,
         roster: g.combatants.map((c) => this.rosterEntry(c)),
         obj: g.obj && g.obj.netState ? g.obj.netState() : null,
@@ -547,6 +552,7 @@
       g.modeId = p.mode;
       g.formatId = p.format;
       g.netOpts = { arena: p.arena, tod: p.tod, seed: p.seed };
+      g.setEvent(p.event);
       g.beginMatchState();
       g.countdown = 3.5;
       g.teamMode = p.teamMode;
@@ -834,6 +840,7 @@
         case 'wave': if (hostMsg) g.netWave(e); break;
         case 'end': if (hostMsg) g.netEnd(e); break;
         case 'super': g.supers.onRemote(e); break;
+        case 'gadget': g.gadgets.onRemote(e); break;
       }
     }
 

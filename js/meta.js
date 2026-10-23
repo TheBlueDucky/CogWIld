@@ -58,7 +58,7 @@
   CW.KEY_ACTIONS = [
     { id: 'forward', label: 'Drive forward / walk', def: 'KeyW' }, { id: 'back', label: 'Reverse / walk back', def: 'KeyS' },
     { id: 'left', label: 'Turn left / step left', def: 'KeyA' }, { id: 'right', label: 'Turn right / step right', def: 'KeyD' },
-    { id: 'up', label: 'Up / jump', def: 'Space' }, { id: 'down', label: 'Down / dive', def: 'KeyC' }, { id: 'dash', label: 'Dash', def: 'ShiftLeft' }, { id: 'super', label: 'Super (also right-click)', def: 'KeyX' },
+    { id: 'up', label: 'Up / jump', def: 'Space' }, { id: 'down', label: 'Down / dive', def: 'KeyC' }, { id: 'dash', label: 'Dash', def: 'ShiftLeft' }, { id: 'super', label: 'Super (also right-click)', def: 'KeyX' }, { id: 'gadget', label: 'Gadget', def: 'KeyG' },
     { id: 'exit', label: 'Exit / enter mech', def: 'KeyE' }, { id: 'repair', label: 'Repair (hold, on foot)', def: 'KeyR' }, { id: 'unstuck', label: 'Unstuck', def: 'KeyF' },
     { id: 'camera', label: 'Switch camera', def: 'KeyV' }, { id: 'scores', label: 'Scoreboard', def: 'Tab' }, { id: 'clip', label: 'Save clip', def: 'F8' },
   ];
@@ -410,6 +410,12 @@
         body.innerHTML = `<div class="small">${n} / ${CW.ACHIEVEMENTS.length} unlocked. Each one pays coins.</div><div class="ach-grid">${CW.ACHIEVEMENTS.map((a) => `<div class="ach ${got[a.id] ? 'got' : ''}"><b>${got[a.id] ? '🏆' : '🔒'} ${a.name}</b><span class="small">${a.desc}</span><div class="small">+${a.reward} 🪙</div></div>`).join('')}</div>`;
       } else if (k === 'news') {
         body.innerHTML = `<ul class="news">
+          <li><b>v1.3</b>: 🎟 <b>Cog Pass</b>: a free 30-tier reward track every 4 weeks, with paints, trails and avatars you can't buy. Earn pass points from matches, challenges and the daily gift.</li>
+          <li>🛡 <b>Clubs</b>: start or join a club of up to 30 players, add up your trophies together and cheer each other on the club wall.</li>
+          <li>🧰 <b>Gadgets</b>: Repair Kit, Proximity Mine, Jump Jets or Smoke Screen, 3 uses a match (G / 🧰). Pick yours in the PLAY panel.</li>
+          <li>🎯 New mode <b>Bounty Hunt</b> and new arena <b>🏗 Scrap Yard</b>.</li>
+          <li>🗓 <b>Weekly events</b> with a twist (low gravity, double damage, fast supers…) and +50% coins. 🏅 <b>Ranked</b> unlocks at 600 trophies: 3v3 for ranked points each season.</li>
+          <li>⚖ Fair play: coins and unlocks are now kept safe on the server for logged-in players, match results are checked, a random player hosts, and if the host quits, someone else takes over and the match goes on.</li>
           <li><b>v1.2.1</b>: 🛡 Safety and stability update: stronger protection for accounts and the server, and if the host quits a PLAY match, everyone else is put straight into a new search instead of getting stuck.</li>
           <li><b>v1.2</b>: ⭐ <b>Supers!</b> Deal damage to charge your super, then press X / right-click / ⭐: Shield Dome, Turbo Ram, Missile Barrage or EMP Shockwave, depending on what your mech is built from (the Workshop shows which).</li>
           <li>🗓 <b>Featured event every day</b>: one mode on one arena gives 2× coins and +50% trophies. Tap the purple chip above PLAY to play it.</li>
@@ -464,6 +470,8 @@
           <div><h3>🛟 Fair play</h3><p>You spawn on safe ground with a 3.5 s shield (shooting ends it). Stuck in a ditch or liquid? Press <b>F</b> to hop to safe ground (12 s cooldown).</p></div>
           <div><h3>🧰 Chests & lava</h3><p>Drive into a <b>chest</b> to open it (coins, XP, power-ups). Gold beams = supply drops. On Volcano Rift, <b>lava burns</b> whatever touches it, so use the bridges or fly.</p></div>
           <div><h3>🛡 Survival</h3><p>Endless waves of bots. Your mech is rebuilt between waves. Beat your best wave!</p></div>
+          <div><h3>🧰 Supers & gadgets</h3><p>Deal damage to fill your <b>super</b> (X / right-click / ⭐). Your <b>gadget</b> (G / 🧰) has 3 uses a match with a short cooldown: pick it in the PLAY panel.</p></div>
+          <div><h3>🎟 Cog Pass, clubs, Ranked</h3><p>Every match earns <b>Cog Pass</b> points for free rewards. Join a <b>club</b> to team up. At 600 trophies <b>Ranked</b> opens: 3v3 for ranked points that reset each season.</p></div>
           <div><h3>💰 Progress</h3><p>Matches give XP and coins. Daily challenges and the daily reward give more. Spend coins in the Shop on paints and dash trails.</p></div>
           <div><h3>⚡ Sudden death</h3><p>After 4 minutes all cores overheat, so no match lasts forever.</p></div>
           </div>`;
@@ -488,16 +496,40 @@
         return `<button class="arena-opt ${id === curA ? 'on' : ''}" data-arena="${id}"><span>${a.icon}</span><b>${a.name}</b><small>${a.desc}</small></button>`;
       }).join('');
       const f = CW.FEATURED.today(), fm = CW.MODES[f.mode], fa = CW.ARENAS[f.arena];
-      body.innerHTML = `<button class="feat-card ${f.mode === curM && f.arena === curA ? 'on' : ''}" id="featPick"><span>⭐</span><div><b>Featured today: ${fm.icon} ${fm.name} on ${fa.icon} ${fa.name}</b><small>${CW.FEATURED.COIN_MULT}× coins and +50% trophies · ends in ${g.featuredLeft()}</small></div><em>${f.mode === curM && f.arena === curA ? '✔ Picked' : 'Play it'}</em></button>
+      const kind = this.settings.mmEvent, w = E.week(), wm = CW.MODES[w.mode];
+      const canRanked = g.account.canRanked(), rk = g.account.me && g.account.me.rp != null ? E.RANKED.rank(g.account.me.rp) : null;
+      const lv = g.level();
+      const gad = Object.entries(CW.GADGETS).map(([id, gd]) => {
+        const locked = gd.level > lv;
+        return `<button class="mode-opt gad-opt ${(this.settings.gadget || 'repair') === id ? 'on' : ''} ${locked ? 'locked' : ''}" data-gadget="${id}" ${locked ? 'disabled' : ''} title="${gd.desc}"><span>${gd.icon}</span><b>${gd.name}</b><small>${locked ? `🔒 Level ${gd.level}` : gd.desc}</small></button>`;
+      }).join('');
+      body.innerHTML = `<div class="event-cards">
+          <button class="feat-card week-card ${kind === 'weekly' ? 'on' : ''}" id="weekPick"><span>${w.icon}</span><div><b>This week: ${w.name}</b><small>${wm.icon} ${wm.name} · ${w.desc} · +50% coins · ends in ${CW.timeLeft(w.endsAt - Date.now())}</small></div><em>${kind === 'weekly' ? '✔ Picked' : 'Play it'}</em></button>
+          <button class="feat-card ranked-card ${kind === 'ranked' ? 'on' : ''} ${canRanked ? '' : 'locked'}" id="rankedPick"><span>🏅</span><div><b>Ranked${rk ? ` · ${rk.icon} ${rk.name}` : ''}</b><small>${canRanked ? `3v3 in ${E.RANKED.modes.map((x) => CW.MODES[x].name).join(', ')}. Win ranked points; they reset each season.` : `Unlocks at 🏆 ${E.RANKED.unlockAt} trophies (your best).`}</small></div><em>${kind === 'ranked' ? '✔ Picked' : canRanked ? 'Play it' : '🔒'}</em></button>
+        </div>
+        <button class="feat-card ${!kind && f.mode === curM && f.arena === curA ? 'on' : ''}" id="featPick"><span>⭐</span><div><b>Featured today: ${fm.icon} ${fm.name} on ${fa.icon} ${fa.name}</b><small>${CW.FEATURED.COIN_MULT}× coins and +50% trophies · ends in ${g.featuredLeft()}</small></div><em>${f.mode === curM && f.arena === curA ? '✔ Picked' : 'Play it'}</em></button>
         <div class="small">Pick a mode and an arena, then press <b>PLAY</b>. You're matched with players who picked the same; after 30 seconds bots fill the empty seats.</div>
         <h3>Mode</h3><div class="mode-row">${modes}</div>
         <div class="small" id="modeDesc">${CW.MODES[curM].desc}</div>
         <h3>Arena</h3><div class="arena-grid">${arenas}</div>
+        <h3>Gadget <span class="small">3 uses a match · G / 🧰</span></h3><div class="mode-row">${gad}</div>
         <div class="other-play">
           <button class="ws-btn" id="opRoom">🤝 Play with friends (private room)</button>
           <button class="ws-btn" id="opTutorial">🎓 Tutorial</button>
         </div>`;
+      body.querySelectorAll('[data-gadget]').forEach((b) => (b.onclick = () => {
+        this.settings.gadget = b.dataset.gadget;
+        this.save();
+        body.querySelectorAll('[data-gadget]').forEach((x) => x.classList.toggle('on', x === b));
+        g.audio.click(1.2);
+      }));
+      $('weekPick').onclick = () => { this.settings.mmEvent = 'weekly'; this.save(); g.renderArenaCard(); this.closePanel(); g.audio.click(1.3); };
+      $('rankedPick').onclick = () => {
+        if (!canRanked) return g.toast(g.account.loggedIn ? `🏅 Ranked unlocks at ${E.RANKED.unlockAt} trophies` : 'Log in and reach 600 trophies to play Ranked');
+        this.settings.mmEvent = 'ranked'; this.save(); g.renderArenaCard(); this.closePanel(); g.audio.click(1.3);
+      };
       body.querySelectorAll('[data-mode]').forEach((b) => (b.onclick = () => {
+        this.settings.mmEvent = null;
         this.settings.mmMode = b.dataset.mode;
         this.save();
         g.renderArenaCard();
@@ -506,13 +538,14 @@
         g.audio.click(1.2);
       }));
       body.querySelectorAll('[data-arena]').forEach((b) => (b.onclick = () => {
+        this.settings.mmEvent = null;
         this.settings.mmArena = b.dataset.arena;
         this.save();
         g.renderArenaCard();
         this.closePanel();
         g.audio.click(1.2);
       }));
-      $('featPick').onclick = () => { this.settings.mmMode = f.mode; this.settings.mmArena = f.arena; this.save(); g.renderArenaCard(); this.closePanel(); g.audio.click(1.3); };
+      $('featPick').onclick = () => { this.settings.mmEvent = null; this.settings.mmMode = f.mode; this.settings.mmArena = f.arena; this.save(); g.renderArenaCard(); this.closePanel(); g.audio.click(1.3); };
       $('opRoom').onclick = () => { this.closePanel(); g.net.openOnline(); };
       $('opTutorial').onclick = () => { this.closePanel(); g.startTutorial(); };
     }

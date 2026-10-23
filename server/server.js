@@ -10,24 +10,26 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { Accounts } = require('./accounts');
+const E = require('../js/economy.js');
 
 const PORT = parseInt(process.env.PORT || '8765', 10);
 const ROOT = path.resolve(__dirname, '..');
-const NET_VERSION = 'cogwild-net-4';
+const NET_VERSION = 'cogwild-net-5';
 const MAX_PLAYERS = 8;
 // Matchmaking (PLAY): each arena has its own queue. A search lasts up to SEARCH_SECS; then bots fill every
 // empty seat (at least one, so there's always someone to fight) and the match starts. A full room starts at once.
 const SEARCH = parseInt(process.env.SEARCH_SECS || process.env.BOT_WAIT_SEC || '30', 10) * 1000;
 const FULL_START = 3000; // a room that fills up with players starts after this short pause
 // what PLAY plays in each mode, and how many seats that has (co-op modes: you + 2 teammates)
-const MM_FORMAT = { clash: 'ffa', rush: 'ffa', koth: 'squads', gold: 'squads', race: 'race', boss: 'squad', survival: 'squad' };
+const MM_FORMAT = { clash: 'ffa', rush: 'ffa', koth: 'squads', gold: 'squads', bounty: 'squads', race: 'race', boss: 'squad', survival: 'squad' };
 const SEATS = { duel: 2, squads: 6, quads: 8, ffa: 8, race: 6, solo: 1, squad: 3 };
 // trophy matchmaking: rooms within ±150 trophies of you, widening 10 per second the search has run;
 // bot difficulty follows the room's trophies
 const TRO_RANGE = 150, TRO_WIDEN = 10;
-const troOf = (c) => { const u = c && accounts.me(c); return u ? u.tro | 0 : null; };
+// Ranked rooms match on ranked points instead of trophies
+const troOf = (c, ranked) => { const u = c && accounts.me(c); return u ? (ranked ? accounts.rp(u) : u.tro | 0) : null; };
 function roomTro(room) {
-  const t = [...room.players].map((id) => troOf(clients.get(id))).filter((x) => x !== null);
+  const t = [...room.players].map((id) => troOf(clients.get(id), room.settings.ranked)).filter((x) => x !== null);
   return t.length ? t.reduce((a, b) => a + b, 0) / t.length : null;
 }
 function troFits(room, tro) {
@@ -203,12 +205,15 @@ function cleanSettings(s) {
   s = s || {};
   const pick = (v, ok, d) => (ok.includes(v) ? v : d);
   return {
-    mode: pick(s.mode, ['rush', 'clash', 'koth', 'gold', 'race', 'survival', 'boss'], 'clash'),
+    mode: pick(s.mode, ['rush', 'clash', 'koth', 'gold', 'bounty', 'race', 'survival', 'boss'], 'clash'),
     format: pick(s.format, ['duel', 'squads', 'quads', 'ffa', 'race', 'solo', 'squad'], 'ffa'),
     arena: clean(s.arena, 16) || 'random',
     tod: pick(s.tod, ['random', 'day', 'sunset', 'night'], 'random'),
     difficulty: pick(s.difficulty, ['easy', 'normal', 'hard'], 'normal'),
     teams: pick(s.teams, ['split', 'together'], 'split'),
+    // matchmaking only: this week's event (its id) and Ranked
+    event: E.WEEKLY.some((w) => w.id === s.event) ? s.event : null,
+    ranked: s.ranked === true,
   };
 }
 
@@ -236,7 +241,7 @@ function fillAndStart(room) {
     room.bots.push({ id: -(++room.botSeq), name });
   }
   room.searchEnds = 0;
-  room.settings.difficulty = botLevel(roomTro(room)); // tougher bots for higher-trophy rooms
+  room.settings.difficulty = room.settings.ranked ? 'hard' : botLevel(roomTro(room)); // tougher bots for higher-trophy rooms
   room.hostId = pickHost(room); // nobody can count on running the match
   room.autoAt = Date.now(); // the timer loop nudges the host until the match begins
   sendRoom(room);
@@ -367,18 +372,29 @@ function handle(c, data) {
     case 'quick': {
       // matchmaking (PLAY) for one mode on one arena ("random" = any arena): join the fullest searching
       // room with space for you (and your party), or start a new search
-      const mode = MM_FORMAT[m.mode] ? m.mode : 'clash';
-      const arena = /^[a-z]{1,16}$/.test(m.arena) ? m.arena : 'random';
+      // kind 'weekly': this week's event (its mode, any arena, with its twist); kind 'ranked': 3v3 on ranked points
+      const kind = m.kind === 'weekly' || m.kind === 'ranked' ? m.kind : null;
+      let mode = MM_FORMAT[m.mode] ? m.mode : 'clash';
+      let arena = /^[a-z]{1,16}$/.test(m.arena) ? m.arena : 'random';
+      let event = null;
+      if (kind === 'weekly') { const w = E.week(); mode = w.mode; arena = 'random'; event = w.id; }
+      if (kind === 'ranked') {
+        if (!accounts.canRanked(c)) return c.ws.send({ t: 'err', msg: `Ranked unlocks at ${E.RANKED.unlockAt} trophies (your best ever)` });
+        mode = E.RANKED.modes[crypto.randomInt(E.RANKED.modes.length)];
+        arena = 'random';
+      }
+      const ranked = kind === 'ranked';
       const need = 1 + accounts.followers(c).length;
-      const tro = troOf(c);
-      const open = [...rooms.values()].filter((r) => r.pub && r.auto && r.state === 'lobby' && !r.autoAt && r.code !== c.room && r.settings.mode === mode && troFits(r, tro)
+      const tro = troOf(c, ranked);
+      const open = [...rooms.values()].filter((r) => r.pub && r.auto && r.state === 'lobby' && !r.autoAt && r.code !== c.room && troFits(r, tro)
+        && r.settings.ranked === ranked && r.settings.event === event && (ranked || r.settings.mode === mode)
         && (arena === 'random' || r.settings.arena === arena) && r.players.size + need <= seatsOf(r)).sort((a, b) => b.players.size - a.players.size)[0];
       if (open) joinRoom(c, open);
-      else createRoom(c, true, { mode, format: MM_FORMAT[mode], arena, tod: 'random', difficulty: 'normal', teams: 'split' }, true);
+      else createRoom(c, true, { mode, format: MM_FORMAT[mode], arena, tod: 'random', difficulty: 'normal', teams: 'split', event, ranked }, true);
       break;
     }
     case 'leave': leaveRoom(c); break;
-    case 'settings': if (isHost && room.state === 'lobby') { room.settings = cleanSettings(m.settings); for (const id of room.players) clients.get(id).ready = false; sendRoom(room); } break;
+    case 'settings': if (isHost && room.state === 'lobby' && !room.auto) { room.settings = Object.assign(cleanSettings(m.settings), { ranked: false }); for (const id of room.players) clients.get(id).ready = false; sendRoom(room); } break;
     case 'ready':
       if (!room || room.state !== 'lobby') break;
       c.ready = !!m.ready;
@@ -422,7 +438,8 @@ function handle(c, data) {
           // the host's result doesn't fit what the other games reported: no trophies move
           console.warn(`results refused in ${room.code} (host ${c.name}): ${why}`);
           accounts.disputed(c, room, why);
-        } else accounts.matchResult(room, m.res, n); // Quick Match placings move trophies
+        } else if (room.settings.ranked) accounts.rankedResult(room, m.res, n); // Ranked: ranked points instead of trophies
+        else accounts.matchResult(room, m.res, n); // Quick Match placings move trophies
       }
       room.state = 'lobby';
       room.phase = null;

@@ -473,6 +473,11 @@
   .t-fire { grid-area: fire; height: calc(84px * var(--tsize)); border-radius: 42px; font-size: calc(36px * var(--tsize)); background: rgba(255, 93, 93, .45); border-color: rgba(255, 140, 140, .7); }
   .t-super { position: absolute; right: calc(100% + 12px); bottom: 0; width: calc(74px * var(--tsize)) !important; height: calc(74px * var(--tsize)) !important; background: rgba(60, 60, 90, .55); filter: grayscale(1); opacity: .6; }
   .t-super.ready { filter: none; opacity: 1; background: radial-gradient(circle, #ffe27a, #f0a020); border-color: #fff; animation: pulse .5s infinite alternate; }
+  .t-gadget { position: absolute; right: calc(100% + 12px); bottom: calc(86px * var(--tsize)); width: calc(60px * var(--tsize)) !important; height: calc(60px * var(--tsize)) !important; opacity: .55; }
+  .t-gadget.ready { opacity: 1; background: radial-gradient(circle, #9be7ff, #1d7fb8); border-color: #fff; }
+  .gadget-row .pips { flex: 1; letter-spacing: 3px; color: #4cc9f0; font-size: 13px; }
+  .gadget-row.ready em { color: #4cc9f0; }
+  .gadget-row em { font-style: normal; font-weight: 800; }
   .t-up { grid-area: up; } .t-down { grid-area: down; } .t-dash { grid-area: dash; } .t-exit { grid-area: exit; } .t-repair { grid-area: repair; } .t-unstuck { grid-area: unstuck; }
   #tTop { position: absolute; top: calc(8px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); display: flex; gap: 8px; }
   .t-sm { background: rgba(16, 22, 43, .7); color: #fff; border: 2px solid rgba(255, 255, 255, .3); border-radius: 12px; padding: 6px 12px; font-size: 18px; font-weight: 800; touch-action: none; }
@@ -561,25 +566,35 @@
   .side-btn.profile { background: linear-gradient(180deg, #8794ff, #3f4bd1); }
   .side-btn.news { background: linear-gradient(180deg, #a8b4c8, #5a677d); }
   .side-btn.help { background: linear-gradient(180deg, #4fdccd, #168f84); }
+  .event-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; margin-bottom: 8px; }
+  .event-cards .feat-card { margin: 0; }
+  .week-card { background: linear-gradient(180deg, #8fd3ff, #2a7fd4) !important; }
+  .ranked-card { background: linear-gradient(180deg, #ffd27a, #c7781a) !important; }
+  .ranked-card.locked { filter: grayscale(.8); opacity: .75; }
+  .gad-opt.locked { opacity: .5; }
+  .arena-card.weekly { background: linear-gradient(180deg, #8fd3ff, #2a7fd4); }
+  .arena-card.ranked { background: linear-gradient(180deg, #ffd27a, #c7781a); }
   .side-btn.pass { background: linear-gradient(180deg, #ff8ad8, #b5179e); }
   .side-btn.clubs { background: linear-gradient(180deg, #7ee0a1, #1f8a5b); }
   /* Cog Pass */
   .pass-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
   .pass-head .ch-bar { flex: 1; min-width: 160px; }
   .pass-track { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
-  .pass-tier { position: relative; padding: 8px 6px; border-radius: 14px; background: rgba(29, 40, 88, .08); border: 2px solid rgba(29, 40, 88, .15); text-align: center; display: flex; flex-direction: column; gap: 4px; align-items: center; }
-  .pass-tier.reached { background: linear-gradient(180deg, #fff3c4, #ffd76a); border-color: #e0a800; }
+  .pass-tier { position: relative; padding: 8px 6px; border-radius: 14px; background: rgba(255, 255, 255, .07); border: 2px solid rgba(255, 255, 255, .14); text-align: center; display: flex; flex-direction: column; gap: 4px; align-items: center; }
+  .pass-tier.reached { background: linear-gradient(180deg, #fff3c4, #ffd76a); border-color: #e0a800; color: #1d2858; }
+  .pass-tier.reached .tier-n { color: #7a4b00; }
   .pass-tier.claimed { opacity: .6; }
   .pass-tier.big { border-color: #b5179e; box-shadow: 0 0 0 2px rgba(181, 23, 158, .25); }
-  .pass-tier .tier-n { font-family: 'Lilita One'; font-size: 13px; color: var(--ink); }
+  .pass-tier .tier-n { font-family: 'Lilita One'; font-size: 14px; color: #ffd76a; letter-spacing: .3px; }
   .pass-tier .tier-r { font-size: 13px; min-height: 34px; display: flex; align-items: center; justify-content: center; }
   .pass-tier .swatch { width: 44px; height: 30px; }
   /* Clubs */
-  .club-card { display: flex; gap: 10px; align-items: center; padding: 10px; border-radius: 16px; background: linear-gradient(180deg, #e9fff1, #c8f2d8); border: 2px solid #1f8a5b; margin-bottom: 8px; }
+  .club-card { display: flex; gap: 10px; align-items: center; padding: 10px; border-radius: 16px; background: linear-gradient(180deg, #2f8f62, #1b5e40); border: 2px solid #7ee0a1; margin-bottom: 8px; color: #fff; }
+  .club-card .small { color: #d8ffe8; }
   .club-badge { font-size: 40px; line-height: 1; }
-  .club-row { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 12px; background: rgba(29, 40, 88, .06); margin-bottom: 5px; }
+  .club-row { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 12px; background: rgba(255, 255, 255, .06); margin-bottom: 5px; }
   .club-row b { flex: 1; }
-  .club-chat { max-height: 150px; overflow-y: auto; font-size: 14px; padding: 6px 8px; border-radius: 12px; background: rgba(29, 40, 88, .06); margin: 6px 0; }
+  .club-chat { max-height: 150px; overflow-y: auto; font-size: 14px; padding: 6px 8px; border-radius: 12px; background: rgba(255, 255, 255, .06); margin: 6px 0; }
   .club-form { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 6px 0; }
   .club-form input, .club-form select { padding: 6px 8px; border-radius: 10px; border: 2px solid rgba(29, 40, 88, .25); font: inherit; }
   .club-tag { font-size: 12px; padding: 1px 6px; border-radius: 8px; background: #1f8a5b; color: #fff; margin-left: 4px; }
@@ -789,6 +804,7 @@
       <button id="btnChallenges" class="side-btn quests"><span>🎯</span>Challenges<i id="badgeChallenges" class="badge hidden">0</i></button>
       <button id="btnAch" class="side-btn ach"><span>🎖</span>Achievements</button>
       <button id="btnStats" class="side-btn stats"><span>📊</span>Stats</button>
+      <button id="btnHowto" class="side-btn help"><span>❓</span>Help</button>
     </div>
     <div class="lobby-side right">
       <button id="btnFriends" class="side-btn friends"><span>👥</span>Friends<i id="badgeFriends" class="badge hidden">0</i></button>
@@ -797,7 +813,6 @@
       <button id="btnRoad" class="side-btn road"><span>🛤</span>Trophy Road<i id="badgeRoad" class="badge hidden">0</i></button>
       <button id="btnProfile" class="side-btn profile"><span>👤</span>Profile</button>
       <button id="btnNews" class="side-btn news"><span>📰</span>News</button>
-      <button id="btnHowto" class="side-btn help"><span>❓</span>Help</button>
     </div>
 
     <!-- center: logo (your mech stands on display behind it) -->
@@ -1076,25 +1091,26 @@
 </div>
 
 <!-- three.js: from the CDN, or the local copy in js/vendor/ when offline (desktop build / no internet) -->
-<script src="js/vendor/three.min.js?v=11"></script>
-<script src="js/parts.js?v=11"></script>
-<script src="js/platform.js?v=11"></script>
-<script src="js/featured.js?v=11"></script>
-<script src="js/economy.js?v=11"></script>
-<script src="js/world.js?v=11"></script>
-<script src="js/entities.js?v=11"></script>
-<script src="js/meta.js?v=11"></script>
-<script src="js/extras.js?v=11"></script>
-<script src="js/modes.js?v=11"></script>
-<script src="js/tutorial.js?v=11"></script>
-<script src="js/clips.js?v=11"></script>
-<script src="js/gamepad.js?v=11"></script>
-<script src="js/workshop.js?v=11"></script>
-<script src="js/config.js?v=11"></script>
-<script src="js/net.js?v=11"></script>
-<script src="js/account.js?v=11"></script>
-<script src="js/touch.js?v=11"></script>
-<script src="js/supers.js?v=11"></script>
-<script src="js/game.js?v=11"></script>
+<script src="js/vendor/three.min.js?v=12"></script>
+<script src="js/parts.js?v=12"></script>
+<script src="js/platform.js?v=12"></script>
+<script src="js/featured.js?v=12"></script>
+<script src="js/economy.js?v=12"></script>
+<script src="js/world.js?v=12"></script>
+<script src="js/entities.js?v=12"></script>
+<script src="js/meta.js?v=12"></script>
+<script src="js/extras.js?v=12"></script>
+<script src="js/modes.js?v=12"></script>
+<script src="js/tutorial.js?v=12"></script>
+<script src="js/clips.js?v=12"></script>
+<script src="js/gamepad.js?v=12"></script>
+<script src="js/workshop.js?v=12"></script>
+<script src="js/config.js?v=12"></script>
+<script src="js/net.js?v=12"></script>
+<script src="js/account.js?v=12"></script>
+<script src="js/touch.js?v=12"></script>
+<script src="js/supers.js?v=12"></script>
+<script src="js/gadgets.js?v=12"></script>
+<script src="js/game.js?v=12"></script>
 </body>
 </html>

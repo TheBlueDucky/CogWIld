@@ -116,7 +116,8 @@
         case 'party': this.party = m.party; this.renderParty(); this.rerender(); break;
         case 'note': this.onNote(m); break;
         case 'trophies': this.onTrophies(m); break;
-        case 'top': this.top = m; this.rerender(); break;
+        case 'ranked': this.lastRanked = m; this.resultsLine(); break;
+        case 'top': if (m.kind === 'ranked') this.topRanked = m; else this.top = m; this.rerender(); break;
         case 'profile': this.viewing = m.p; if (this.game.meta.panel === 'player') this.game.meta.renderPanel(); else this.game.meta.openPanel('player'); break;
       }
     }
@@ -342,8 +343,13 @@
     resultsLine() {
       const el = $('resTrophy');
       if (!el) return;
-      const m = this.lastTro;
       const g = this.game;
+      const rk = this.lastRanked;
+      if (rk && g.state === 'results' && g.net.room && g.net.room.settings.ranked) {
+        el.innerHTML = `<span class="tro-pop ${rk.d > 0 ? 'up' : rk.d < 0 ? 'down' : ''}">🏅 ${rk.d > 0 ? '+' : ''}${rk.d} RP</span> <span class="small">${rk.rp} ranked points · ${rk.rank.icon} ${rk.rank.name}${rk.streak > 1 ? ` · 🔥 ${rk.streak} wins in a row` : ''}</span>`;
+        return;
+      }
+      const m = this.lastTro;
       if (!m || g.state !== 'results' || !g.net.room || !g.net.room.auto) { el.innerHTML = ''; return; }
       const up = m.d > 0;
       el.innerHTML = `${m.featured && up ? '<span class="tro-feat">⭐ Featured +50%</span> ' : ''}<span class="tro-pop ${up ? 'up' : m.d < 0 ? 'down' : ''}">🏆 ${up ? '+' : ''}${m.d}</span> <span class="small">${m.tro} trophies · ${CW.tier(m.tro).icon} ${CW.tier(m.tro).name}${m.streak > 1 ? ` · 🔥 ${m.streak} win streak` : ''}</span>`;
@@ -354,6 +360,7 @@
     onResults() {
       const g = this.game;
       if (!g.net.active) this.lastTro = null;
+      if (!g.net.active) this.lastRanked = null;
       this.resultsLine();
       if (!this.loggedIn && g.net.room && g.net.room.auto) $('resTrophy').innerHTML = '<span class="small">🏆 Log in to earn trophies</span>';
     }
@@ -390,6 +397,7 @@
     }
 
     // ======================= Cog Pass: 30 free tiers each 4-week season (js/economy.js) =======================
+    canRanked() { return !!this.me && (this.me.best | 0) >= CW.ECON.RANKED.unlockAt; }
     passReady() {
       const w = this.wallet;
       if (!this.loggedIn || !w) return 0;
@@ -464,7 +472,7 @@
       const t = CW.tier(p.tro);
       return `<div class="prof-card"><div class="prof-av">${CW.avatar(p.av)}</div><div class="prof-main"><div class="prof-name">${esc(p.name)}</div>
         <div class="prof-tier">${t.icon} ${t.name} · 🏆 <b>${p.tro}</b> <span class="small">(best ${p.best})</span></div>
-        <div class="small">⭐ Level ${p.lv || 1} · ${p.wins} Quick Match wins · ${p.played} played${extra || ''}</div>${p.club ? `<div class="small">🛡 Club: <b>${esc(p.club)}</b></div>` : ''}</div></div>`;
+        <div class="small">⭐ Level ${p.lv || 1} · ${p.wins} Quick Match wins · ${p.played} played${extra || ''}</div>${p.club ? `<div class="small">🛡 Club: <b>${esc(p.club)}</b></div>` : ''}${p.rp != null ? `<div class="small">🏅 Ranked: ${CW.ECON.RANKED.rank(p.rp).icon} ${CW.ECON.RANKED.rank(p.rp).name} · ${p.rp} RP</div>` : ''}</div></div>`;
     }
     // ======================= clubs =======================
     clubsPanel(body) {
@@ -616,15 +624,17 @@
         const list = this.friends.concat(this.me ? [Object.assign({}, this.me)] : []).sort((a, b) => b.tro - a.tro);
         return list.map((p, i) => this.lbRow(p, i + 1)).join('') || '<div class="small">Add friends to compare trophies!</div>';
       };
-      const tabs = `<div class="menu-btns" style="justify-content:flex-start"><button class="ws-btn ${this.lbTab === 'global' ? 'on' : ''}" data-tab="global">🌍 World</button><button class="ws-btn ${this.lbTab === 'friends' ? 'on' : ''}" data-tab="friends">👥 Friends</button><button class="ws-btn ${this.lbTab === 'clubs' ? 'on' : ''}" data-tab="clubs">🛡 Clubs</button></div>`;
+      const tabs = `<div class="menu-btns" style="justify-content:flex-start"><button class="ws-btn ${this.lbTab === 'global' ? 'on' : ''}" data-tab="global">🌍 World</button><button class="ws-btn ${this.lbTab === 'friends' ? 'on' : ''}" data-tab="friends">👥 Friends</button><button class="ws-btn ${this.lbTab === 'clubs' ? 'on' : ''}" data-tab="clubs">🛡 Clubs</button><button class="ws-btn ${this.lbTab === 'ranked' ? 'on' : ''}" data-tab="ranked">🏅 Ranked</button></div>`;
       if (this.lbTab === 'friends') body.innerHTML = tabs + (this.me ? friendsBoard() : '<div class="small">Log in to see your friends here.</div>');
       else if (this.lbTab === 'clubs') body.innerHTML = tabs + ((this.clubs || []).map((cl, i) => `<div class="fr-row lb-row"><span class="lb-rank">${['🥇', '🥈', '🥉'][i] || '#' + (i + 1)}</span><span class="av">${CW.CLUB_BADGES[cl.badge] || '🛡'}</span><b class="fr-name">${esc(cl.name)}</b><span class="small">👥 ${cl.members}</span><b class="lb-tro">🏆 ${cl.tro}</b></div>`).join('') || '<div class="small">No clubs yet.</div>');
+      else if (this.lbTab === 'ranked') { const r = this.topRanked; body.innerHTML = tabs + (!r ? '<div class="small">Loading…</div>' : `<div class="small">Season ${CW.ECON.season().id}: ${r.total} ranked players. Ranked unlocks at 🏆 ${CW.ECON.RANKED.unlockAt}.</div>` + (r.list.map((p, i) => this.lbRow(p, i + 1, true)).join('') || '<div class="small">Nobody has played Ranked this season yet.</div>')); }
       else if (!t) body.innerHTML = tabs + '<div class="small">Loading…</div>';
       else body.innerHTML = tabs + `<div class="small">${t.total} players. ${t.me ? `You are <b>#${t.me.rank}</b>.` : 'Log in to get on the board!'}</div>` + t.list.map((p, i) => this.lbRow(p, i + 1)).join('') + (t.me && t.me.rank > 50 ? '<div class="small">…</div>' + this.lbRow(t.me.card, t.me.rank) : '');
-      body.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => { this.lbTab = b.dataset.tab; if (this.lbTab === 'global') this.net.send({ t: 'top' }); if (this.lbTab === 'clubs') this.net.send({ t: 'clubList' }); this.game.meta.renderPanel(); }));
+      body.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => { this.lbTab = b.dataset.tab; if (this.lbTab === 'global') this.net.send({ t: 'top' }); if (this.lbTab === 'clubs') this.net.send({ t: 'clubList' }); if (this.lbTab === 'ranked') this.net.send({ t: 'top', kind: 'ranked' }); this.game.meta.renderPanel(); }));
       body.querySelectorAll('[data-view]').forEach((b) => (b.onclick = () => this.showPlayer(b.dataset.view, 'top')));
     }
-    lbRow(p, rank) {
+    lbRow(p, rank, ranked) {
+      if (ranked) { const rk = CW.ECON.RANKED.rank(p.rp); return `<div class="fr-row lb-row ${this.me && p.name === this.me.name ? 'me' : ''}"><span class="lb-rank">${['🥇', '🥈', '🥉'][rank - 1] || '#' + rank}</span><span class="av">${CW.avatar(p.av)}</span><b class="fr-name" data-view="${esc(p.name)}">${esc(p.name)}</b><span class="small">${rk.icon} ${rk.name}</span><b class="lb-tro">🏅 ${p.rp}</b></div>`; }
       const me = this.me && p.name === this.me.name;
       const medal = ['🥇', '🥈', '🥉'][rank - 1] || '#' + rank;
       return `<div class="fr-row lb-row ${me ? 'me' : ''}"><span class="lb-rank">${medal}</span><span class="av">${CW.avatar(p.av)}</span><b class="fr-name" data-view="${esc(p.name)}">${esc(p.name)}${p.club ? `<span class="club-tag">${esc(p.club)}</span>` : ''}</b><span class="small">${CW.tier(p.tro).icon} ⭐${p.lv || 1}</span><b class="lb-tro">🏆 ${p.tro}</b></div>`;

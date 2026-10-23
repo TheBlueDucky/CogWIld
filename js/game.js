@@ -27,6 +27,7 @@
     koth: { name: 'King of the Hill', icon: '👑', sub: 'Hold the zone · respawns on', color: '#ffd23f', objective: 'koth', respawn: true, timeLimit: 240, scoreToWin: 100, formats: FOUR, desc: 'Stand in the glowing zone to score. It moves every minute. Wrecked? You respawn in 4 seconds.' },
     gold: { name: 'Gold Rush', icon: '💰', sub: 'Grab the most gold · respawns on', color: '#f4a261', objective: 'gold', respawn: true, timeLimit: 180, scoreToWin: 40, formats: FOUR, desc: 'Collect gold nuggets all over the map. Wreck enemies and they spill half their gold. Richest team wins.' },
     race: { name: 'Combat Race', icon: '🏁', sub: '2 laps · weapons on', color: '#4cc9f0', objective: 'race', respawn: true, respawnDelay: 2.5, timeLimit: 300, laps: 2, formats: ['race'], desc: 'Fly, drive or swim through 8 checkpoints, twice. Shoot your rivals off course. Fast designs win!' },
+    bounty: { name: 'Bounty Hunt', icon: '🎯', sub: 'Wrecks win stars · respawns on', color: '#ff4d6d', objective: 'bounty', respawn: true, timeLimit: 150, scoreToWin: 30, formats: FOUR, desc: 'Wreck enemies to win the stars on their head. Every wreck in a row makes YOUR bounty bigger, and being wrecked resets it. Most stars wins!' },
     survival: { name: 'Survival', icon: '🛡', sub: 'Endless waves · bring your mech', color: '#e63946', fromScratch: false, survival: true, formats: ['solo', 'squad'], desc: 'Endless waves of bots that get bigger and meaner. Your mech is rebuilt between waves. How far can you get?' },
     boss: { name: 'Boss Battle', icon: '👹', sub: 'Take down the giant Titan', color: '#9d0208', objective: 'boss', respawn: true, respawnDelay: 5, lives: 3, timeLimit: 360, formats: ['solo', 'squad'], desc: 'A giant armored Titan and its minions. You get 3 lives each. Break its core before time runs out!' },
   };
@@ -43,7 +44,7 @@
   const COOP = ['solo', 'squad'];
   CW.MODES = MODES; CW.FORMATS = FORMATS; CW.TEAMS = TEAMS;
   // what PLAY plays in each mode (the server uses the same table)
-  CW.MM_FORMAT = { clash: 'ffa', rush: 'ffa', koth: 'squads', gold: 'squads', race: 'race', boss: 'squad', survival: 'squad' };
+  CW.MM_FORMAT = { clash: 'ffa', rush: 'ffa', koth: 'squads', gold: 'squads', bounty: 'squads', race: 'race', boss: 'squad', survival: 'squad' };
 
   // ---------------- tiny synth audio ----------------
   class Audio {
@@ -196,6 +197,7 @@
       this.account = new CW.Account(this);
       this.touch = new CW.Touch(this);
       this.supers = new CW.Supers(this);
+      this.gadgets = new CW.Gadgets(this);
       this.bindInput();
       this.bindMenus();
       this.bindShowcase();
@@ -458,13 +460,16 @@
     renderArenaCard() {
       const a = this.arenaInfo(this.arenaChoice());
       const m = MODES[this.modeChoice()];
-      $('acIcon').textContent = m.icon;
-      $('acMode').textContent = m.name;
-      $('acName').textContent = `${a.icon} ${a.name}`;
+      const kind = this.settings.mmEvent, w = CW.ECON.week();
+      $('acIcon').textContent = kind === 'weekly' ? w.icon : kind === 'ranked' ? '🏅' : m.icon;
+      $('acMode').textContent = kind === 'weekly' ? w.name : kind === 'ranked' ? 'Ranked' : m.name;
+      $('acName').textContent = kind === 'weekly' ? `${MODES[w.mode].icon} ${MODES[w.mode].name} · ${w.desc}` : kind === 'ranked' ? '3v3 · random mode and arena' : `${a.icon} ${a.name}`;
+      $('arenaCard').classList.toggle('weekly', kind === 'weekly');
+      $('arenaCard').classList.toggle('ranked', kind === 'ranked');
       // the featured chip above PLAY, and a badge when your pick is today's featured event
       const f = CW.FEATURED.today(), fm = MODES[f.mode], fa = CW.ARENAS[f.arena];
       $('featChip').innerHTML = `<b>⭐ Featured today</b><span>${fm.icon} ${fm.name} · ${fa.icon} ${fa.name}</span><small>${CW.FEATURED.COIN_MULT}× coins · +50% trophies · ends in ${this.featuredLeft()}</small>`;
-      const on = f.mode === this.modeChoice() && f.arena === this.arenaChoice();
+      const on = !kind && f.mode === this.modeChoice() && f.arena === this.arenaChoice();
       $('arenaCard').classList.toggle('featured', on);
       $('featChip').classList.toggle('on', on);
     }
@@ -472,10 +477,23 @@
       this.audio.ensure();
       // your mech must fit your rank; otherwise you pick one first (examples always fit)
       if (!CW.validate(this.currentBp.parts, this.allowedDomains()).ok && !this.net.mechChoices().some((e) => e.ok)) return this.showPicker();
+      const kind = this.settings.mmEvent;
+      if (kind === 'weekly') return this.net.matchmake(CW.ECON.week().mode, 'random', 'weekly');
+      if (kind === 'ranked') {
+        if (!this.account.canRanked()) { this.settings.mmEvent = null; this.saveProfile(); this.renderArenaCard(); return this.toast(`🏅 Ranked unlocks at ${CW.ECON.RANKED.unlockAt} trophies`); }
+        return this.net.matchmake('koth', 'random', 'ranked');
+      }
       this.net.matchmake(this.modeChoice(), this.arenaChoice());
     }
+    // the next match's twist (weekly event modifiers), used once by beginMatchState
+    setEvent(id) {
+      const w = id && CW.ECON.WEEKLY.find((x) => x.id === id);
+      this.nextWeekly = w ? w.id : null;
+      this.nextMods = w ? w.mods : null;
+    }
     // no internet: the same match against bots on this device
-    playOffline(mode, arena) {
+    playOffline(mode, arena, kind) {
+      this.setEvent(kind === 'weekly' ? CW.ECON.week().id : null);
       this.modeId = mode;
       this.formatId = CW.MM_FORMAT[mode];
       this.forceArena = arena;
@@ -668,6 +686,7 @@
       this.netSeq = 0;
       this.fx.clear();
       this.supers.clear();
+      this.gadgets.clear();
       this.pickups.clear();
       this.chests.clear();
       $('tags').innerHTML = '';
@@ -690,6 +709,9 @@
     beginMatchState() {
       this.hideAll();
       this.endMatch();
+      this.mods = this.nextMods || {};
+      this.weeklyId = this.nextWeekly || null;
+      this.nextMods = this.nextWeekly = null;
       // online: the host already picked the arena and time, so every game builds the same one
       const no = this.net.active ? this.netOpts : null;
       const ar = no ? no.arena : this.forceArena || this.settings.arena || 'random';
@@ -1086,6 +1108,7 @@
       const out = [];
       for (const o of this.combatants) {
         if (o.team === c.team || !o.alive) continue;
+        if (!c.isPlayer && !c.human && this.gadgets.hidden(o)) continue; // bots can't see into smoke
         if (o.mech && o.mech.alive) out.push({ c: o, pos: o.mech.pos, vel: o.mech.vel, mech: o.mech, r: o.mech.radius });
         if (o.pilot && o.pilot.alive) out.push({ c: o, pos: o.pilot.center.clone(), vel: o.pilot.vel, pilot: o.pilot, r: 1 });
       }
@@ -1136,6 +1159,7 @@
         this.lastMechYaw = m.yaw;
         if (ePressed && !locked) this.exitMech(c);
         if (this.pressed.KeyX && !locked) this.supers.activate(c);
+        if (this.pressed.KeyG && !locked) this.gadgets.use(c);
         // stuck detection: trying to move but not getting anywhere (or sitting in liquid without water parts)
         const hs = Math.hypot(m.vel.x, m.vel.z);
         const helpless = m.medium === 'water' && m.swim === 0 && m.buoy < m.mass * 0.65;
@@ -1984,9 +2008,10 @@
           ${m.overcharge > 0 || m.turbo > 0 ? `<div class="buffs">${m.overcharge > 0 ? `<span class="buff oc">⚡ Overcharge ${Math.ceil(m.overcharge)}s</span>` : ''}${m.turbo > 0 ? `<span class="buff tb">💨 Turbo ${Math.ceil(m.turbo)}s</span>` : ''}</div>` : ''}
           <div class="st-row"><span>Dash ⇧</span><div class="bar"><i style="width:${m.dashCd > 0 ? (1 - m.dashCd / (m.dashMax || 1)) * 100 : 100}%;background:${m.dashCd > 0 ? '#8d99ae' : '#ff9f1c'}"></i></div><em class="dash-ready">${m.dashCd > 0 ? m.dashCd.toFixed(1) + 's' : 'READY'}</em></div>
           ${(() => { const sp = CW.SUPERS[this.supers.type(p)], k = p.superCharge || 0; return `<div class="st-row super-row ${k >= 1 ? 'ready' : ''}"><span>${sp.icon} Super</span><div class="bar"><i style="width:${k * 100}%"></i></div><em>${k >= 1 ? (this.touch.on ? 'TAP ⭐' : 'X / RMB') : Math.floor(k * 100) + '%'}</em></div>`; })()}
+          ${(() => { const gd = CW.GADGETS[this.gadgets.type(p)], n = this.gadgets.left(p), cd = p.gadgetCd || 0; return `<div class="st-row gadget-row ${n > 0 && cd <= 0 ? 'ready' : ''}"><span>${gd.icon} Gadget</span><div class="pips">${'●'.repeat(n)}${'○'.repeat(Math.max(0, 3 - n))}</div><em>${n <= 0 ? 'used up' : cd > 0 ? cd.toFixed(1) + 's' : this.touch.on ? 'TAP 🧰' : 'G'}</em></div>`; })()}
           ${m.empT > 0 ? '<div class="buffs"><span class="buff emp">⚡ JAMMED by EMP</span></div>' : ''}
           <div class="st-foot"><span>${Math.round(Math.hypot(m.vel.x, m.vel.z) * 3.6)} km/h</span><span>Alt ${Math.round(m.pos.y - m.baseOff)}</span><span class="${m.pr < 1 ? 'bad' : ''}">⚡ ${Math.round(m.pr * 100)}%</span><span>Parts ${m.parts.filter((q) => q.alive).length}/${m.totalParts}</span>${dom}</div>`;
-        $('hint').textContent = 'W/S drive · A/D turn · Mouse look & aim · Click fire · Shift DASH · X / right-click SUPER · Space up/jump · C down · V camera · E exit · Esc menu' + (this.modeId === 'test' ? ' · T back to Workshop' : '');
+        $('hint').textContent = 'W/S drive · A/D turn · Mouse look & aim · Click fire · Shift DASH · X / right-click SUPER · G GADGET · Space up/jump · C down · V camera · E exit · Esc menu' + (this.modeId === 'test' ? ' · T back to Workshop' : '');
       } else if (p.pilot && p.pilot.alive) {
         const pl = p.pilot;
         const ownAlive = p.mech && p.mech.alive;
@@ -2346,6 +2371,7 @@
       this.gamepad.update(dt);
       this.touch.update();
       this.supers.update(dt);
+      this.gadgets.update(dt);
       if (this.state !== this._musicState) { this._musicState = this.state; this.updateMusic(); }
       if (this.state === 'workshop') {
         this.workshop.update(dt);
