@@ -620,6 +620,30 @@
       try { navigator.vibrate(ms); } catch (e) { /* not allowed here */ }
     }
     // ---------------- input ----------------
+    // touch screens: an enemy near your crosshair (and in sight) gently pulls your aim onto it,
+    // harder while you're firing; nothing happens if no one is close to where you look
+    aimAssist(dt) {
+      const c = this.player;
+      const from = this.cam.pos;
+      if (!c || !c.alive || !from) return;
+      const cp = Math.cos(this.cam.pitch);
+      const dir = new V3(-Math.sin(this.cam.yaw) * cp, Math.sin(this.cam.pitch), -Math.cos(this.cam.yaw) * cp);
+      let best = null, bestA = Infinity;
+      for (const e of this.enemiesOf(c)) {
+        const to = (e.mech ? e.pos.clone().setY(e.pos.y + 0.6) : e.pos.clone()).sub(from);
+        const d = to.length();
+        if (d < 3 || d > 140) continue;
+        const a = Math.acos(clamp(to.dot(dir) / d, -1, 1));
+        const max = Math.max(0.12, Math.atan(((e.r || 1.5) * 2.2) / d)); // a bit more than the target's size
+        if (a < max && a / max < bestA && this.los(from, from.clone().add(to))) { bestA = a / max; best = to.normalize(); }
+      }
+      if (!best) return;
+      const k = Math.min(1, dt * (this.mouse.left ? 6 : 2.5)) * (1 - bestA * 0.6);
+      const wantYaw = Math.atan2(-best.x, -best.z), wantPitch = Math.asin(clamp(best.y, -1, 1));
+      this.cam.yaw += wrap(wantYaw - this.cam.yaw) * k;
+      this.cam.pitch += (clamp(wantPitch, -1.2, 0.85) - this.cam.pitch) * k;
+    }
+
     // the top-most thing Esc can close: a pop-up, the login box, a panel, the mech picker, the online screen
     closeTop() {
       const open = (id) => $(id) && !$(id).classList.contains('hidden');
@@ -1159,6 +1183,7 @@
       this.cam.pitch = clamp(this.cam.pitch - this.mouse.dy * sens * (this.settings.invertY ? -1 : 1), -1.2, 0.85);
       this.mouse.dx = this.mouse.dy = 0;
       if (this.spectator) return;
+      if (this.touch.on && this.settings.aimAssist !== false && !locked) this.aimAssist(dt);
       const ePressed = this.pressed.KeyE;
       if (c.mech && c.mech.alive && c.mech.occupied) {
         const m = c.mech;

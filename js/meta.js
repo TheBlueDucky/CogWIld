@@ -33,7 +33,7 @@
 
   const DEFAULT_SETTINGS = {
     graphics: 'auto', showFps: false, tutorialDone: false, clips: true, arena: 'random', timeOfDay: 'random', difficulty: 'normal', music: true, sens: 1, fov: 80, invertY: false, camMode: 'first', autoSteer: true, shake: true, dmgNumbers: true, volume: 0.6,
-    musicVol: 1, keys: {}, touch: 'auto', touchSize: 1, vibrate: true, friendOnline: true, otherChat: true,
+    musicVol: 1, keys: {}, touch: 'auto', touchSize: 1, vibrate: true, aimAssist: true, friendOnline: true, otherChat: true,
   };
   // keys you can change in Settings (Esc always pauses); def is the key the game reads internally
   CW.KEY_ACTIONS = [
@@ -308,6 +308,7 @@
           <label class="set-row"><span>On-screen controls</span><select id="setTouch"><option value="auto">Auto (on for touch screens)</option><option value="on">Always on</option><option value="off">Off</option></select></label>
           <label class="set-row"><span>Button size <b id="setTouchSizeV"></b></span><input type="range" id="setTouchSize" min="0.7" max="1.5" step="0.05"></label>
           <label class="set-row chk"><input type="checkbox" id="setVibrate"><span>Vibration (phones and tablets)</span></label>
+          <label class="set-row chk"><input type="checkbox" id="setAimAssist"><span>Aim assist (touch: your aim is gently pulled onto enemies near the crosshair)</span></label>
           <h3>🔊 Sound</h3>
           <label class="set-row"><span>Volume <b id="setVolV"></b></span><input type="range" id="setVol" min="0" max="1" step="0.05"></label>
           <label class="set-row chk"><input type="checkbox" id="setMusic"><span>Music</span></label>
@@ -368,6 +369,7 @@
         bindChk('setFriendOn', 'friendOnline');
         bindChk('setChat', 'otherChat');
         bindChk('setVibrate', 'vibrate');
+        bindChk('setAimAssist', 'aimAssist');
         bindChk('setMusic', 'music');
         bindChk('setFps', 'showFps');
         bindChk('setClips', 'clips');
@@ -392,6 +394,7 @@
         body.innerHTML = `<div class="small">${n} / ${CW.ACHIEVEMENTS.length} unlocked. Each one pays coins.</div><div class="ach-grid">${CW.ACHIEVEMENTS.map((a) => `<div class="ach ${got[a.id] ? 'got' : ''}"><b>${got[a.id] ? '🏆' : '🔒'} ${a.name}</b><span class="small">${a.desc}</span><div class="small">+${a.reward} 🪙</div></div>`).join('')}</div>`;
       } else if (k === 'news') {
         body.innerHTML = `<ul class="news">
+          <li><b>v1.6.2</b>: 📱 Phones: new button layout (fire, super, gadget and dash for your right thumb, up and down next to the stick, the rest in the bottom row), hold 🚪 to get out of your mech, aim assist (Settings), and the lobby and party card fit small screens. Mechs no longer pop onto walls, the camera stays out of walls, and Esc closes the Workshop.</li>
           <li><b>v1.6.1</b>: Sign up asks for your email (one account per email), a password twice and a username, all in one step.</li>
           <li><b>v1.6</b>: 👁 Watch your friends' matches from the Friends list (they see who's watching).</li>
           <li>🎉 Your party's mechs stand next to yours in the lobby, and while you wait for a match the players who join drop in on the stage.</li>

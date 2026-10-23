@@ -14,6 +14,10 @@
     ['fire', '💥', null, true], ['dash', '💨', 'ShiftLeft', false], ['up', '⬆', 'Space', true], ['down', '⬇', 'KeyC', true],
     ['exit', '🚪', 'KeyE', false], ['repair', '🔧', 'KeyR', true], ['unstuck', '🆘', 'KeyF', false], ['super', '⭐', 'KeyX', false], ['gadget', '🧰', 'KeyG', false],
   ];
+  // where they go: the right thumb's arc (aim + fire), the left thumb (up/down above the stick), and the
+  // rarely-needed ones in the bottom-middle row, away from both thumbs (Exit needs a short hold)
+  const ARC = ['fire', 'super', 'gadget', 'dash'], LEFT = ['up', 'down'], AUX = ['exit', 'repair', 'unstuck'];
+  const HOLD_EXIT = 0.45; // seconds
   const SMALL = [['pause', '⏸'], ['cam', '🎥'], ['scores', '📋'], ['chat', '💬']];
 
   class Touch {
@@ -37,13 +41,15 @@
     }
 
     build() {
+      const btn = (ids, extra) => ids.map((id) => BUTTONS.find((b) => b[0] === id)).map(([id, label]) => `<button class="t-btn t-${id} ${extra || ''}" data-t="${id}" ${id === 'exit' ? 'title="Hold to get out"' : ''}>${label}</button>`).join('');
       const root = document.createElement('div');
       root.id = 'touch';
       root.className = 'hidden';
       root.innerHTML = `<div id="tLook"></div>
         <div id="tStick"><div id="tKnob"></div></div>
-        <div id="tBtns">${BUTTONS.map(([id, label]) => `<button class="t-btn t-${id}" data-t="${id}">${label}</button>`).join('')}</div>
-        <div id="tTop">${SMALL.map(([id, label]) => `<button class="t-sm" data-t="${id}">${label}</button>`).join('')}</div>
+        <div id="tBtns">${btn(ARC)}</div>
+        <div id="tLeft">${btn(LEFT)}</div>
+        <div id="tTop">${btn(AUX, 't-sm')}${SMALL.map(([id, label]) => `<button class="t-sm" data-t="${id}">${label}</button>`).join('')}</div>
         <div id="tChat" class="hidden">${CW.QUICK_CHAT.map((c, i) => `<button class="t-sm" data-chat="${i}">${c}</button>`).join('')}</div>`;
       $('app').appendChild(root);
       this.root = root;
@@ -76,12 +82,24 @@
           capture(b, e);
           b.classList.add('down');
           g.audio.ensure();
+          // getting out of your mech by accident is the worst: Exit fires only after a short hold
+          if (id === 'exit') {
+            b.classList.add('holding');
+            clearTimeout(this.exitT);
+            this.exitT = setTimeout(() => { if (b.classList.contains('holding')) { b.classList.remove('holding'); this.press(id, def, true); g.buzz(25); } }, HOLD_EXIT * 1000);
+            return;
+          }
           this.press(id, def, true);
           // the fire button also aims: drag it to look while shooting
           if (id === 'fire') this.looks.set(e.pointerId, { x: e.clientX, y: e.clientY });
         });
         b.addEventListener('pointermove', (e) => { if (id === 'fire') this.lookMove(e); });
-        const up = (e) => { b.classList.remove('down'); this.press(id, def, false); this.looks.delete(e.pointerId); };
+        const up = (e) => {
+          if (id === 'exit' && b.classList.contains('holding')) { b.classList.remove('holding'); clearTimeout(this.exitT); g.toast('Hold 🚪 to get out of your mech'); }
+          b.classList.remove('down');
+          this.press(id, def, false);
+          this.looks.delete(e.pointerId);
+        };
         b.addEventListener('pointerup', up);
         b.addEventListener('pointercancel', up);
       });

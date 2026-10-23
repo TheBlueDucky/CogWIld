@@ -479,7 +479,6 @@
   .gadget-row .pips { flex: 1; letter-spacing: 3px; color: #4cc9f0; font-size: 13px; }
   .gadget-row.ready em { color: #4cc9f0; }
   .gadget-row em { font-style: normal; font-weight: 800; }
-  .t-up { grid-area: up; } .t-down { grid-area: down; } .t-dash { grid-area: dash; } .t-exit { grid-area: exit; } .t-repair { grid-area: repair; } .t-unstuck { grid-area: unstuck; }
   #tTop { position: absolute; top: calc(8px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); display: flex; gap: 8px; }
   .t-sm { background: rgba(16, 22, 43, .7); color: #fff; border: 2px solid rgba(255, 255, 255, .3); border-radius: 12px; padding: 6px 12px; font-size: 18px; font-weight: 800; touch-action: none; }
   #tChat { position: absolute; top: 56px; left: 50%; transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; width: min(520px, 90vw); }
@@ -898,6 +897,42 @@
   .t-btn.down { background: rgba(92, 225, 255, .3) !important; border-color: var(--hl) !important; }
   .t-super.ready { background: radial-gradient(circle, rgba(92, 225, 255, .75), rgba(21, 151, 181, .85)) !important; border-color: #fff !important; }
   .t-gadget.ready { background: rgba(92, 225, 255, .35) !important; border-color: var(--hl) !important; }
+  /* phones sideways: the bottom-left stack stays short so it never covers the side buttons */
+  .compact .lb-left { width: 230px !important; gap: 5px !important; }
+  .compact .party-bar { padding: 4px 8px !important; }
+  .compact .party-bar .small, .compact .party-m small { display: none; }
+  .compact .pt-head { font-size: 12px; }
+  .compact .party-row { margin: 2px 0 0 !important; gap: 4px !important; }
+  .compact .party-m { min-width: 0 !important; padding: 1px 5px !important; font-size: 17px !important; }
+  .compact .pass-bar { padding: 3px 8px; }
+  .compact .pass-bar .pb-ico { font-size: 16px; }
+  .compact .pass-bar b { font-size: 12px; }
+  .compact .quests-card { padding: 4px 8px !important; }
+  .compact .quests-card h3 { display: none; }
+  .compact .quests-card .ch-bar, .compact .quests-card .ch-meta { display: none; }
+  .compact .quests-card .ch-text { font-size: 12px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .compact .lb-left:has(.party-bar:not(.hidden)) .quests-card { display: none; }
+  .compact #notes { right: auto; left: 50%; transform: translateX(-50%); top: 50px; width: min(300px, 44vw); }
+  .compact .note { font-size: 13px; padding: 6px 10px; }
+  /* phone controls: an arc for the right thumb, up/down for the left thumb, the rest in the middle row */
+  #tBtns { display: block !important; width: 0; height: 0; right: calc(16px + env(safe-area-inset-right)) !important; bottom: 16px !important; }
+  #tBtns .t-btn { position: absolute; border-radius: 50% !important; }
+  #tBtns .t-fire { right: 0; bottom: 0; width: calc(84px * var(--tsize)) !important; height: calc(84px * var(--tsize)) !important; font-size: calc(34px * var(--tsize)); background: rgba(255, 93, 93, .38) !important; border-color: rgba(255, 140, 140, .6) !important; }
+  #tBtns .t-super { right: calc(96px * var(--tsize)); bottom: calc(2px * var(--tsize)); width: calc(64px * var(--tsize)) !important; height: calc(64px * var(--tsize)) !important; }
+  #tBtns .t-gadget { right: calc(84px * var(--tsize)); bottom: calc(80px * var(--tsize)); width: calc(52px * var(--tsize)) !important; height: calc(52px * var(--tsize)) !important; font-size: calc(22px * var(--tsize)); }
+  #tBtns .t-dash { right: calc(10px * var(--tsize)); bottom: calc(96px * var(--tsize)); width: calc(58px * var(--tsize)) !important; height: calc(58px * var(--tsize)) !important; }
+  #tLeft { position: absolute; left: calc(36px + 150px * var(--tsize) + env(safe-area-inset-left)); bottom: 24px; display: flex; flex-direction: column; gap: 10px; }
+  /* a smaller status card on phones (the essentials only) */
+  .touch-ui #status { width: min(250px, 32vw) !important; padding: 6px 8px !important; font-size: 11px; }
+  .touch-ui #status .st-foot, .touch-ui #status .buffs { display: none; }
+  .touch-ui #status .st-row { margin: 1px 0; }
+  .touch-ui #status .st-head b { font-size: 14px !important; }
+  #tLeft .t-btn { width: calc(52px * var(--tsize)) !important; height: calc(52px * var(--tsize)) !important; font-size: calc(22px * var(--tsize)); }
+  #tTop .t-btn.t-sm { width: auto !important; height: auto !important; border-radius: 10px !important; padding: 5px 10px; font-size: 17px; }
+  #tTop { gap: 6px !important; }
+  .t-exit.holding { animation: holdExit .45s linear forwards; }
+  @keyframes holdExit { from { box-shadow: inset 0 0 0 0 rgba(92, 225, 255, .7); } to { box-shadow: inset 0 0 0 30px rgba(92, 225, 255, .7); } }
+  .t-sm { background: rgba(14, 20, 42, .45) !important; border: 1px solid rgba(255, 255, 255, .2) !important; }
   /* everything you can click shows a cyan outline on hover (PLAY and touch buttons excepted) */
   button:not(:disabled):not(.play-btn):not(.t-btn):hover, .quests-card:hover, a.btn:hover, label.set-row:has(input[type=checkbox]):hover { outline: 2px solid var(--hl) !important; outline-offset: -1px; }
   /* the daily gift: a small row that sits on the Shop's background */
@@ -945,7 +980,7 @@
   .res-chest { background: rgba(255, 255, 255, .05) !important; border: 1px solid rgba(92, 225, 255, .45) !important; box-shadow: none !important; }
   /* phones: keyboard hints off, the feed under the status card, a smaller top line */
   .touch-ui #camBadge, .touch-ui #recDot, .touch-ui #netInfo .kb { display: none !important; }
-  .touch-ui #feed { top: auto; bottom: calc(190px * var(--tsize, 1)); left: 12px; max-width: 38vw; font-size: 12px; }
+  .touch-ui #feed { top: 46px; bottom: auto; left: 50%; transform: translateX(-50%); align-items: center; max-width: 40vw; font-size: 12px; pointer-events: none; }
   .touch-ui #topInfo { font-size: 13px !important; padding: 4px 10px; max-width: 46vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .mode-opt.on { outline: none !important; transform: none !important; }
   .acct-row { display: flex; gap: 8px; margin: 8px 0; }
@@ -1356,26 +1391,26 @@
 </div>
 
 <!-- three.js: from the CDN, or the local copy in js/vendor/ when offline (desktop build / no internet) -->
-<script src="js/vendor/three.min.js?v=16"></script>
-<script src="js/economy.js?v=16"></script>
-<script src="js/parts.js?v=16"></script>
-<script src="js/platform.js?v=16"></script>
-<script src="js/featured.js?v=16"></script>
-<script src="js/world.js?v=16"></script>
-<script src="js/entities.js?v=16"></script>
-<script src="js/meta.js?v=16"></script>
-<script src="js/extras.js?v=16"></script>
-<script src="js/modes.js?v=16"></script>
-<script src="js/tutorial.js?v=16"></script>
-<script src="js/clips.js?v=16"></script>
-<script src="js/gamepad.js?v=16"></script>
-<script src="js/workshop.js?v=16"></script>
-<script src="js/config.js?v=16"></script>
-<script src="js/net.js?v=16"></script>
-<script src="js/account.js?v=16"></script>
-<script src="js/touch.js?v=16"></script>
-<script src="js/supers.js?v=16"></script>
-<script src="js/gadgets.js?v=16"></script>
-<script src="js/game.js?v=16"></script>
+<script src="js/vendor/three.min.js?v=17"></script>
+<script src="js/economy.js?v=17"></script>
+<script src="js/parts.js?v=17"></script>
+<script src="js/platform.js?v=17"></script>
+<script src="js/featured.js?v=17"></script>
+<script src="js/world.js?v=17"></script>
+<script src="js/entities.js?v=17"></script>
+<script src="js/meta.js?v=17"></script>
+<script src="js/extras.js?v=17"></script>
+<script src="js/modes.js?v=17"></script>
+<script src="js/tutorial.js?v=17"></script>
+<script src="js/clips.js?v=17"></script>
+<script src="js/gamepad.js?v=17"></script>
+<script src="js/workshop.js?v=17"></script>
+<script src="js/config.js?v=17"></script>
+<script src="js/net.js?v=17"></script>
+<script src="js/account.js?v=17"></script>
+<script src="js/touch.js?v=17"></script>
+<script src="js/supers.js?v=17"></script>
+<script src="js/gadgets.js?v=17"></script>
+<script src="js/game.js?v=17"></script>
 </body>
 </html>
