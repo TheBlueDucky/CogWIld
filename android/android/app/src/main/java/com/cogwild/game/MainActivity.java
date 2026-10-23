@@ -38,6 +38,7 @@ public class MainActivity extends BridgeActivity {
             }
             // voice chat on: sound from the loudspeaker (or the headphones/earbuds plugged in), not the quiet earpiece
             @JavascriptInterface
+            @SuppressWarnings("deprecation") // setSpeakerphoneOn still works everywhere and is the simplest switch
             public void setVoiceAudio(boolean on) {
                 runOnUiThread(() -> {
                     AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
