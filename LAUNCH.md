@@ -9,9 +9,9 @@ The game, server, website, apps and store texts are ready. What's left below nee
 |---|---|---|
 | Website (play in browser, installable) | https://cogwild.duckdns.org | `deploy\upload.ps1` (see deploy/README.md) |
 | Download page | https://cogwild.duckdns.org/download | `build-apps.ps1 -Upload ...` |
-| Windows installer + portable | `dist\downloads\Cogwild-Setup-1.4.0.exe`, `Cogwild-1.4.0-portable.exe` | `build-apps.ps1` |
-| Android (sideload) | `dist\downloads\Cogwild-1.4.0.apk` (release-signed) | `build-apps.ps1` |
-| Google Play | `dist\store\Cogwild-1.4.0.aab` | `build-apps.ps1` |
+| Windows installer + portable | `dist\downloads\Cogwild-Setup-1.5.0.exe`, `Cogwild-1.5.0-portable.exe` | `build-apps.ps1` |
+| Android (sideload) | `dist\downloads\Cogwild-1.5.0.apk` (release-signed) | `build-apps.ps1` |
+| Google Play | `dist\store\Cogwild-1.5.0.aab` | `build-apps.ps1` |
 | itch.io / CrazyGames / Poki | `dist\cogwild-itch.zip`, `cogwild-crazygames.zip`, `cogwild-poki.zip` | `build-itch.ps1 -Portal all` |
 | Store texts, ratings, data safety | [STORE_PAGE.md](STORE_PAGE.md) | |
 | Screenshots + share image | `dist\store\screenshots\`, `img\og-image.png` | `cd desktop; node copy-game.js; npx electron shots.js` |
@@ -29,13 +29,13 @@ The game, server, website, apps and store texts are ready. What's left below nee
 
 ## 1. itch.io (free, fastest)
 - [ ] Create a project → Kind **HTML** → upload `dist\cogwild-itch.zip` → tick **"played in the browser"**, viewport **1280×720**, **fullscreen button** and **mobile friendly** (landscape).
-- [ ] Also upload `Cogwild-Setup-1.4.0.exe` (Windows) and `Cogwild-1.4.0.apk` (Android) as downloads.
+- [ ] Also upload `Cogwild-Setup-1.5.0.exe` (Windows) and `Cogwild-1.5.0.apk` (Android) as downloads.
 - [ ] Texts from STORE_PAGE.md, the 6 screenshots, cover image 630×500 (crop one screenshot).
 - [ ] Price: $0 or "name your price".
 
 ## 2. Google Play (Android)
 - [ ] Google Play Console account: **$25 once**. New personal accounts must run a **closed test with at least 12 testers for 14 days** before going public. Start that early!
-- [ ] Create the app → upload `dist\store\Cogwild-1.4.0.aab` → turn on **Play App Signing** (default).
+- [ ] Create the app → upload `dist\store\Cogwild-1.5.0.aab` → turn on **Play App Signing** (default).
 - [ ] Store listing: title, short and long description, icon `img\icon-512.png`, feature graphic **1024×500** (crop `img\og-image.png`), at least 2 phone screenshots (the 16:9 screenshots work).
 - [ ] App content: privacy policy URL, **Data safety** and **content rating** answers (STORE_PAGE.md), target audience (choose 13+ or "all ages"; if you include under-13s, Google's Families policy applies), ads: **no**, account deletion URL `https://cogwild.duckdns.org/privacy.html#deleting`.
 - [ ] For each update: raise `versionCode` (+1) and `versionName` in `android\android\app\build.gradle`.
@@ -64,3 +64,22 @@ The game, server, website, apps and store texts are ready. What's left below nee
 - [ ] A **Discord** with channels for blueprints (share codes!), bugs and weekly build challenges. Add its invite to the itch.io page.
 - [ ] Post on r/WebGames, r/indiegames, r/IndieDev, r/playmygame.
 - [ ] Send the link to small YouTubers/streamers (1k-50k subscribers) who play building or mech games.
+
+
+## Turn on email login (v1.5+)
+
+The game asks everyone to log in with an email code (or Google) as soon as the server can send emails.
+Until then it keeps working as before (guests + username/password).
+
+1. Pick a way to send email:
+   - **Gmail**: turn on 2-Step Verification, then create an *App password* (Google Account > Security > App passwords).
+     Host `smtp.gmail.com`, port `465`, user = your Gmail address, password = the 16-letter app password.
+   - Any other SMTP service (Outlook `smtp-mail.outlook.com` port 587, Brevo, Zoho...).
+2. Optional, for the **Continue with Google** button: Google Cloud Console > APIs & Services > Credentials >
+   Create credentials > OAuth client ID > *Web application*, Authorized JavaScript origins `https://cogwild.duckdns.org`.
+   Copy the Client ID. (Google sign-in works on the website; the apps use the email code.)
+3. Run, and answer the questions (the password is only typed into your own terminal):
+
+       powershell -ExecutionPolicy Bypass -File deploy\set-login.ps1 -Ip 150.136.43.207 -Key C:\path\to\ssh-key.key
+
+Game portals (itch.io, CrazyGames, Poki) never force a login: their rules don't allow it.

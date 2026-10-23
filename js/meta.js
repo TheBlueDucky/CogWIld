@@ -386,6 +386,10 @@
         body.innerHTML = `<div class="small">${n} / ${CW.ACHIEVEMENTS.length} unlocked. Each one pays coins.</div><div class="ach-grid">${CW.ACHIEVEMENTS.map((a) => `<div class="ach ${got[a.id] ? 'got' : ''}"><b>${got[a.id] ? '🏆' : '🔒'} ${a.name}</b><span class="small">${a.desc}</span><div class="small">+${a.reward} 🪙</div></div>`).join('')}</div>`;
       } else if (k === 'news') {
         body.innerHTML = `<ul class="news">
+          <li><b>v1.5</b>: 📧 Log in with your email (a 6-digit code) or with Google. Old username and password accounts still work and can add an email in Profile.</li>
+          <li>🎨 Calmer menus: one dark-blue look, plain buttons, quieter titles, a dark-cyan PLAY button and dark text boxes. Press Esc to close any menu.</li>
+          <li>⚖ The server now referees online matches: impossible damage is thrown away, and players caught cheating get nothing from that match.</li>
+          <li>📱 Phones: lighter touch controls, vibration (Settings), and nothing covering the buttons.</li>
           <li><b>v1.4</b>: 🎨 A cleaner, lighter menu: one color scheme, smaller buttons, PLAY in the corner, a see-through match HUD and a full-screen Shop (your daily gift is in there now).</li>
           <li>🎯 6 daily challenges (tap the challenge card to see them all), and bots aim like people now instead of never missing.</li>
           <li>🔒 Your coins, XP, unlocks and Shop are kept on the server even without an account, and mechs in online matches are checked, so nobody can cheat their way ahead.</li>

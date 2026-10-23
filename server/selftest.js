@@ -9,7 +9,7 @@ const path = require('path');
 
 const PORT = 8800 + Math.floor(Math.random() * 100);
 const DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'cogwild-test-'));
-const VER = 'cogwild-net-6';
+const VER = 'cogwild-net-7';
 let server;
 let failed = 0;
 

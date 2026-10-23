@@ -15,7 +15,7 @@ const { Referee } = require('./referee');
 
 const PORT = parseInt(process.env.PORT || '8765', 10);
 const ROOT = path.resolve(__dirname, '..');
-const NET_VERSION = 'cogwild-net-6';
+const NET_VERSION = 'cogwild-net-7';
 const MAX_PLAYERS = 8;
 // Matchmaking (PLAY): each arena has its own queue. A search lasts up to SEARCH_SECS; then bots fill every
 // empty seat (at least one, so there's always someone to fight) and the match starts. A full room starts at once.
