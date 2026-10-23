@@ -11,6 +11,7 @@ app.whenReady().then(async () => {
   for (const [w, h] of SIZES) {
     const win = new BrowserWindow({ show: false, width: w, height: h, useContentSize: true, webPreferences: { offscreen: true, partition: 'ui' + w + Date.now() } });
     win.webContents.setAudioMuted(true);
+    require('./no-voice-ask')(win); // not a voice chat test
     win.webContents.on('console-message', (e, level, msg) => { if (level >= 2) errors.push(`${w}x${h} ${msg}`); });
     const js = (code) => win.webContents.executeJavaScript(code);
     const shot = async (name) => fs.writeFileSync(path.join(OUT, `${name}-${w}.png`), (await win.webContents.capturePage()).toPNG());
@@ -23,7 +24,7 @@ app.whenReady().then(async () => {
     await wait(2500);
     await js(`${G}.net.send({ t: 'earn', src: 'match', n: 300, pp: 50 }); ${G}.net.send({ t: 'gift' }); ${G}.net.send({ t: 'clubCreate', name: 'Bolt Squad ${w}', badge: 4, desc: 'Fast mechs only' }); true`);
     await wait(1200);
-    await js(`${G}.net.send({ t: 'clubChat', i: 2 }); true`);
+    await js(`${G}.net.send({ t: 'clubSay', q: 0 }); true`);
     await wait(800);
     await shot('lobby');
     for (const p of ['arenas', 'pass', 'clubs', 'shop', 'challenges', 'settings', 'friends']) {

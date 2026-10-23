@@ -5,7 +5,7 @@ You build a mech from parts in the Workshop, then fight online (bots fill empty 
 It runs in the browser (three.js r128, no build step), as a Windows app (Electron) and an Android app (Capacitor),
 and on game portals (itch.io, CrazyGames, Poki). The online server is zero-dependency Node.js.
 
-**Live:** https://cogwild.duckdns.org (download page `/download`) · **Current version:** v1.6.5 · **Online protocol:** `cogwild-net-8`
+**Live:** https://cogwild.duckdns.org (download page `/download`) · **Current version:** v1.7.0 · **Online protocol:** `cogwild-net-9`
 The user is not a programmer: explain things in plain words, test everything yourself, and show screenshots as proof.
 
 ## How the user wants things done
@@ -41,17 +41,21 @@ The user is not a programmer: explain things in plain words, test everything you
 | `js/modes.js` | objectives: King of the Hill, Gold Rush, Combat Race, Boss Battle, Bounty Hunt |
 | `js/world.js` | 8 arenas (heightfield functions): canyon, isles, volcano, desert, swamp, city, jungle, scrap |
 | `js/net.js` | online: rooms, matchmaking, sync (host runs bots/rules; each player runs their own mech), host migration, spectating |
-| `js/account.js` | login/sign-up box, wallet (server coins), Cog Pass panel, clubs, friends, party, Trophy Road, leaderboard |
+| `js/account.js` | login/sign-up box (Google in the player's browser: `startGoogle`), wallet (server coins), Cog Pass panel, clubs, friends, party, Trophy Road, leaderboard |
+| `js/talk.js` | the chat window (💬 / Enter): Match (quick chat only), Party, Club, Friends (private messages); tap a name: profile / block / report |
+| `js/voice.js` | voice chat (WebRTC audio, through the server's TURN relay), mute/push-to-talk keys, devices, the first-time "Use voice chat?" question |
 | `js/meta.js` | shop, challenges, settings, panels, the PLAY panel (modes/arenas/weekly/ranked/gadgets), What's new |
 | `js/supers.js`, `js/gadgets.js` | supers (X) and gadgets (G, 3 uses) |
 | `js/touch.js` | phone controls (right-thumb arc, up/down by the stick, Exit needs a hold) |
 | `server/server.js` | HTTP + WebSocket server, rooms, matchmaking (`quick`, kinds weekly/ranked), result checks, mech checks, spectating, security headers/CSP |
+| `server/talk.js` | typed chat (DMs kept in `db.dms`, party/club lines in memory), Quick chat only (`u.cm`), block (`u.blocked`), reports (`db.reports`), voice peers + signaling, TURN logins |
+| `auth.html`, `js/auth-done.js` | the page Google sends players back to (`/auth/google/done`); posts the token to `/auth/google/finish` |
 | `server/accounts.js` | accounts + JSON DB (`db.users`, `db.guests`, `db.clubs`), wallet (coins/XP/unlocks/pass), email/Google login, friends, parties, clubs, trophies, Ranked |
 | `server/referee.js` | checks every match message: hits only from whoever controls the shooter, damage capped by the mech's weapons, speed and "ignores damage" notes |
 | `server/mailer.js`, `server/google.js` | SMTP login codes; Google ID token checks |
-| `server/selftest.js` | ~117 server checks (fake SMTP + fake Google keys) |
+| `server/selftest.js` | ~142 server checks (fake SMTP + fake Google keys), incl. chat, voice set-up and browser Google sign-in |
 | `tests/` | muted Electron game tests + live checks, see `tests/README.md` |
-| `deploy/` | `setup.sh` (installs on the VM), `upload.ps1`, `backup-offsite.sh`, `watchdog.sh`, `set-login.ps1` |
+| `deploy/` | `setup.sh` (installs on the VM), `setup-turn.sh` (voice relay, coturn), `upload.ps1`, `backup-offsite.sh`, `watchdog.sh`, `set-login.ps1` (email codes), `set-google.ps1` (Google client ID) |
 | `build-apps.ps1`, `build-itch.ps1` | Windows exe + Android apk/aab (`-Upload` puts them on the server); portal zips (`-Portal all`) |
 | `desktop/`, `android/` | Electron and Capacitor projects (`android/keys/` = release key, never commit) |
 | `README.md`, `LAUNCH.md`, `STORE_PAGE.md` | player-facing readme, store/launch steps, store texts |
@@ -64,10 +68,16 @@ The user is not a programmer: explain things in plain words, test everything you
 - **Economy:** every player has a server wallet (accounts in `db.users[k].w`, guests in `db.guests` keyed by a device
   token). The game only shows it and asks: `earn` (capped per kind, per playing time, per day), `buy`, `gift`,
   `roadClaim`, `passClaim`. Prices and rewards come from `js/economy.js` on both sides.
-- **Login:** Sign up = email (one account per email) + password twice + username, one step (`acctSignup`); when mail is
-  configured, a 6-digit code confirms the email first. Log in = email + password (old accounts can still type their
-  username). Forgot password = code by email. Google sign-in when `GOOGLE_CLIENT_ID` is set. When mail or Google is
-  configured, the game asks everyone to log in (not on portals).
+- **Login:** with `GOOGLE_CLIENT_ID` set, sign up and log in = Google in the player's own browser: the game makes a
+  secret, opens `/auth/google?s=<secret>` (Android: `CogwildNative.openUrl`, Windows app: new windows go to the browser),
+  Google returns to `/auth/google/done` (implicit id_token + nonce), that page posts the token, the server logs in the
+  waiting game (`googleStart`/`googleDone`); new players then pick a username (no password). Older accounts: email or
+  username + password behind a link. Without Google: email + password + username sign-up (`acctSignup`; a 6-digit code
+  when mail is configured). When mail or Google is configured, the game asks everyone to log in (not on portals).
+- **Chat/voice:** matches = quick chat only (keys 1-8); friends/party/club = free text (200 chars, no word filter yet) or
+  quick lines (`TALK_QUICK` in economy.js). "Quick chat only" (kids) is per account and also turns voice off. Voice needs an
+  account; peers = same party, or same room when both chose "my match"; always via the TURN relay (no IPs shared). Free
+  chat is off on CrazyGames/Poki and voice is off on every portal (their frames block the mic). The game asks "Use voice chat?" on first start, after each update and per account.
 - **Social:** friends, parties of 4 (party mechs shown on the lobby stage), clubs (30, club wall), watch a friend's match.
 - **Modes/content:** 8 modes (Rush Build, Workshop Clash, KOTH, Gold Rush, Bounty Hunt, Combat Race, Survival, Boss),
   8 arenas, supers, gadgets, daily featured event, weekly events with modifiers, Ranked (600+ best trophies),
@@ -85,7 +95,7 @@ The user is not a programmer: explain things in plain words, test everything you
 ### Deploy (website + server)
 ```bash
 K="/c/Users/tomer/OneDrive/Desktop/OracleServer/ssh-key-2026-10-21.key"; PACK=/tmp/cogwild-upload.tgz
-tar --force-local -czf "$PACK" index.html favicon.svg js fonts img server deploy privacy.html terms.html credits.html download.html manifest.webmanifest sw.js
+tar --force-local -czf "$PACK" index.html auth.html favicon.svg js fonts img server deploy privacy.html terms.html credits.html download.html manifest.webmanifest sw.js
 scp -q -i "$K" "$PACK" ubuntu@150.136.43.207:/tmp/cogwild.tgz
 ssh -i "$K" ubuntu@150.136.43.207 "sudo cp /opt/cogwild/data/db.json /opt/cogwild/data/backups/db-before-X.json; rm -rf ~/cogwild-src && mkdir -p ~/cogwild-src && tar -xzf /tmp/cogwild.tgz -C ~/cogwild-src && sed -i 's/\r$//' ~/cogwild-src/deploy/*.sh && sudo bash ~/cogwild-src/deploy/setup.sh cogwild.duckdns.org"
 ```
@@ -120,3 +130,5 @@ apps would break with the new server; they then get an "update" prompt.
 - Optional cleanup of old downloads on the server (1.0–1.6.3).
 - Confirm the Oracle alert email subscription.
 - Store launch: Google Play closed test (12 testers × 14 days), itch.io/CrazyGames/Poki submissions (zips in `dist/`).
+- **Google sign-in**: they create the OAuth client (LAUNCH.md > "Turn on Google sign-in") and give the Client ID; then
+  `deploy\set-google.ps1`. Until then sign-up stays username/password. Possibly a chat word filter later (they asked to wait).

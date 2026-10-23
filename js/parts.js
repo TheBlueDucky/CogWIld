@@ -2,10 +2,29 @@
 (function () {
   const CW = (window.CW = window.CW || {});
 
-  CW.VERSION = 'v1.6.5';
+  CW.VERSION = 'v1.7.0';
   // escape text before it goes into innerHTML (mech/player names can come from pasted save codes)
   // "3h 12m" / "5d 4h" / "12m" until something ends
   CW.timeLeft = (ms) => { const m = Math.max(1, Math.ceil(ms / 60000)); return m >= 2880 ? `${Math.floor(m / 1440)}d ${Math.floor((m % 1440) / 60)}h` : m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; };
+  // a tap/click on a pop-up's dark background (outside its box) closes it. It closes on the finished tap,
+  // not when the finger goes down: otherwise phones send that tap on to the button under it once the menu is gone.
+  CW.tapOutside = (el, close) => {
+    let down = false;
+    el.addEventListener('pointerdown', (e) => { down = e.target === el; });
+    el.addEventListener('click', (e) => {
+      if (e.target !== el || !down) return;
+      down = false;
+      e.preventDefault();
+      e.stopPropagation();
+      close();
+    });
+  };
+  // open a web page in the player's own browser (the Android app has a native helper, the Windows app
+  // sends new windows to the browser, the website opens a tab)
+  CW.openExternal = (url) => {
+    try { if (window.CogwildNative && window.CogwildNative.openUrl) return window.CogwildNative.openUrl(url); } catch (e) { /* fall back */ }
+    window.open(url, '_blank');
+  };
   CW.esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   CW.SAVE_VERSION = 2;
   CW.WATER_Y = 0;

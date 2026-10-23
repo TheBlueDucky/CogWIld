@@ -12,6 +12,7 @@ app.whenReady().then(async () => {
   for (let i = 0; i < SIZES.length; i++) {
     const [w, h] = SIZES[i], win = wins[i];
     win.webContents.setAudioMuted(true);
+    require('./no-voice-ask')(win); // not a voice chat test
     win.webContents.on('console-message', (e, level, msg) => { if (level >= 2) errors.push(`${w}x${h} ${msg}`); });
     const js = (code) => win.webContents.executeJavaScript(code);
     const shot = async (name) => fs.writeFileSync(path.join(OUT, `${name}-${w}.png`), (await win.webContents.capturePage()).toPNG());

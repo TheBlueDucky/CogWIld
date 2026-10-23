@@ -1,7 +1,10 @@
 package com.cogwild.game;
 
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.WindowManager;
+import android.webkit.JavascriptInterface;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
@@ -15,6 +18,16 @@ public class MainActivity extends BridgeActivity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         // music may start the moment the game opens, without waiting for a tap
         getBridge().getWebView().getSettings().setMediaPlaybackRequiresUserGesture(false);
+        // the game opens Google sign-in (and other https pages) in the phone's own browser: CogwildNative.openUrl(url)
+        getBridge().getWebView().addJavascriptInterface(new Object() {
+            @JavascriptInterface
+            public void openUrl(String url) {
+                if (url == null || !url.startsWith("https://")) return;
+                Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                try { startActivity(i); } catch (Exception e) { /* no browser */ }
+            }
+        }, "CogwildNative");
         hideSystemBars();
     }
 

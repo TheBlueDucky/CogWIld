@@ -15,9 +15,8 @@
     '🐉', '🦅', '🦂', '🐊', '🦍', '🦓', '🦩', '🦚', '🐳', '🦑', '🐞', '🦔', '🤠', '🥷', '🧙', '👑',
     '🛸', '🦾', '⚡', '🌋', '🪐', '🏴‍☠️', '🧊', '🎯']; // 40+: Cog Pass
   CW.FREE_AVATARS = 24;
-  // clubs: badges and the club wall's quick-chat lines (the server only passes their numbers around)
+  // club badges
   CW.CLUB_BADGES = ['🛡', '⚙', '🔥', '⚡', '🐉', '🦅', '🌟', '💀', '👑', '🚀', '🌊', '🍀'];
-  CW.CLUB_CHAT = ['👋 Hi club!', 'GG!', 'Who wants to play?', 'Party up! 🎉', 'Nice push! 🏆', 'Thanks! 🙏', 'Good night 🌙', "Let's go! 🔥"];
   CW.avatar = (i) => CW.AVATARS[i] || '🧑‍✈️';
   // trophy tiers shown on profiles and the leaderboard
   CW.TIERS = [
@@ -59,10 +58,11 @@
     onWelcome(m) {
       this.loginOpts = (m && m.login) || {};
       if (this.session) return this.net.send({ t: 'acctAuth', token: this.session.token });
+      if (this.gSecret && this.view === 'gwait') this.net.send({ t: 'googleStart', s: this.gSecret }); // reconnected while signing in with Google
       this.helloGuest();
       // when the server can log people in by email or Google, everyone plays with an account
       // (not on game portals like Poki and CrazyGames, which don't allow a forced login)
-      if (this.loginRequired()) this.openLogin('Log in with your email to play. Your progress is saved to your account.');
+      if (this.loginRequired()) this.openLogin('Log in to play. Your progress is saved to your account.');
     }
     mailLogin() { return !!this.loginOpts && !!(this.loginOpts.email || this.loginOpts.google); }
     loginRequired() { return !CW.PORTAL && !!this.loginOpts && !!(this.loginOpts.email || this.loginOpts.google) && !this.loggedIn; }
@@ -79,6 +79,8 @@
       this.friends = [];
       this.party = null;
       this.renderChips();
+      this.game.voice.onDisconnect();
+      this.game.talk.refresh();
       // stay connected: retry with a growing pause
       if (this.net.canConnect()) {
         this.retry = Math.min(60000, (this.retry || 2500) * 1.6);
@@ -89,6 +91,7 @@
     }
     onMessage(m) {
       const g = this.game;
+      if (g.talk.onMessage(m) || g.voice.onMessage(m)) return; // chat and voice chat
       switch (m.t) {
         case 'acctOk': this.onLogin(m); break;
         case 'acctCodeSent':
@@ -115,6 +118,7 @@
           if (this.session) { this.session = null; keep('cogwild.session', null); }
           this.me = null;
           this.renderChips();
+          g.voice.apply();
           if (m.reason) g.toast('👤 ' + m.reason);
           break;
         case 'acctErr':
@@ -123,13 +127,9 @@
           break;
         case 'acctMe': this.me = m.me; this.renderChips(); this.rerender(); break;
         case 'wallet': this.onWallet(m); break;
-        case 'club': this.club = m.club; this.peek = null; this.rerender(); break;
+        case 'club': this.club = m.club; this.peek = null; this.rerender(); g.talk.refresh(); break;
         case 'clubs': this.clubs = m.list; this.rerender(); break;
         case 'clubPeek': this.peek = m.club; this.rerender(); break;
-        case 'clubChat':
-          if (this.club) { this.club.log = (this.club.log || []).concat({ from: m.from, text: m.i, at: m.at }).slice(-30); this.rerender(); }
-          if (m.from !== (this.me && this.me.name) && g.state === 'menu' && (g.meta.panel !== 'clubs' || $('panel').classList.contains('hidden'))) g.toast(`🛡 ${m.from}: ${CW.CLUB_CHAT[m.i] || ''}`);
-          break;
         case 'acctPassOk':
           this.session.token = m.token;
           keep('cogwild.session', this.session);
@@ -149,9 +149,10 @@
           if (g.settings.friendOnline !== false) for (const f of m.list) { const o = before.find((x) => x.name === f.name); if (o && !o.on && f.on) this.note(`${CW.avatar(f.av)} ${esc(f.name)} is online`); }
           this.renderChips();
           this.rerender();
+          g.talk.refresh();
           break;
         }
-        case 'party': this.party = m.party; this.renderParty(); this.rerender(); break;
+        case 'party': this.party = m.party; this.renderParty(); this.rerender(); g.talk.refresh(); break;
         case 'note': this.onNote(m); break;
         case 'trophies': this.onTrophies(m); break;
         case 'ranked': this.lastRanked = m; this.resultsLine(); break;
@@ -189,6 +190,11 @@
       if (this.welcomeToast) { g.toast(this.welcomeToast); this.welcomeToast = null; }
       this.net.send({ t: 'profileSet', lv: g.level() });
       this.watchStatus(true);
+      // chat starts fresh; voice chat comes back on (or the game asks about it)
+      g.talk.dms = {};
+      g.talk.refresh();
+      g.voice.apply();
+      setTimeout(() => g.voice.maybeAsk(), 1500);
     }
     // replace this device's progress with the account's and restart the game with it
     applySave(server, user) {
@@ -260,7 +266,7 @@
       $('tabSign').onclick = () => this.loginView('sign', 'signup');
       $('acctGuest').onclick = () => $('acct').classList.add('hidden');
       $('acctX').onclick = () => { if (!this.loginRequired()) $('acct').classList.add('hidden'); };
-      $('acct').addEventListener('pointerdown', (e) => { if (e.target === $('acct') && !this.loginRequired()) $('acct').classList.add('hidden'); });
+      CW.tapOutside($('acct'), () => { if (!this.loginRequired()) $('acct').classList.add('hidden'); });
       const err = (msg, ok) => { $('acctErr').textContent = msg; $('acctErr').classList.toggle('ok', !!ok); };
       const online = async () => { try { await this.net.connect(); return true; } catch (e) { err("Can't reach the server. Check your internet."); return false; } };
       // log in: email (or an old username) + password
@@ -274,6 +280,11 @@
         this.net.send({ t: 'acctLogin', name: id, pass });
         $('liPass').value = '';
       };
+      // Google: the player's own browser signs them in; this game waits for the server to log it in
+      $('gBtn').onclick = () => this.startGoogle();
+      $('gAgain').onclick = () => this.openGoogle();
+      $('gCancel').onclick = () => { this.gSecret = null; this.loginView(this.purpose === 'signup' && this.view === 'gwait' && this.gFrom === 'sign' ? 'sign' : 'login'); };
+      $('liOld').onclick = () => { this.passLogin = true; this.loginView('login'); };
       $('liForgot').onclick = () => { $('suEmail').value = $('liEmail').value.includes('@') ? $('liEmail').value.trim() : ''; this.loginView('mail', 'reset'); };
       // sign up: email, password twice and a username, all at once
       $('fSign').onsubmit = async (e) => {
@@ -339,42 +350,48 @@
       };
       $('acctShow').onchange = (e) => { for (const id of ['liPass', 'sgPass', 'sgPass2', 'suPass', 'suPass2', 'rsPass', 'rsPass2', 'olPass', 'olPass2']) $(id).type = e.target.checked ? 'text' : 'password'; };
     }
-    // which form shows: 'login', 'mail', 'code', 'name', 'reset' or 'old'; purpose: 'signup' or 'reset'
+    // Google sign-in works on this server (then it's the way to sign up)
+    get googleOn() { return !!(this.loginOpts && this.loginOpts.google); }
+    // the server's https address (the apps talk to it from elsewhere)
+    origin() { return CW.SERVER_URL ? CW.SERVER_URL.replace(/^ws(s?):/, 'http$1:').replace(/\/ws$/, '') : location.origin; }
+    startGoogle() {
+      const bytes = new Uint8Array(24);
+      crypto.getRandomValues(bytes);
+      this.gSecret = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+      this.gFrom = this.view;
+      this.welcomeToast = '👋 Welcome!';
+      this.openGoogle(); // right away, while the click still counts (pop-up blockers)
+      this.loginView('gwait');
+      this.net.connect().then(() => this.net.send({ t: 'googleStart', s: this.gSecret })).catch(() => { $('acctErr').textContent = "Can't reach the server. Check your internet."; });
+    }
+    openGoogle() { if (this.gSecret) CW.openExternal(this.origin() + '/auth/google?s=' + this.gSecret); }
+    // which form shows: 'login', 'mail', 'code', 'name', 'reset', 'old' or 'gwait'; purpose: 'signup' or 'reset'
     loginView(view, purpose) {
       if (purpose) this.purpose = purpose;
+      if (!['gwait', 'name'].includes(view)) this.gSecret = null; // left the Google sign-in
       this.view = view;
       const signing = view !== 'login';
       $('tabLogin').classList.toggle('on', !signing || this.purpose === 'reset');
       $('tabSign').classList.toggle('on', signing && this.purpose !== 'reset');
-      for (const [id, v] of [['fLogin', 'login'], ['fSign', 'sign'], ['fMail', 'mail'], ['fCode', 'code'], ['fName', 'name'], ['fReset', 'reset'], ['fOld', 'old']]) $(id).classList.toggle('hidden', view !== v);
+      for (const [id, v] of [['fLogin', 'login'], ['fSign', 'sign'], ['fMail', 'mail'], ['fCode', 'code'], ['fName', 'name'], ['fReset', 'reset'], ['fOld', 'old'], ['fGWait', 'gwait']]) $(id).classList.toggle('hidden', view !== v);
+      // with Google on: signing up is only with Google; logging in with a password is behind a link (older accounts)
+      const g = this.googleOn;
+      if (g && view === 'sign') $('fSign').classList.add('hidden');
+      if (g && view === 'login' && !this.passLogin) $('fLogin').classList.add('hidden');
+      $('liOld').classList.toggle('hidden', !(g && view === 'login' && !this.passLogin));
+      $('gBtnT').textContent = view === 'sign' ? 'Sign up with Google' : 'Log in with Google';
+      $('acctShow').parentElement.classList.toggle('hidden', g && (view === 'sign' || view === 'gwait' || (view === 'login' && !this.passLogin) || (view === 'name' && this.googleSign)));
+      $('nameStepT').textContent = this.googleSign ? 'Last step · pick your username' : 'Step 3 of 3 · your player';
       const reset = this.purpose === 'reset' && signing;
       $('acctTitle').textContent = reset ? 'New password' : view === 'login' ? 'Welcome back' : 'Create your account';
       $('mailStepT').textContent = 'Step 1 of 2 · your email';
       $('codeStepT').textContent = reset ? 'Step 2 of 2 · check your email' : 'Last step · confirm your email';
-      $('gBtnWrap').classList.toggle('hidden', !this.googleReady || !['login', 'sign'].includes(view));
-      $('acctTabs').classList.toggle('hidden', ['code', 'name', 'reset'].includes(view));
+      $('gBtnWrap').classList.toggle('hidden', !g || !['login', 'sign'].includes(view));
+      $('acctTabs').classList.toggle('hidden', ['code', 'name', 'reset', 'gwait'].includes(view));
       document.querySelectorAll('#fName .pw-row').forEach((r) => r.classList.toggle('hidden', !!this.googleSign));
       $('acctErr').textContent = '';
-      const focus = { login: 'liEmail', sign: 'sgEmail', mail: 'suEmail', code: 'suCode', name: 'suName', reset: 'rsPass', old: 'olName' }[view];
+      const focus = g && (view === 'login' || view === 'sign') && !this.passLogin ? 'gBtn' : { login: 'liEmail', sign: 'sgEmail', mail: 'suEmail', code: 'suCode', name: 'suName', reset: 'rsPass', old: 'olName' }[view];
       setTimeout(() => $(focus) && $(focus).focus(), 50);
-    }
-    // the Google button (websites only: Google doesn't allow its sign-in inside app web views)
-    setupGoogle() {
-      const id = this.loginOpts && this.loginOpts.google;
-      if (!id || CW.APP || CW.PORTAL || location.protocol !== 'https:' || this.googleTried) return;
-      this.googleTried = true;
-      const s = document.createElement('script');
-      s.src = 'https://accounts.google.com/gsi/client';
-      s.async = true;
-      s.onload = () => {
-        try {
-          google.accounts.id.initialize({ client_id: id, callback: (r) => { $('acctErr').textContent = ''; this.welcomeToast = '👋 Welcome!'; this.net.send({ t: 'googleLogin', credential: r.credential }); } });
-          google.accounts.id.renderButton($('gBtn'), { theme: 'filled_black', size: 'large', text: 'continue_with', shape: 'rectangular', width: 300 });
-          this.googleReady = true;
-          if (this.view === 'login' || this.view === 'sign') $('gBtnWrap').classList.remove('hidden');
-        } catch (e) { /* the email code still works */ }
-      };
-      document.head.appendChild(s);
     }
     openLogin(why, view) {
       if (!this.net.canConnect()) return this.game.toast('Accounts need the game to be opened from its web address');
@@ -382,7 +399,7 @@
       $('acct').classList.toggle('required', this.loginRequired());
       $('acctWhy').textContent = why || 'Save your progress, earn trophies and play with friends.';
       this.googleSign = false;
-      this.setupGoogle();
+      this.passLogin = false;
       this.loginView(view || 'login', 'signup');
     }
 
@@ -689,8 +706,10 @@
       if (this.club) {
         const cl = this.club;
         const owner = cl.list.some((x) => x.name === this.me.name && x.role === 'owner');
-        const log = (cl.log || []).slice(-12).map((l) => (l.from ? `<div><b>${esc(l.from)}:</b> ${CW.CLUB_CHAT[l.text] || ''}</div>` : `<div class="small">${esc(l.text)}</div>`)).join('') || '<div class="small">Say hi to your club with the buttons below.</div>';
-        body.innerHTML = head(cl) + `<div class="club-chat" id="clubChat">${log}</div><div class="menu-btns" style="justify-content:flex-start;flex-wrap:wrap">${CW.CLUB_CHAT.map((t, i) => `<button class="tod-btn" data-cchat="${i}">${t}</button>`).join('')}</div>
+        // the last few club chat lines; the whole chat is in 💬
+        const talk = this.game.talk;
+        const log = (cl.log || []).filter((l) => !talk.isBlocked(l.f)).slice(-4).map((l) => (l.f ? `<div><b>${esc(l.f)}:</b> ${esc(talk.text(l))}</div>` : `<div class="small">${esc(talk.text(l))}</div>`)).join('') || '<div class="small">No messages yet.</div>';
+        body.innerHTML = head(cl) + `<div class="club-chat" id="clubChat">${log}</div><div class="menu-btns" style="justify-content:flex-start"><button class="ws-btn on" id="clChat">💬 Club chat</button></div>
           <h3>Members</h3>${members(cl, true)}
           ${owner ? `<h3>Club settings</h3><div class="club-form"><select id="clOpen"><option value="1" ${cl.open ? 'selected' : ''}>🔓 Open: anyone can join</option><option value="0" ${cl.open ? '' : 'selected'}>🔒 Closed</option></select>
             <select id="clMin">${[0, 50, 100, 200, 300, 500, 750, 1000, 1500, 2000].map((v) => `<option value="${v}" ${v === cl.minTro ? 'selected' : ''}>Needs 🏆 ${v}</option>`).join('')}</select>
@@ -698,7 +717,7 @@
           <div class="menu-btns" style="justify-content:flex-start"><button class="ws-btn" id="clLeave">🚪 Leave club</button></div>`;
         const box = $('clubChat');
         box.scrollTop = box.scrollHeight;
-        on('[data-cchat]', (b) => net.send({ t: 'clubChat', i: +b.dataset.cchat }));
+        $('clChat').onclick = () => this.game.talk.open('club');
         on('[data-kick]', (b) => { if (confirm(`Remove ${b.dataset.kick} from the club?`)) net.send({ t: 'clubKick', name: b.dataset.kick }); });
         on('[data-view]', (b) => this.showPlayer(b.dataset.view, 'clubs'));
         $('clLeave').onclick = () => { if (confirm(`Leave ${cl.name}?${owner && cl.members > 1 ? ' The member with the most trophies becomes the owner.' : ''}`)) net.send({ t: 'clubLeave' }); };

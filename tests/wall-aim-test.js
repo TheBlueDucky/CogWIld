@@ -6,6 +6,7 @@ app.whenReady().then(async () => {
   const errors = [];
   const win = new BrowserWindow({ show: false, width: 1100, height: 620, webPreferences: { offscreen: true, partition: 'w' + Date.now() } });
   win.webContents.setAudioMuted(true);
+    require('./no-voice-ask')(win); // not a voice chat test
   win.webContents.on('console-message', (e, level, msg) => { if (level >= 2) errors.push(msg); });
   const js = (code) => win.webContents.executeJavaScript(code);
   await win.loadURL('http://localhost:8781/');

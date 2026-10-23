@@ -9,9 +9,9 @@ The game, server, website, apps and store texts are ready. What's left below nee
 |---|---|---|
 | Website (play in browser, installable) | https://cogwild.duckdns.org | `deploy\upload.ps1` (see deploy/README.md) |
 | Download page | https://cogwild.duckdns.org/download | `build-apps.ps1 -Upload ...` |
-| Windows installer + portable | `dist\downloads\Cogwild-Setup-1.6.5.exe`, `Cogwild-1.6.5-portable.exe` | `build-apps.ps1` |
-| Android (sideload) | `dist\downloads\Cogwild-1.6.5.apk` (release-signed) | `build-apps.ps1` |
-| Google Play | `dist\store\Cogwild-1.6.5.aab` | `build-apps.ps1` |
+| Windows installer + portable | `dist\downloads\Cogwild-Setup-1.7.0.exe`, `Cogwild-1.7.0-portable.exe` | `build-apps.ps1` |
+| Android (sideload) | `dist\downloads\Cogwild-1.7.0.apk` (release-signed) | `build-apps.ps1` |
+| Google Play | `dist\store\Cogwild-1.7.0.aab` | `build-apps.ps1` |
 | itch.io / CrazyGames / Poki | `dist\cogwild-itch.zip`, `cogwild-crazygames.zip`, `cogwild-poki.zip` | `build-itch.ps1 -Portal all` |
 | Store texts, ratings, data safety | [STORE_PAGE.md](STORE_PAGE.md) | |
 | Screenshots + share image | `dist\store\screenshots\`, `img\og-image.png` | `cd desktop; node copy-game.js; npx electron shots.js` |
@@ -29,13 +29,13 @@ The game, server, website, apps and store texts are ready. What's left below nee
 
 ## 1. itch.io (free, fastest)
 - [ ] Create a project → Kind **HTML** → upload `dist\cogwild-itch.zip` → tick **"played in the browser"**, viewport **1280×720**, **fullscreen button** and **mobile friendly** (landscape).
-- [ ] Also upload `Cogwild-Setup-1.6.5.exe` (Windows) and `Cogwild-1.6.5.apk` (Android) as downloads.
+- [ ] Also upload `Cogwild-Setup-1.7.0.exe` (Windows) and `Cogwild-1.7.0.apk` (Android) as downloads.
 - [ ] Texts from STORE_PAGE.md, the 6 screenshots, cover image 630×500 (crop one screenshot).
 - [ ] Price: $0 or "name your price".
 
 ## 2. Google Play (Android)
 - [ ] Google Play Console account: **$25 once**. New personal accounts must run a **closed test with at least 12 testers for 14 days** before going public. Start that early!
-- [ ] Create the app → upload `dist\store\Cogwild-1.6.5.aab` → turn on **Play App Signing** (default).
+- [ ] Create the app → upload `dist\store\Cogwild-1.7.0.aab` → turn on **Play App Signing** (default).
 - [ ] Store listing: title, short and long description, icon `img\icon-512.png`, feature graphic **1024×500** (crop `img\og-image.png`), at least 2 phone screenshots (the 16:9 screenshots work).
 - [ ] App content: privacy policy URL, **Data safety** and **content rating** answers (STORE_PAGE.md), target audience (choose 13+ or "all ages"; if you include under-13s, Google's Families policy applies), ads: **no**, account deletion URL `https://cogwild.duckdns.org/privacy.html#deleting`.
 - [ ] For each update: raise `versionCode` (+1) and `versionName` in `android\android\app\build.gradle`.
@@ -66,20 +66,32 @@ The game, server, website, apps and store texts are ready. What's left below nee
 - [ ] Send the link to small YouTubers/streamers (1k-50k subscribers) who play building or mech games.
 
 
-## Turn on email login (v1.5+)
+## Turn on Google sign-in (v1.7+)
 
-The game asks everyone to log in with an email code (or Google) as soon as the server can send emails.
-Until then it keeps working as before (guests + username/password).
+New players sign up with Google: the game opens their own browser, they pick their Google account, then come back
+and choose a username. No password, no email code. Logging in later works the same way (one click if they're
+still signed in to Google in that browser). Older accounts can still log in with email/username + password.
+Until this is set up the game keeps working as before (guests + username/password).
 
-1. Pick a way to send email:
-   - **Gmail**: turn on 2-Step Verification, then create an *App password* (Google Account > Security > App passwords).
-     Host `smtp.gmail.com`, port `465`, user = your Gmail address, password = the 16-letter app password.
-   - Any other SMTP service (Outlook `smtp-mail.outlook.com` port 587, Brevo, Zoho...).
-2. Optional, for the **Continue with Google** button: Google Cloud Console > APIs & Services > Credentials >
-   Create credentials > OAuth client ID > *Web application*, Authorized JavaScript origins `https://cogwild.duckdns.org`.
-   Copy the Client ID. (Google sign-in works on the website; the apps use the email code.)
-3. Run, and answer the questions (the password is only typed into your own terminal):
+1. Open https://console.cloud.google.com and sign in with the Google account that should own the game.
+   Make a new project called **Cogwild**.
+2. **Google Auth Platform → Branding** (older menus: *APIs & Services → OAuth consent screen*): app name **Cogwild**,
+   support email theblueduckymc@gmail.com, home page `https://cogwild.duckdns.org`, privacy policy
+   `https://cogwild.duckdns.org/privacy.html`, terms `https://cogwild.duckdns.org/terms.html`.
+   **Audience: External**, then **Publish app** (it only asks for the email address, so Google doesn't need to review it).
+3. **Clients → Create client → Web application**, name *Cogwild*. Under **Authorized redirect URIs** add exactly
+   `https://cogwild.duckdns.org/auth/google/done` and press **Create**. Copy the **Client ID**
+   (it ends in `.apps.googleusercontent.com`; it isn't secret).
+4. Give the Client ID to Claude, or run:
 
-       powershell -ExecutionPolicy Bypass -File deploy\set-login.ps1 -Ip 150.136.43.207 -Key C:\path\to\ssh-key.key
+       powershell -ExecutionPolicy Bypass -File deploy\set-google.ps1 -Ip 150.136.43.207 -Key C:\path\to\ssh-key.key -ClientId <the Client ID>
 
-Game portals (itch.io, CrazyGames, Poki) never force a login: their rules don't allow it.
+Email codes (forgotten passwords of older accounts) are optional: `deploy\set-login.ps1` turns them on (it asks for
+an SMTP mail account; Gmail needs an *App password*). Game portals (itch.io, CrazyGames, Poki) never force a login.
+
+## Voice chat relay (v1.7+)
+
+Voice chat goes through a relay on the server (coturn), so players never see each other's internet address.
+`deploy/setup-turn.sh` installs it (`sudo bash ~/cogwild-src/deploy/setup-turn.sh cogwild.duckdns.org`) and the Oracle
+security list needs **UDP 3478, TCP 3478 and UDP 49160-49200** open (done on 23 Oct 2026 for DuckysSrv).
+

@@ -33,7 +33,7 @@ Cogwild is a mech-building battle game. Snap together wheels, legs, floats, prop
 ☁ **One account everywhere**: your progress follows you between the browser, Windows and Android.
 🎮 Keyboard + mouse, controller and touch controls. Remap any key.
 
-Free to play. No ads from us, no pay-to-win. Safe for younger players: quick chat only (no typing to strangers), no real names.
+Free to play. No ads from us, no pay-to-win. Quick chat only in matches (no typing to strangers); chat and voice chat with friends, party and club, with block, report and a "Quick chat only" setting for kids.
 
 ## Tags / categories
 Action · Vehicle combat · Building · Mech · Robots · Arena · Multiplayer · PvP · Sandbox · Physics · 3D · Low-poly · Casual · Kids friendly
@@ -50,15 +50,21 @@ Action · Vehicle combat · Building · Mech · Robots · Arena · Multiplayer �
 ## Content rating answers (IARC questionnaire: Google Play, Microsoft, itch)
 - Violence: **cartoon/fantasy violence against robots/vehicles**, no blood, no humans hurt (pilots are "eliminated", no gore)
 - No sex, nudity, drugs, alcohol, gambling, real-money items, or crude humor
-- Users interact online: **yes**, but chat is limited to 8 preset quick messages; usernames are filtered
+- Users interact online: **yes**. Matches: preset quick messages only. Friends, party and club: **free text chat** and **voice chat**
+  (both optional; block + report in the app; "Quick chat only" setting turns free text and voice off). Usernames are filtered.
+  Note: free chat with no word filter usually raises the rating (IARC: "Users Interact"; often Teen/PEGI 12) and Google Play's
+  Families policy needs a filter or quick-chat-only for under-13s: if you target kids, keep this in mind.
 - Shares location: **no** · Digital purchases: **no** · Ads: **no** (portal versions show the portal's ads)
 - Expected result: PEGI 7 / ESRB Everyone 10+ (E10+) / USK 6-12
 
 ## Google Play "Data safety" answers
-- Data collected: **Personal info → User IDs** (username) · **App activity → Other user-generated content** (mech designs, game progress) · **App info and performance**: none
+- Data collected: **Personal info → Email address** (Google sign-in / login) · **Personal info → User IDs** (username) ·
+  **Messages → Other in-app messages** (chat with friends, party, club) · **Audio → Voice or sound recordings**: voice chat,
+  *processed ephemerally* (passes live through the relay, never stored) · **App activity → Other user-generated content**
+  (mech designs, game progress) · **App info and performance**: none
 - Purpose: App functionality, Account management. **Not shared** with third parties. **Not used for ads.**
 - Encrypted in transit: **Yes** (HTTPS/WSS) · Users can request deletion: **Yes** (in app: Profile → Delete account; web: same on the website; or by email)
-- Account creation: username + password · Account deletion URL: https://cogwild.duckdns.org/privacy.html#deleting
+- Account creation: Google sign-in (older accounts: email/username + password) · Account deletion URL: https://cogwild.duckdns.org/privacy.html#deleting
 
 ## Social post templates
 - "I gave my mech 6 spikes and 3 boosters. It did not go well. 💀 #gamedev #indiegame #cogwild"

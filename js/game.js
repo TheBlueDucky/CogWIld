@@ -195,6 +195,8 @@
       this.netSeq = 0;
       this.net = new CW.Net(this);
       this.account = new CW.Account(this);
+      this.talk = new CW.Talk(this); // the chat window (js/talk.js)
+      this.voice = new CW.Voice(this); // voice chat (js/voice.js)
       this.touch = new CW.Touch(this);
       this.supers = new CW.Supers(this);
       this.gadgets = new CW.Gadgets(this);
@@ -344,6 +346,8 @@
       this.endMatch();
       this.net.leaveQuiet();
       this.state = 'menu';
+      clearTimeout(this.vcAskT);
+      this.vcAskT = setTimeout(() => this.voice && this.voice.maybeAsk(), 2500); // the first time: voice chat?
       this.world.applyTime(this.menuTime || 'sunset', this);
       this.buildShowcase();
       $('menu').classList.remove('hidden');
@@ -586,7 +590,7 @@
         if (cb) cb($('modalText').value);
       };
       $('modalCancel').onclick = () => this.closeModal();
-      $('modal').addEventListener('pointerdown', (e) => { if (e.target === $('modal')) this.closeModal(); });
+      CW.tapOutside($('modal'), () => this.closeModal());
     }
 
     openModal(title, desc, text, cb) {
@@ -647,9 +651,11 @@
     // the top-most thing Esc can close: a pop-up, the login box, a panel, the mech picker, the online screen
     closeTop() {
       const open = (id) => $(id) && !$(id).classList.contains('hidden');
+      if (open('vcAsk')) return this.voice.closeAsk();
       if (open('confirm')) { this.meta.closeConfirm(); return true; }
       if (open('modal')) { this.closeModal(); return true; }
       if (open('acct')) { if (!this.account.loginRequired()) $('acct').classList.add('hidden'); return true; }
+      if (this.talk.isOpen) { this.talk.close(); return true; }
       if (open('panel')) { this.meta.closePanel(); return true; }
       if (this.state === 'picker' || this.state === 'online' || this.state === 'modes') { this.showMenu(); return true; }
       // the Workshop closes like any other menu (not while building in a Rush match: that would leave it)
@@ -701,7 +707,7 @@
       document.addEventListener('pointerlockchange', () => {
         const locked = document.pointerLockElement === cv;
         if (locked) this.hadLock = true;
-        else if (this.state === 'match' && this.hadLock && !this.ended && !this.paused && !this.touch.on) this.toast('🖱 Click the game to aim again · Esc = menu');
+        else if (this.state === 'match' && this.hadLock && !this.ended && !this.paused && !this.touch.on && !this.talk.isOpen) this.toast('🖱 Click the game to aim again · Esc = menu');
       });
     }
 
@@ -2078,7 +2084,7 @@
           ${(() => { const gd = CW.GADGETS[this.gadgets.type(p)], n = this.gadgets.left(p), cd = p.gadgetCd || 0; return `<div class="st-row gadget-row ${n > 0 && cd <= 0 ? 'ready' : ''}"><span>${gd.icon} Gadget</span><div class="pips">${'●'.repeat(n)}${'○'.repeat(Math.max(0, 3 - n))}</div><em>${n <= 0 ? 'used up' : cd > 0 ? cd.toFixed(1) + 's' : this.touch.on ? 'TAP 🧰' : 'G'}</em></div>`; })()}
           ${m.empT > 0 ? '<div class="buffs"><span class="buff emp">⚡ JAMMED by EMP</span></div>' : ''}
           <div class="st-foot"><span>${Math.round(Math.hypot(m.vel.x, m.vel.z) * 3.6)} km/h</span><span>Alt ${Math.round(m.pos.y - m.baseOff)}</span><span class="${m.pr < 1 ? 'bad' : ''}">⚡ ${Math.round(m.pr * 100)}%</span><span>Parts ${m.parts.filter((q) => q.alive).length}/${m.totalParts}</span>${dom}</div>`;
-        $('hint').textContent = 'W/S drive · A/D turn · Mouse look & aim · Click fire · Shift DASH · X / right-click SUPER · G GADGET · Space up/jump · C down · V camera · E exit · Esc menu' + (this.modeId === 'test' ? ' · T back to Workshop' : '');
+        $('hint').textContent = 'W/S drive · A/D turn · Mouse look & aim · Click fire · Shift DASH · X / right-click SUPER · G GADGET · Space up/jump · C down · V camera · E exit · Enter chat · Esc menu' + (this.modeId === 'test' ? ' · T back to Workshop' : '');
       } else if (p.pilot && p.pilot.alive) {
         const pl = p.pilot;
         const ownAlive = p.mech && p.mech.alive;

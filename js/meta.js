@@ -35,6 +35,8 @@
   const DEFAULT_SETTINGS = {
     graphics: 'auto', showFps: false, tutorialDone: false, clips: true, arena: 'random', timeOfDay: 'random', difficulty: 'normal', music: true, sens: 1, fov: 80, invertY: false, camMode: 'first', autoSteer: true, shake: true, dmgNumbers: true, volume: 0.6,
     musicVol: 1, keys: {}, touch: 'auto', touchSize: 1, vibrate: true, aimAssist: true, friendOnline: true, otherChat: true,
+    // chat and voice chat (js/talk.js, js/voice.js); voice: undefined until the game has asked
+    chatNotes: true, vcHear: 'game', vcMode: 'open', vcPtt: 'KeyB', vcMute: 'KeyM', vcVol: 1, vcMic: '', vcOut: '',
   };
   // keys you can change in Settings (Esc always pauses); def is the key the game reads internally
   CW.KEY_ACTIONS = [
@@ -309,8 +311,16 @@
       } else if (k === 'settings') {
         const s = this.settings;
         const acct = this.game.account;
-        const keyRows = CW.KEY_ACTIONS.map((a) => `<div class="set-row"><span>${a.label}</span><button class="ws-btn key-btn" data-key="${a.id}">${CW.keyName((s.keys || {})[a.id] || a.def)}</button></div>`).join('');
-        const tabs = [['account', '👤', 'Account'], ['display', '🖥', 'Display'], ['controls', '🎮', 'Controls'], ['keys', '⌨', 'Keys'], ['touch', '📱', 'Touch screen'], ['sound', '🔊', 'Sound'], ['online', '🌐', 'Online'], ['save', '💾', 'Save data']];
+        const keyRows = CW.KEY_ACTIONS.map((a) => `<div class="set-row key-row"><span>${a.label}</span><button class="ws-btn key-btn" data-key="${a.id}">${CW.keyName((s.keys || {})[a.id] || a.def)}</button></div>`).join('');
+        const talk = this.game.talk, voice = this.game.voice;
+        const voiceNote = CW.PORTAL ? 'Voice chat is not available on this website. Play on cogwild.duckdns.org or in the app to use it.'
+          : !voice.supported ? "This browser can't do voice chat."
+            : talk.mode === 'quick' ? 'Voice chat is off because Quick chat only is on (💬 Chat).'
+              : !(acct && acct.loggedIn) ? 'Voice chat needs an account: log in first.' : '';
+        const outOk = !!(window.HTMLMediaElement && HTMLMediaElement.prototype.setSinkId);
+        const blockedRows = talk.blocked.length ? talk.blocked.map((n) => `<div class="set-row"><span>${CW.esc(n)}</span><button class="ws-btn" data-unblock="${CW.esc(n)}">Unblock</button></div>`).join('')
+          : '<div class="small">Nobody. Tap a name in the chat to block or report a player.</div>';
+        const tabs = [['account', '👤', 'Account'], ['display', '🖥', 'Display'], ['controls', '🎮', 'Controls'], ['keys', '⌨', 'Keys'], ['touch', '📱', 'Touch screen'], ['sound', '🔊', 'Sound'], ['voice', '🎤', 'Voice chat'], ['chat', '💬', 'Chat'], ['online', '🌐', 'Online'], ['save', '💾', 'Save data']];
         body.innerHTML = `<div class="set-wrap"><nav class="set-tabs">${tabs.map(([id, ico, name]) => `<button class="set-tab" data-settab="${id}"><i>${ico}</i><span>${name}</span></button>`).join('')}</nav><div class="set-main">
           <section class="set-sec" data-sec="account"><h3>👤 Account</h3>
           <div class="set-row"><span>${acct && acct.loggedIn ? `Logged in as <b>${CW.esc(acct.me.name)}</b> · progress backed up to the cloud` : 'Playing as a guest (progress saved on this device only)'}</span><button class="ws-btn on" id="setAcct">${acct && acct.loggedIn ? 'Profile' : 'Log in / Sign up'}</button></div>
@@ -342,7 +352,25 @@
           <label class="set-row"><span>Music volume <b id="setMusicVolV"></b></span><input type="range" id="setMusicVol" min="0" max="1" step="0.05"></label>
           </section><section class="set-sec" data-sec="online"><h3>🌐 Online</h3>
           <label class="set-row chk"><input type="checkbox" id="setFriendOn"><span>Tell me when a friend comes online</span></label>
-          <label class="set-row chk"><input type="checkbox" id="setChat"><span>Show other players' quick chat</span></label>
+          </section><section class="set-sec" data-sec="voice"><h3>🎤 Voice chat</h3>
+          ${voiceNote ? `<div class="small set-note">${voiceNote}</div>` : ''}
+          <label class="set-row chk"><input type="checkbox" id="setVoice"><span>Voice chat: talk with your party and the players in your match</span></label>
+          <label class="set-row"><span>Who you hear</span><select id="setVcHear"><option value="game">My party and my match</option><option value="party">My party only</option></select></label>
+          <label class="set-row"><span>How your mic works</span><select id="setVcMode"><option value="open">Open mic: always on (mute with the key below)</option><option value="ptt">Push to talk: only while you hold the key</option></select></label>
+          <div class="set-row key-row"><span>Push to talk (hold)</span><button class="ws-btn key-btn" data-vkey="vcPtt">${CW.keyName(s.vcPtt || 'KeyB')}</button></div>
+          <div class="set-row key-row"><span>Mute / unmute</span><button class="ws-btn key-btn" data-vkey="vcMute">${CW.keyName(s.vcMute || 'KeyM')}</button></div>
+          <label class="set-row"><span>Microphone</span><select id="setVcMic"><option value="">Default microphone</option></select></label>
+          <label class="set-row ${outOk ? '' : 'hidden'}"><span>Speakers / headphones</span><select id="setVcOut"><option value="">Default speakers</option></select></label>
+          <label class="set-row"><span>Voice volume <b id="setVcVolV"></b></span><input type="range" id="setVcVol" min="0" max="1" step="0.05"></label>
+          <div class="set-row"><span>Your mic <small class="small" id="vcCount"></small></span><div class="vc-meter"><i id="vcMeter"></i></div></div>
+          <div class="small">On phones, tap 🎤 to mute (or hold it to talk with push to talk). Blocked players can't hear you or talk to you.</div>
+          </section><section class="set-sec" data-sec="chat"><h3>💬 Chat</h3>
+          <label class="set-row"><span>Chat with friends, party and club</span><select id="setChatMode"><option value="free">Free chat: type anything</option><option value="quick">Quick chat only (for kids): ready-made messages, no voice chat</option></select></label>
+          <div class="small">${acct && acct.loggedIn ? 'Saved on your account, on every device.' : 'Log in to chat with friends, your party and your club.'} Matches always use quick chat (keys 1-8). Open the chat with 💬 or Enter.</div>
+          <label class="set-row chk"><input type="checkbox" id="setChat"><span>Show other players' quick chat in matches</span></label>
+          <label class="set-row chk"><input type="checkbox" id="setChatNotes"><span>Show new messages while the chat is closed</span></label>
+          <h3>🚫 Blocked players</h3>
+          ${blockedRows}
           </section><section class="set-sec" data-sec="save"><h3>💾 Save data</h3>
           <div class="menu-btns" style="justify-content:flex-start;margin-top:4px">
             <button class="ws-btn" id="setExport">💾 Back up save</button>
@@ -403,6 +431,37 @@
         bindRange('setTouchSize', 'touchSize', (v) => Math.round(v * 100) + '%');
         const bindChk = (id, key) => { const el = $(id); el.checked = !!s[key]; el.onchange = () => { s[key] = el.checked; this.apply(); }; };
         bindChk('setFriendOn', 'friendOnline');
+        bindChk('setChatNotes', 'chatNotes');
+        // chat mode lives on the account
+        $('setChatMode').value = talk.mode;
+        $('setChatMode').disabled = !(acct && acct.loggedIn) || !talk.freeOk && talk.mode !== 'quick';
+        $('setChatMode').onchange = (e) => talk.setMode(e.target.value);
+        body.querySelectorAll('[data-unblock]').forEach((b) => (b.onclick = () => this.game.net.send({ t: 'unblock', name: b.dataset.unblock })));
+        // voice chat
+        $('setVoice').checked = !!s.voice;
+        $('setVoice').disabled = !!voiceNote && !s.voice;
+        $('setVoice').onchange = (e) => { s.voice = e.target.checked; this.apply(); voice.apply(); };
+        $('setVcHear').value = s.vcHear === 'party' ? 'party' : 'game';
+        $('setVcHear').onchange = (e) => { s.vcHear = e.target.value; this.apply(); voice.apply(); };
+        $('setVcMode').value = voice.talkMode;
+        $('setVcMode').onchange = (e) => { s.vcMode = e.target.value; this.apply(); voice.applyMic(); };
+        bindRange('setVcVol', 'vcVol', (v) => Math.round(v * 100) + '%');
+        $('setVcVol').addEventListener('input', () => voice.changeVolume());
+        body.querySelectorAll('[data-vkey]').forEach((b) => (b.onclick = () => this.listenVoiceKey(b)));
+        voice.devices().then((list) => {
+          const fill = (id, kind, key, def) => {
+            const el = $(id);
+            if (!el) return;
+            const devs = list.filter((d) => d.kind === kind && d.deviceId && d.deviceId !== 'default');
+            el.innerHTML = `<option value="">${def}</option>` + devs.map((d, i) => `<option value="${CW.esc(d.deviceId)}">${CW.esc(d.label || `${kind === 'audioinput' ? 'Microphone' : 'Speaker'} ${i + 1}`)}</option>`).join('');
+            el.value = devs.some((d) => d.deviceId === s[key]) ? s[key] : '';
+          };
+          fill('setVcMic', 'audioinput', 'vcMic', 'Default microphone');
+          fill('setVcOut', 'audiooutput', 'vcOut', 'Default speakers');
+        });
+        $('setVcMic').onchange = (e) => { s.vcMic = e.target.value; this.apply(); voice.changeMic(); };
+        $('setVcOut').onchange = (e) => { s.vcOut = e.target.value; this.apply(); voice.changeOutput(); };
+        voice.render();
         bindChk('setChat', 'otherChat');
         bindChk('setVibrate', 'vibrate');
         bindChk('setAimAssist', 'aimAssist');
@@ -425,11 +484,24 @@
           this.game.meta.openPanel('settings');
         };
       } else if (k === 'ach') {
+        // anything already done unlocks now (and pays its coins)
+        for (const a of CW.checkAchievements(this.game)) this.game.toast(`🏆 ${a.name}! +${a.reward} coins`);
         const got = p.achievements || {};
         const n = CW.ACHIEVEMENTS.filter((a) => got[a.id]).length;
-        body.innerHTML = `<div class="small">${n} / ${CW.ACHIEVEMENTS.length} unlocked. Each one pays coins.</div><div class="ach-grid">${CW.ACHIEVEMENTS.map((a) => `<div class="ach ${got[a.id] ? 'got' : ''}"><b>${got[a.id] ? '🏆' : '🔒'} ${a.name}</b><span class="small">${a.desc}</span><div class="small">+${a.reward} 🪙</div></div>`).join('')}</div>`;
+        // not unlocked yet: how close you are ("9 / 10") with a bar
+        const prog = (a) => {
+          const { cur, goal } = CW.achProgress(a, this.game);
+          const fmt = (v) => (a.unit === 's' ? `${Math.floor(v / 60)}:${String(v % 60).padStart(2, '0')}` : a.unit === 'lv' ? `level ${v}` : v);
+          return `<div class="ach-prog"><div class="ach-bar"><i style="width:${Math.round((cur / goal) * 100)}%"></i></div><span>${fmt(cur)} / ${fmt(goal)}</span></div>`;
+        };
+        body.innerHTML = `<div class="small">${n} / ${CW.ACHIEVEMENTS.length} unlocked. Each one pays coins.</div><div class="ach-grid">${CW.ACHIEVEMENTS.map((a) => `<div class="ach ${got[a.id] ? 'got' : ''}"><b>${got[a.id] ? '🏆' : '🔒'} ${a.name}</b><span class="small">${a.desc}</span>${got[a.id] ? '' : prog(a)}<div class="small">+${a.reward} 🪙</div></div>`).join('')}</div>`;
       } else if (k === 'news') {
         body.innerHTML = `<ul class="news">
+          <li><b>v1.7</b>: 💬 <b>Chat</b> (💬 or Enter): type to your friends, party and club, in the lobby and during matches. Matches use quick chat. Tap a name to block or report a player.</li>
+          <li>🎤 <b>Voice chat</b> with your party and your match: open mic or push-to-talk (B), mute with M or 🎤, pick your microphone and speakers, and choose who you hear (Settings › Voice chat).</li>
+          <li>🧒 <b>Quick chat only</b> (Settings › Chat): ready-made messages only and no voice chat, saved on your account.</li>
+          <li>🔐 <b>Sign up with Google</b>: your browser opens, you pick your Google account and choose a username. No password or email code.</li>
+          <li>🏆 Achievements show how close you are (like 9 / 10 wins). Text in menus can't be selected by accident anymore. Phones: tapping outside a menu just closes it.</li>
           <li><b>v1.6.5</b>: 🎟 A new full-screen Cog Pass: your tier, how to earn points and a track of rewards you scroll sideways, with Claim all. ⚙ Settings is a full screen with a button for each category. 🛒 Click anywhere on a Shop item to buy it, after a quick "Buy it?" check. Buttons no longer show hover text.</li>
           <li><b>v1.6.4</b>: Quick chat no longer shows your own messages twice; settings rows turn gray-blue when you point at them; on phones News lines up on the right.</li>
           <li><b>v1.6.3</b>: Settings rows turn blue when you point at them instead of showing a big outline.</li>
@@ -587,6 +659,28 @@
     }
 
     // key rebinding: the next key pressed becomes this action's key (a key used elsewhere swaps places)
+    // Settings > Voice chat: the push-to-talk and mute keys
+    listenVoiceKey(btn) {
+      const s = this.settings, id = btn.dataset.vkey;
+      const def = (k) => (k === 'vcPtt' ? 'KeyB' : 'KeyM');
+      btn.textContent = 'Press a key…';
+      btn.classList.add('on');
+      const done = (e) => {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        window.removeEventListener('keydown', done, true);
+        if (e.code !== 'Escape') {
+          const other = id === 'vcPtt' ? 'vcMute' : 'vcPtt';
+          if ((s[other] || def(other)) === e.code) s[other] = s[id] || def(id); // the two keys swap
+          s[id] = e.code;
+          const clash = CW.KEY_ACTIONS.find((a) => ((s.keys || {})[a.id] || a.def) === e.code);
+          if (clash) this.game.toast(`${CW.keyName(e.code)} is also "${clash.label}"`);
+          this.apply();
+        }
+        this.renderPanel();
+      };
+      window.addEventListener('keydown', done, true);
+    }
     listenKey(btn) {
       const s = this.settings;
       const act = CW.KEY_ACTIONS.find((a) => a.id === btn.dataset.key);
@@ -622,7 +716,7 @@
       $('questsCard').onclick = (e) => { if (!e.target.closest('button')) g.meta.openPanel('challenges'); };
       $('btnShop').onclick = () => g.meta.openPanel('shop');
       $('confirmNo').onclick = () => g.meta.closeConfirm();
-      $('confirm').addEventListener('pointerdown', (e) => { if (e.target === $('confirm')) g.meta.closeConfirm(); });
+      CW.tapOutside($('confirm'), () => g.meta.closeConfirm());
       $('btnSettings').onclick = () => g.meta.openPanel('settings');
       $('btnHowto').onclick = () => g.meta.openPanel('howto');
       $('btnAch').onclick = () => g.meta.openPanel('ach');
@@ -632,7 +726,7 @@
       $('pName').onchange = (e) => { g.profile.name = e.target.value.trim().slice(0, 16); g.saveProfile(); };
       $('panelClose').onclick = () => g.meta.closePanel();
       // tap/click outside the panel closes it, like most games and apps
-      $('panel').addEventListener('pointerdown', (e) => { if (e.target === $('panel')) g.meta.closePanel(); });
+      CW.tapOutside($('panel'), () => g.meta.closePanel());
     }
 
     // colors available in the Workshop paint section (free + bought)

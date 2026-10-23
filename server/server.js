@@ -10,12 +10,14 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { Accounts } = require('./accounts');
+const { Talk } = require('./talk');
+const google = require('./google');
 const E = require('../js/economy.js');
 const { Referee } = require('./referee');
 
 const PORT = parseInt(process.env.PORT || '8765', 10);
 const ROOT = path.resolve(__dirname, '..');
-const NET_VERSION = 'cogwild-net-8';
+const NET_VERSION = 'cogwild-net-9';
 const MAX_PLAYERS = 8;
 // Matchmaking (PLAY): each arena has its own queue. A search lasts up to SEARCH_SECS; then bots fill every
 // empty seat (at least one, so there's always someone to fight) and the match starts. A full room starts at once.
@@ -48,6 +50,8 @@ const BYTE_RATE = 512 * 1024; // bytes per second a player may send (burst: 4 se
 const MAX_PER_IP = parseInt(process.env.MAX_PER_IP || '24', 10); // open connections from one address
 const perIp = new Map(); // ip -> open connections
 const HOST_SILENCE = 6000; // a host's game sends 20 updates a second; this long without one and it's gone
+// the game's public https address (for Google's redirect); empty = the address the browser used
+const PUBLIC_ORIGIN = (process.env.PUBLIC_ORIGIN || '').replace(/\/+$/, '');
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
 
 // ======================= static files =======================
@@ -58,7 +62,7 @@ const MIME = {
   '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json', '.png': 'image/png',
   '.apk': 'application/vnd.android.package-archive', '.exe': 'application/octet-stream', '.zip': 'application/zip',
 };
-const PUBLIC = new Set(['index.html', 'privacy.html', 'terms.html', 'credits.html', 'favicon.svg', 'download.html', 'manifest.webmanifest', 'sw.js']); // top-level files that may be served
+const PUBLIC = new Set(['auth.html', 'index.html', 'privacy.html', 'terms.html', 'credits.html', 'favicon.svg', 'download.html', 'manifest.webmanifest', 'sw.js']); // top-level files that may be served
 
 // sent with every page and file: no framing by other sites, no inline/foreign scripts, no sniffing
 const SECURITY = {
@@ -66,11 +70,8 @@ const SECURITY = {
   'X-Frame-Options': 'SAMEORIGIN',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
   'Strict-Transport-Security': 'max-age=15552000',
-  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
-  // (Google's sign-in button only when it's set up: its script, its pop-up frame and its style sheet)
-  'Content-Security-Policy': process.env.GOOGLE_CLIENT_ID
-    ? "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; img-src 'self' data: blob: https://*.googleusercontent.com; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss: https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
-    : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'",
+  'Permissions-Policy': 'camera=(), microphone=(self), geolocation=(), payment=()', // the microphone: voice chat
+  'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'",
 };
 function reply(res, code, text) { res.writeHead(code, Object.assign({ 'Content-Type': 'text/plain; charset=utf-8' }, SECURITY)); res.end(text); }
 
@@ -81,6 +82,14 @@ function serveStatic(req, res) {
   if (url === '/') url = '/index.html';
   if (url === '/favicon.ico') url = '/favicon.svg';
   if (url === '/download' || url === '/app') url = '/download.html';
+  // Google sign-in in the player's browser (server/google.js): off to Google, and back to a page that finishes it
+  if (url === '/auth/google') {
+    const s = new URLSearchParams((req.url || '').split('?')[1] || '').get('s') || '';
+    if (!google.clientId || !/^[a-f0-9]{32,64}$/.test(s)) return reply(res, 404, "Google sign-in isn't set up here");
+    res.writeHead(302, Object.assign({ Location: google.authUrl(PUBLIC_ORIGIN || 'https://' + req.headers.host, s), 'Cache-Control': 'no-store' }, SECURITY));
+    return res.end();
+  }
+  if (url === '/auth/google/done') url = '/auth.html';
   if (url === '/health') {
     res.writeHead(200, Object.assign({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, SECURITY));
     return res.end(JSON.stringify({ ok: true, version: NET_VERSION, rooms: rooms.size, players: clients.size }));
@@ -376,6 +385,8 @@ function publicRooms() {
 
 // accounts, friends, parties and trophies (server/accounts.js)
 const accounts = new Accounts({ clients, rooms, joinRoom, maxPlayers: MAX_PLAYERS });
+// chat (friends, party, club) and voice chat set-up (server/talk.js)
+accounts.talk = new Talk(accounts, { clients, rooms });
 
 // mech parts from players: only short part names and small whole-number positions are relayed
 const coord = (v) => Math.max(-64, Math.min(64, v | 0));
@@ -540,7 +551,24 @@ function handle(c, data) {
 }
 
 // ======================= server =======================
-const server = http.createServer(serveStatic);
+// the sign-in page posts Google's token here: { s, token } -> { ok } or { msg }
+function googleFinish(req, res) {
+  let body = '';
+  const answer = (code, o) => { res.writeHead(code, Object.assign({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, SECURITY)); res.end(JSON.stringify(o)); };
+  req.on('data', (d) => { body += d; if (body.length > 16384) req.destroy(); });
+  req.on('end', async () => {
+    let m;
+    try { m = JSON.parse(body); } catch (e) { return answer(400, { msg: 'Bad request' }); }
+    try {
+      const why = await accounts.googleDone(m && m.s, m && m.token);
+      answer(why ? 400 : 200, why ? { msg: why } : { ok: true });
+    } catch (e) { answer(400, { msg: 'Google sign-in failed: ' + e.message }); }
+  });
+}
+const server = http.createServer((req, res) => {
+  if (req.method === 'POST' && (req.url || '').split('?')[0] === '/auth/google/finish') return googleFinish(req, res);
+  serveStatic(req, res);
+});
 server.on('upgrade', (req, sock) => {
   const origin = req.headers.origin || '';
   if (req.url.split('?')[0] !== '/ws' || (ALLOWED_ORIGINS.length && !ALLOWED_ORIGINS.includes(origin)) || !req.headers['sec-websocket-key']) {

@@ -9,6 +9,7 @@ app.whenReady().then(async () => {
   const W = +(process.env.W || 915), H = +(process.env.H || 412);
   const win = new BrowserWindow({ show: false, width: W, height: H, useContentSize: true, webPreferences: { offscreen: true, partition: 'phone' + Date.now() } });
   win.webContents.setAudioMuted(true);
+    require('./no-voice-ask')(win); // not a voice chat test
   win.webContents.on('console-message', (e, level, msg) => { if (level >= 2) errors.push(msg); });
   const js = (code) => win.webContents.executeJavaScript(code);
   const shot = async (name) => fs.writeFileSync(path.join(__dirname, 'shots', name + '.png'), (await win.webContents.capturePage()).toPNG());

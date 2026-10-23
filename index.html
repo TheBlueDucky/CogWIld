@@ -691,7 +691,7 @@
   #partyBar { padding: 8px 12px; }
   /* ---- one scale for the whole UI (Game.fitUi sets --z, --vw and --vh from the window size) ---- */
   :root { --z: 1; --vw: 100vw; --vh: 100vh; }
-  #menu, #panel, #modes, #picker, #online, #lobby, #search, #netWait, #workshopUI, #hud, #results, #pause, #modal, #confirm, #acct, #notes, #toast { zoom: var(--z); }
+  #menu, #panel, #modes, #picker, #online, #lobby, #search, #netWait, #workshopUI, #hud, #results, #pause, #modal, #confirm, #acct, #notes, #toast, #chat, #vcAsk, #vcTalk { zoom: var(--z); }
   /* screens scroll when their content is taller than the window, so Back/Close is always reachable */
   .screen { overflow-y: auto; justify-content: safe center; }
   /* the Back/Close row of a full screen stays on the bottom edge, so it never needs scrolling to */
@@ -799,6 +799,15 @@
   .feat-chip.on { background: var(--glass); border-color: var(--hl); }
   .feat-chip.on b { color: var(--hl) !important; }
   .version { opacity: .6; }
+  /* Google sign-in (in the player's browser) */
+  #gBtnWrap { display: flex; flex-direction: column; gap: 6px; align-items: stretch; margin: 4px 0; }
+  #gBtnWrap.hidden { display: none; }
+  .g-btn { display: flex; align-items: center; justify-content: center; gap: 10px; }
+  .g-logo { width: 24px; height: 24px; border-radius: 50%; background: #fff; color: #4285f4; font: 800 16px/24px Arial, sans-serif; text-align: center; }
+  .g-note { text-align: center; color: var(--muted2); }
+  .g-wait { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; padding: 10px 0; }
+  .g-spin { font-size: 38px; animation: gspin 2.4s linear infinite; }
+  @keyframes gspin { to { transform: rotate(360deg); } }
   /* full-screen Shop */
   #panel.full { padding: 0; background: #141b33; }
   #panel.full .panel-box { width: var(--vw) !important; max-width: none; height: var(--vh); max-height: none; border: none; border-radius: 0 !important; box-shadow: none; }
@@ -1114,6 +1123,72 @@
     .pt-pic.av { font-size: 34px; }
     .pt-pic.coin { font-size: 28px; }
   }
+  /* no selecting or copying text anywhere (also no long-press menu on phones),
+     except What's new and the boxes you type in */
+  html, body, #app, #app * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  #app input, #app textarea, #app select, #app [contenteditable], #app .news, #app .news * { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+  #app img { -webkit-user-drag: none; }
+  /* Settings > Keys: the action's name turns gray-blue like the other rows; quiet buttons */
+  .set-row.key-row > span { transition: color .12s; }
+  .set-row.key-row:hover > span { color: var(--muted2); }
+  #setKeysReset { background: transparent !important; border: 1px solid var(--line2) !important; padding: 3px 12px !important; font-size: 13px !important; margin-left: 8px; vertical-align: middle; }
+  .key-btn { background: rgba(0, 0, 0, .16) !important; border: 1px solid var(--line2) !important; }
+  .key-btn:hover { background: rgba(0, 0, 0, .22) !important; }
+  /* achievements not unlocked yet: how close you are */
+  .ach:not(.got) { opacity: .85; }
+  .ach-prog { display: flex; align-items: center; gap: 8px; margin: 6px 0 2px; }
+  .ach-bar { flex: 1; height: 7px; border-radius: 4px; background: rgba(255, 255, 255, .1); overflow: hidden; }
+  .ach-bar i { display: block; height: 100%; background: linear-gradient(90deg, #2bb8e0, #5ce1ff); }
+  .ach-prog span { font-size: 12px; font-weight: 800; color: var(--muted2); white-space: nowrap; }
+  /* ---- chat and voice ---- */
+  .chat-btn, .vc-btn { position: relative; }
+  .vc-btn[data-vc=off], .vc-btn[data-vc=wait] { filter: grayscale(1); opacity: .7; }
+  .vc-btn[data-vc=muted] { color: #ff8a8a; }
+  .vc-btn.talking { outline: 2px solid var(--hl) !important; outline-offset: -1px; }
+  #hudTalk { position: absolute; top: 12px; right: 194px; display: flex; gap: 6px; pointer-events: auto; }
+  #hudTalk button { position: relative; width: 40px; height: 40px; border-radius: var(--rad); background: rgba(11, 15, 30, .42); border: 1px solid rgba(255, 255, 255, .14); color: #fff; font-size: 18px; cursor: pointer; }
+  #hudTalk .badge { top: -6px; right: -6px; }
+  #chat { position: absolute; left: 0; top: 0; bottom: 0; width: min(380px, 100%); z-index: 7; display: flex; flex-direction: column; background: var(--bg1); border-right: 1px solid var(--line2); box-shadow: 8px 0 30px rgba(0, 0, 0, .35); }
+  .chat-head { display: flex; align-items: center; gap: 6px; padding: 8px 8px 6px; border-bottom: 1px solid var(--line2); }
+  .chat-tabs { flex: 1; display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+  .chat-tab { position: relative; flex: none; padding: 6px 10px; border-radius: 8px; background: transparent; border: 1px solid transparent; color: var(--muted2); font: 700 13px 'Nunito', sans-serif; cursor: pointer; }
+  .chat-tab.on { color: var(--hl); border-color: rgba(92, 225, 255, .45); background: rgba(92, 225, 255, .08); }
+  .chat-tab .badge { top: -4px; right: -4px; min-width: 16px; padding: 0 4px; font-size: 10px; }
+  #chatX { padding: 4px 10px !important; }
+  .chat-sub { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 10px; border-bottom: 1px solid var(--line2); font-size: 14px; }
+  .chat-sub b { color: var(--txt); }
+  .chat-back, .chat-act { padding: 2px 10px !important; font-size: 12px !important; }
+  .chat-log { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 5px; font-size: 14px; }
+  .chat-line { line-height: 1.3; overflow-wrap: anywhere; color: var(--txt); }
+  .chat-line b { color: var(--muted2); }
+  .chat-line.me b { color: var(--hl); }
+  .chat-line.sys { color: #7484ad; font-size: 12px; }
+  .chat-who { cursor: pointer; }
+  .chat-who:hover { text-decoration: underline; }
+  .chat-empty { margin: auto; text-align: center; color: var(--muted2); font-size: 13px; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+  .chat-friend { position: relative; display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border-radius: 8px; background: transparent; border: 1px solid var(--line2); color: var(--txt); text-align: left; cursor: pointer; font: 700 14px 'Nunito', sans-serif; }
+  .chat-friend:not(.on) { opacity: .7; }
+  .chat-friend .av { font-size: 20px; }
+  .chat-friend small { margin-left: auto; color: var(--muted2); font-size: 11px; }
+  .chat-friend .badge { position: static; margin-left: 4px; }
+  .chat-note { padding: 0 10px 4px; color: #7484ad; }
+  .chat-quick { display: flex; flex-wrap: wrap; gap: 5px; max-height: 76px; overflow-y: auto; padding: 6px 8px; border-top: 1px solid var(--line2); scrollbar-width: thin; }
+  .chat-q { flex: none; padding: 5px 9px; border-radius: 8px; background: transparent; border: 1px solid var(--line2); color: var(--txt); font: 700 13px 'Nunito', sans-serif; cursor: pointer; white-space: nowrap; }
+  .chat-form { display: flex; gap: 6px; padding: 6px 8px 8px; }
+  .chat-form input { flex: 1; min-width: 0; padding: 7px 10px; border-radius: 8px; background: var(--bg2); color: var(--txt); border: 1px solid var(--line2); font: 600 14px 'Nunito', sans-serif; }
+  .chat-form .ws-btn { padding: 6px 14px !important; }
+  /* who's talking: in the lobby beside the left buttons, in a match under the top bar */
+  #vcTalk { position: absolute; left: 132px; top: 96px; z-index: 6; display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
+  #vcTalk.in-match { left: 50%; top: 64px; transform: translateX(-50%); flex-direction: row; }
+  .touch-ui #vcTalk.in-match { top: 80px; }
+  #vcTalk span { padding: 3px 9px; border-radius: 8px; background: rgba(11, 15, 30, .55); border: 1px solid rgba(92, 225, 255, .45); color: var(--txt); font-size: 13px; font-weight: 700; }
+  #vcAsk { position: absolute; inset: 0; z-index: 31; background: rgba(6, 10, 24, .72); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .vc-ask-box { width: min(420px, 100%); gap: 8px; }
+  .vc-ask-ico { font-size: 40px; }
+  .vc-ask-keys { color: var(--muted2); }
+  .vc-meter { width: 200px; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, .1); overflow: hidden; }
+  .vc-meter i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #2bb8e0, #5ce1ff); transition: width .1s; }
+  .set-note { padding: 6px 10px; border: 1px solid var(--line2); border-radius: 8px; margin-bottom: 6px; color: var(--muted2); }
 </style>
 </head>
 <body>
@@ -1147,6 +1222,8 @@
       <div class="lt-right">
         <button id="btnRanks" class="bs-chip lvl-chip" aria-label="Your level and rank: level up to unlock parts and movement types"><span class="lvl-star"><b id="pLevel">1</b></span><span class="lvl-info"><b id="pRank">Mono</b><span class="xpbar mini"><i id="pXp"></i></span></span></button>
         <button id="coinChip" class="bs-chip coins" aria-label="Coins: spend them in the Shop">🪙 <b id="pCoins">0</b></button>
+        <button id="btnVoice" class="bs-icon vc-btn" aria-label="Voice chat">🎤</button>
+        <button id="btnChat" class="bs-icon chat-btn" aria-label="Chat">💬<i class="badge hidden" id="badgeChat">0</i></button>
         <button id="btnSettings" class="bs-icon" aria-label="Settings">⚙</button>
       </div>
     </div>
@@ -1342,6 +1419,7 @@
   <div id="specBar" class="hidden">👁 Watching <b id="specName"></b> <button id="specLeave" class="ws-btn">Leave (Esc)</button></div>
   <div id="hud" class="hidden">
     <div id="vignette"></div>
+    <div id="hudTalk"><button id="hudVoice" class="vc-btn" aria-label="Voice chat">🎤</button><button id="hudChat" aria-label="Chat (Enter)">💬<i class="badge hidden" id="hudChatBadge">0</i></button></div>
     <div id="tags"></div>
     <div id="crosshair"></div>
     <div id="topInfo"></div>
@@ -1424,6 +1502,27 @@
       </div>
     </div>
   </div>
+  <!-- CHAT (js/talk.js) -->
+  <div id="chat" class="hidden" role="dialog" aria-label="Chat">
+    <div class="chat-head"><div class="chat-tabs" id="chatTabs"></div><button id="chatX" class="ws-btn" aria-label="Close (Esc)">✕</button></div>
+    <div class="chat-sub hidden" id="chatSub"></div>
+    <div class="chat-log" id="chatLog"></div>
+    <div class="small chat-note hidden" id="chatNote">Quick chat only is on (Settings › Chat)</div>
+    <div class="chat-quick hidden" id="chatQuick"></div>
+    <form class="chat-form hidden" id="chatForm"><input id="chatInput" maxlength="200" autocomplete="off" spellcheck="true" placeholder="Type a message…"><button class="ws-btn on">Send</button></form>
+  </div>
+  <!-- VOICE CHAT: who's talking, and the first-time question (js/voice.js) -->
+  <div id="vcTalk" class="hidden"></div>
+  <div id="vcAsk" class="hidden">
+    <div class="confirm-box vc-ask-box" role="dialog" aria-modal="true" aria-labelledby="vcAskTitle">
+      <div class="vc-ask-ico">🎤</div>
+      <h2 id="vcAskTitle">Use voice chat?</h2>
+      <div class="small">Talk with your party and the players in your match. The game asks to use your microphone when you turn it on. You can turn it off any time in Settings › 🎤 Voice chat.</div>
+      <div class="small vc-ask-keys" id="vcAskKeys"></div>
+      <div class="confirm-btns"><button id="vcNo" class="ws-btn">Keep it off</button><button id="vcYes" class="ws-btn on">Turn on voice chat</button></div>
+      <button id="vcHow" class="link-btn">Turn it on and show me the controls</button>
+    </div>
+  </div>
   <!-- SHOP: "buy it?" -->
   <div id="confirm" class="hidden">
     <div class="confirm-box" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
@@ -1444,7 +1543,17 @@
       <div class="acct-top"><h2 class="title-font" id="acctTitle">Welcome to Cogwild</h2><button type="button" id="acctX" class="ws-btn" aria-label="Close (Esc)">✕</button></div>
       <div class="small" id="acctWhy"></div>
       <div class="seg" id="acctTabs"><button type="button" id="tabLogin">Log in</button><button type="button" id="tabSign">Sign up</button></div>
-      <div id="gBtnWrap" class="hidden"><div id="gBtn"></div><div class="acct-or">or</div></div>
+      <!-- Google: opens the player's own browser to sign in (no password, no email code) -->
+      <div id="gBtnWrap" class="hidden">
+        <button type="button" id="gBtn" class="btn big go g-btn"><span class="g-logo">G</span><span id="gBtnT">Continue with Google</span></button>
+        <div class="small g-note">Opens your browser to sign in with Google. No password to remember.</div>
+        <button type="button" id="liOld" class="link-btn">Log in with email and password (older accounts)</button>
+      </div>
+      <form id="fGWait" class="acct-form hidden">
+        <div class="g-wait"><span class="g-spin">🌐</span><b>Finish signing in in your browser</b><span class="small">Pick your Google account there, then come back here. The game continues by itself.</span></div>
+        <button type="button" id="gAgain" class="ws-btn">Open the browser again</button>
+        <button type="button" id="gCancel" class="link-btn">Cancel</button>
+      </form>
       <!-- log in: email + password (old accounts can type their username) -->
       <form id="fLogin" class="acct-form">
         <label>Email<input id="liEmail" maxlength="254" autocomplete="username" spellcheck="false" autocapitalize="off" placeholder="you@gmail.com"></label>
@@ -1474,7 +1583,7 @@
         <button type="button" id="codeBack" class="link-btn">Use a different email</button>
       </form>
       <form id="fName" class="acct-form hidden">
-        <div class="step">Step 3 of 3 · your player</div>
+        <div class="step" id="nameStepT">Step 3 of 3 · your player</div>
         <label>Username <small>shown to other players. Don't use your real name or email.</small><input id="suName" maxlength="16" spellcheck="false" autocapitalize="off" autocomplete="nickname" placeholder="3-16 letters, numbers or _"></label>
         <label class="pw-row">Password<input id="suPass" type="password" maxlength="72" autocomplete="new-password" placeholder="6 or more characters"></label>
         <label class="pw-row">Confirm password<input id="suPass2" type="password" maxlength="72" autocomplete="new-password"></label>
@@ -1506,26 +1615,28 @@
 </div>
 
 <!-- three.js: from the CDN, or the local copy in js/vendor/ when offline (desktop build / no internet) -->
-<script src="js/vendor/three.min.js?v=20"></script>
-<script src="js/economy.js?v=20"></script>
-<script src="js/parts.js?v=20"></script>
-<script src="js/platform.js?v=20"></script>
-<script src="js/featured.js?v=20"></script>
-<script src="js/world.js?v=20"></script>
-<script src="js/entities.js?v=20"></script>
-<script src="js/meta.js?v=20"></script>
-<script src="js/extras.js?v=20"></script>
-<script src="js/modes.js?v=20"></script>
-<script src="js/tutorial.js?v=20"></script>
-<script src="js/clips.js?v=20"></script>
-<script src="js/gamepad.js?v=20"></script>
-<script src="js/workshop.js?v=20"></script>
-<script src="js/config.js?v=20"></script>
-<script src="js/net.js?v=20"></script>
-<script src="js/account.js?v=20"></script>
-<script src="js/touch.js?v=20"></script>
-<script src="js/supers.js?v=20"></script>
-<script src="js/gadgets.js?v=20"></script>
-<script src="js/game.js?v=20"></script>
+<script src="js/vendor/three.min.js?v=21"></script>
+<script src="js/economy.js?v=21"></script>
+<script src="js/parts.js?v=21"></script>
+<script src="js/platform.js?v=21"></script>
+<script src="js/featured.js?v=21"></script>
+<script src="js/world.js?v=21"></script>
+<script src="js/entities.js?v=21"></script>
+<script src="js/meta.js?v=21"></script>
+<script src="js/extras.js?v=21"></script>
+<script src="js/modes.js?v=21"></script>
+<script src="js/tutorial.js?v=21"></script>
+<script src="js/clips.js?v=21"></script>
+<script src="js/gamepad.js?v=21"></script>
+<script src="js/workshop.js?v=21"></script>
+<script src="js/config.js?v=21"></script>
+<script src="js/net.js?v=21"></script>
+<script src="js/account.js?v=21"></script>
+<script src="js/touch.js?v=21"></script>
+<script src="js/supers.js?v=21"></script>
+<script src="js/gadgets.js?v=21"></script>
+<script src="js/talk.js?v=21"></script>
+<script src="js/voice.js?v=21"></script>
+<script src="js/game.js?v=21"></script>
 </body>
 </html>

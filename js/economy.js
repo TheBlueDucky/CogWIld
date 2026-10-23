@@ -263,7 +263,10 @@
   // achievement rewards (each achievement's test lives in js/extras.js)
   const ACH = { first: 50, win1: 100, win10: 300, wreck10: 100, wreck50: 250, wreck200: 600, elim25: 200, ram10: 150, dash100: 100, fly300: 150, swim300: 150, streak3: 150, pickup20: 120, chest25: 200, survive10: 300, hillking: 150, golddigger: 200, speeddemon: 200, titanslayer: 400, worldtour: 300, modemaster: 300, bothModes: 100, hybrid: 200, omni: 400, big: 200, flawless: 300 };
 
-  const api = { xpFor, levelOf, domainsAt, PARTS, mechPower, BUDGET, GRID, mechProblem, CHALLENGES, DAILY_CHALLENGES, dailyChallenges, ACH, SHOP, AVATAR_COUNT, FREE_AVATARS, item, dealPrice, dailyDeals, ROAD, giftAmount, EARN, EARN_PER_DAY, MATCH_GAP, day, nextMidnight, seeded, hash, season, PASS, passRewards, WEEKLY, week, RANKED };
+  // ready-made chat lines (quick chat): friends, party and club chat, and everything for "Quick chat only" players
+  const TALK_QUICK = ['👋 Hi!', 'GG!', 'Want to play?', 'Party up! 🎉', 'Nice one! 🏆', 'Thanks! 🙏', 'One more?', 'Be right back', 'Yes 👍', 'No 👎', "Let's go! 🔥", 'Good night 🌙'];
+
+  const api = { TALK_QUICK, xpFor, levelOf, domainsAt, PARTS, mechPower, BUDGET, GRID, mechProblem, CHALLENGES, DAILY_CHALLENGES, dailyChallenges, ACH, SHOP, AVATAR_COUNT, FREE_AVATARS, item, dealPrice, dailyDeals, ROAD, giftAmount, EARN, EARN_PER_DAY, MATCH_GAP, day, nextMidnight, seeded, hash, season, PASS, passRewards, WEEKLY, week, RANKED };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.CW = root.CW || {}; root.CW.ECON = api; root.CW.SHOP = SHOP; root.CW.ROAD = ROAD; }
 })(this);

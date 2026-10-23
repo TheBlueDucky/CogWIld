@@ -8,8 +8,7 @@
 #            Host smtp.gmail.com, port 465, user = your Gmail address, password = the 16-letter app password.
 #   Outlook: host smtp-mail.outlook.com, port 587 (needs an account that allows SMTP AUTH).
 #   Any other mail service with SMTP works too (Brevo, Zoho, ...).
-# Google button (optional): Google Cloud Console > APIs & Services > Credentials > Create OAuth client ID >
-#   Web application, Authorized JavaScript origins: https://cogwild.duckdns.org . Paste the Client ID here.
+# Google sign-in (optional here; deploy\set-google.ps1 does only that): see LAUNCH.md > "Turn on Google sign-in".
 param(
   [Parameter(Mandatory = $true)][string]$Ip,
   [Parameter(Mandatory = $true)][string]$Key,
@@ -30,7 +29,9 @@ if ($gid) { $lines += "GOOGLE_CLIENT_ID=$gid" }
 $env = ($lines -join "`n") + "`n"
 
 $sshOpts = @('-i', $Key, '-o', 'StrictHostKeyChecking=accept-new')
-$env | ssh @sshOpts "$User@$Ip" "sudo install -m 600 -o root -g root /dev/stdin /etc/cogwild.env && sudo systemctl restart cogwild && sleep 2 && curl -fsS http://127.0.0.1:8765/health"
+# keeps the other settings in the file (voice relay, Google, ...): only the mail lines (and Google, if given) are replaced
+$drop = if ($gid) { '^(MAIL_|GOOGLE_CLIENT_ID=)' } else { '^MAIL_' }
+$env | ssh @sshOpts "$User@$Ip" "umask 077; sudo touch /etc/cogwild.env && sudo grep -v -E '$drop' /etc/cogwild.env > /tmp/cw.env; cat >> /tmp/cw.env && sudo install -m 600 -o root -g root /tmp/cw.env /etc/cogwild.env && rm -f /tmp/cw.env && sudo systemctl restart cogwild && sleep 2 && curl -fsS http://127.0.0.1:8765/health"
 if ($LASTEXITCODE -ne 0) { throw 'Could not update the server' }
 Write-Host ''
 Write-Host 'Done. Open the game: it now asks everyone to log in with their email (and Google, if you added the client ID).'

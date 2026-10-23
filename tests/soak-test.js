@@ -6,6 +6,7 @@ const URL = process.env.URL || 'http://localhost:8781/';
 app.whenReady().then(async () => {
   const win = new BrowserWindow({ show: false, width: 1280, height: 720, webPreferences: { offscreen: true } });
   win.webContents.setAudioMuted(true);
+    require('./no-voice-ask')(win); // not a voice chat test
   const errors = [];
   win.webContents.on('console-message', (e, level, msg, line, src) => { if (level >= 2) errors.push(`[${level}] ${msg} @${(src || '').split('/').pop()}:${line}`); });
   win.webContents.on('render-process-gone', (e, d) => errors.push('RENDERER GONE ' + d.reason));

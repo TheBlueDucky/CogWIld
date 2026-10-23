@@ -7,6 +7,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 app.whenReady().then(async () => {
   const win = new BrowserWindow({ show: false, width: 1280, height: 720, useContentSize: true, webPreferences: { offscreen: true, partition: 'hv' + Date.now() } });
   win.webContents.setAudioMuted(true);
+    require('./no-voice-ask')(win); // not a voice chat test
   const js = (code) => win.webContents.executeJavaScript(code);
   await win.loadURL('http://localhost:8781/');
   await js(`localStorage.setItem('cogwild.profile', JSON.stringify({ xp: 500, settings: { tutorialDone: true, music: 0, sfx: 0 } })); location.reload();`);

@@ -419,34 +419,42 @@
   }
 
   // ======================= ACHIEVEMENTS =======================
+  // val: how far you are (shown as "9 / 10" until it's unlocked); goal: what unlocks it
   CW.ACHIEVEMENTS = [
-    { id: 'first', name: 'First Steps', desc: 'Play your first match', reward: 50, test: (s) => s.matches >= 1 },
-    { id: 'win1', name: 'Winner!', desc: 'Win a match', reward: 100, test: (s) => s.wins >= 1 },
-    { id: 'win10', name: 'Champion', desc: 'Win 10 matches', reward: 300, test: (s) => s.wins >= 10 },
-    { id: 'wreck10', name: 'Scrapper', desc: 'Wreck 10 mechs', reward: 100, test: (s) => s.wrecks >= 10 },
-    { id: 'wreck50', name: 'Demolisher', desc: 'Wreck 50 mechs', reward: 250, test: (s) => s.wrecks >= 50 },
-    { id: 'wreck200', name: 'Scrap Lord', desc: 'Wreck 200 mechs', reward: 600, test: (s) => s.wrecks >= 200 },
-    { id: 'elim25', name: 'Pilot Hunter', desc: 'Eliminate 25 pilots', reward: 200, test: (s) => s.elims >= 25 },
-    { id: 'ram10', name: 'Battering Ram', desc: 'Land 10 spike rams', reward: 150, test: (s) => s.rams >= 10 },
-    { id: 'dash100', name: 'Zoomies', desc: 'Dash 100 times', reward: 100, test: (s) => s.dashes >= 100 },
-    { id: 'fly300', name: 'Sky Captain', desc: 'Fly for 5 minutes total', reward: 150, test: (s) => s.airTime >= 300 },
-    { id: 'swim300', name: 'Deep Diver', desc: 'Spend 5 minutes in water', reward: 150, test: (s) => s.waterTime >= 300 },
-    { id: 'streak3', name: 'Hat Trick', desc: 'Get a 3-wreck streak', reward: 150, test: (s) => s.bestStreak >= 3 },
-    { id: 'pickup20', name: 'Collector', desc: 'Grab 20 power-ups', reward: 120, test: (s) => (s.pickups || 0) >= 20 },
-    { id: 'chest25', name: 'Treasure Hunter', desc: 'Open 25 loot chests', reward: 200, test: (s) => (s.chests || 0) >= 25 },
-    { id: 'survive10', name: 'Last Stand', desc: 'Reach wave 10 in Survival', reward: 300, test: (s) => (s.bestWave || 0) >= 10 },
-    { id: 'hillking', name: 'Hill King', desc: 'Win a King of the Hill match', reward: 150, test: (s) => (s.kothWins || 0) >= 1 },
-    { id: 'golddigger', name: 'Gold Digger', desc: 'End a Gold Rush carrying 25+ gold', reward: 200, test: (s) => (s.maxGold || 0) >= 25 },
-    { id: 'speeddemon', name: 'Speed Demon', desc: 'Win a Combat Race', reward: 200, test: (s) => (s.raceWins || 0) >= 1 },
-    { id: 'titanslayer', name: 'Titan Slayer', desc: 'Defeat the Titan', reward: 400, test: (s) => (s.bossKills || 0) >= 1 },
-    { id: 'worldtour', name: 'World Tour', desc: 'Play a match on every map', reward: 300, test: (s) => Object.keys(s.maps || {}).length >= Object.keys(CW.ARENAS).length },
-    { id: 'modemaster', name: 'Mode Master', desc: 'Play every game mode', reward: 300, test: (s) => Object.keys(s.modes || {}).length >= Object.keys(CW.MM_FORMAT).length },
-    { id: 'bothModes', name: 'All-Rounder', desc: 'Play both Rush Build and Workshop Clash', reward: 100, test: (s) => s.rush >= 1 && s.clash >= 1 },
-    { id: 'hybrid', name: 'Hybrid', desc: 'Reach the Hybrid rank', reward: 200, test: (s, g) => g.level() >= 3 },
-    { id: 'omni', name: 'Omni', desc: 'Reach the Omni rank', reward: 400, test: (s, g) => g.level() >= 6 },
-    { id: 'big', name: 'Mega Build', desc: 'Win with a mech of 30+ parts', reward: 200, test: (s) => (s.bigWin || 0) >= 1 },
-    { id: 'flawless', name: 'Untouchable', desc: 'Win without losing a single part', reward: 300, test: (s) => (s.flawless || 0) >= 1 },
+    { id: 'first', name: 'First Steps', desc: 'Play your first match', reward: 50, goal: 1, val: (s) => s.matches },
+    { id: 'win1', name: 'Winner!', desc: 'Win a match', reward: 100, goal: 1, val: (s) => s.wins },
+    { id: 'win10', name: 'Champion', desc: 'Win 10 matches', reward: 300, goal: 10, val: (s) => s.wins },
+    { id: 'wreck10', name: 'Scrapper', desc: 'Wreck 10 mechs', reward: 100, goal: 10, val: (s) => s.wrecks },
+    { id: 'wreck50', name: 'Demolisher', desc: 'Wreck 50 mechs', reward: 250, goal: 50, val: (s) => s.wrecks },
+    { id: 'wreck200', name: 'Scrap Lord', desc: 'Wreck 200 mechs', reward: 600, goal: 200, val: (s) => s.wrecks },
+    { id: 'elim25', name: 'Pilot Hunter', desc: 'Eliminate 25 pilots', reward: 200, goal: 25, val: (s) => s.elims },
+    { id: 'ram10', name: 'Battering Ram', desc: 'Land 10 spike rams', reward: 150, goal: 10, val: (s) => s.rams },
+    { id: 'dash100', name: 'Zoomies', desc: 'Dash 100 times', reward: 100, goal: 100, val: (s) => s.dashes },
+    { id: 'fly300', name: 'Sky Captain', desc: 'Fly for 5 minutes total', reward: 150, goal: 300, unit: 's', val: (s) => s.airTime },
+    { id: 'swim300', name: 'Deep Diver', desc: 'Spend 5 minutes in water', reward: 150, goal: 300, unit: 's', val: (s) => s.waterTime },
+    { id: 'streak3', name: 'Hat Trick', desc: 'Get a 3-wreck streak', reward: 150, goal: 3, val: (s) => s.bestStreak },
+    { id: 'pickup20', name: 'Collector', desc: 'Grab 20 power-ups', reward: 120, goal: 20, val: (s) => s.pickups },
+    { id: 'chest25', name: 'Treasure Hunter', desc: 'Open 25 loot chests', reward: 200, goal: 25, val: (s) => s.chests },
+    { id: 'survive10', name: 'Last Stand', desc: 'Reach wave 10 in Survival', reward: 300, goal: 10, val: (s) => s.bestWave },
+    { id: 'hillking', name: 'Hill King', desc: 'Win a King of the Hill match', reward: 150, goal: 1, val: (s) => s.kothWins },
+    { id: 'golddigger', name: 'Gold Digger', desc: 'End a Gold Rush carrying 25+ gold', reward: 200, goal: 25, val: (s) => s.maxGold },
+    { id: 'speeddemon', name: 'Speed Demon', desc: 'Win a Combat Race', reward: 200, goal: 1, val: (s) => s.raceWins },
+    { id: 'titanslayer', name: 'Titan Slayer', desc: 'Defeat the Titan', reward: 400, goal: 1, val: (s) => s.bossKills },
+    { id: 'worldtour', name: 'World Tour', desc: 'Play a match on every map', reward: 300, goal: () => Object.keys(CW.ARENAS).length, val: (s) => Object.keys(s.maps || {}).length },
+    { id: 'modemaster', name: 'Mode Master', desc: 'Play every game mode', reward: 300, goal: () => Object.keys(CW.MM_FORMAT).length, val: (s) => Object.keys(s.modes || {}).length },
+    { id: 'bothModes', name: 'All-Rounder', desc: 'Play both Rush Build and Workshop Clash', reward: 100, goal: 2, val: (s) => (s.rush >= 1 ? 1 : 0) + (s.clash >= 1 ? 1 : 0) },
+    { id: 'hybrid', name: 'Hybrid', desc: 'Reach the Hybrid rank', reward: 200, goal: 3, unit: 'lv', val: (s, g) => g.level() },
+    { id: 'omni', name: 'Omni', desc: 'Reach the Omni rank', reward: 400, goal: 6, unit: 'lv', val: (s, g) => g.level() },
+    { id: 'big', name: 'Mega Build', desc: 'Win with a mech of 30+ parts', reward: 200, goal: 1, val: (s) => s.bigWin },
+    { id: 'flawless', name: 'Untouchable', desc: 'Win without losing a single part', reward: 300, goal: 1, val: (s) => s.flawless },
   ];
+  // how far you are with an achievement: { cur, goal } (cur never above goal)
+  CW.achProgress = (a, game) => {
+    const goal = typeof a.goal === 'function' ? a.goal() : a.goal;
+    const cur = Math.max(0, Math.min(goal, Math.floor(+a.val(game.profile.stats || {}, game) || 0)));
+    return { cur, goal };
+  };
+  for (const a of CW.ACHIEVEMENTS) a.test = (s, g) => CW.achProgress(a, g).cur >= CW.achProgress(a, g).goal;
 
   CW.checkAchievements = function (game) {
     const p = game.profile;

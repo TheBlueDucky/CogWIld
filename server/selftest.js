@@ -9,7 +9,7 @@ const path = require('path');
 
 const PORT = 8800 + Math.floor(Math.random() * 100);
 const DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'cogwild-test-'));
-const VER = 'cogwild-net-8';
+const VER = 'cogwild-net-9';
 let server;
 let failed = 0;
 
@@ -45,9 +45,9 @@ net.createServer((sock) => {
 }).listen(SMTP_PORT, '127.0.0.1');
 const gkey = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
 http.createServer((req, res) => { res.end(JSON.stringify({ keys: [Object.assign(gkey.publicKey.export({ format: 'jwk' }), { kid: 'k1', alg: 'RS256', use: 'sig' })] })); }).listen(CERTS_PORT, '127.0.0.1');
-function googleToken(email, aud = 'test-client') {
+function googleToken(email, aud = 'test-client', nonce) {
   const enc = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
-  const head = enc({ alg: 'RS256', kid: 'k1', typ: 'JWT' }), body = enc({ iss: 'https://accounts.google.com', aud, email, email_verified: true, exp: Math.floor(Date.now() / 1000) + 600 });
+  const head = enc({ alg: 'RS256', kid: 'k1', typ: 'JWT' }), body = enc({ iss: 'https://accounts.google.com', aud, email, email_verified: true, exp: Math.floor(Date.now() / 1000) + 600, nonce });
   return `${head}.${body}.${crypto.sign('RSA-SHA256', Buffer.from(head + '.' + body), gkey.privateKey).toString('base64url')}`;
 }
 // the 6-digit code from the newest email to this address
@@ -76,6 +76,18 @@ function get(url, method = 'GET') {
     req.end();
   });
 }
+// POST JSON to the server: { status, body }
+function post(url, obj) {
+  return new Promise((res) => {
+    const data = JSON.stringify(obj);
+    const req = require('http').request({ host: '127.0.0.1', port: PORT, path: url, method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } }, (r) => {
+      let d = ''; r.on('data', (c) => { d += c; }); r.on('end', () => { let j = null; try { j = JSON.parse(d); } catch (e) { /* not json */ } res({ status: r.statusCode, body: j }); });
+    });
+    req.on('error', () => res({ status: 0, body: null }));
+    req.end(data);
+  });
+}
+const nonceOf = (s) => crypto.createHash('sha256').update('cogwild-google:' + s).digest('hex');
 function check(ok, what) { console.log(`${ok ? '  ok  ' : ' FAIL '} ${what}`); if (!ok) failed++; }
 
 // a player: a socket plus a log of everything it received
@@ -148,10 +160,66 @@ async function main() {
   b.send({ t: 'partyAccept', from: 'Alice_1' });
   const party = await A.next('party', (m) => m.party && m.party.members.length === 2);
   check(party.party.leader === 'Alice_1', 'Bob joins Alice\'s party');
+  console.log('chat (friends, party) and voice chat');
+  A.send({ t: 'dmSend', to: 'Bob', x: 'hello\u202e <b>bob</b>\n  ' });
+  const dm = await b.next('dm');
+  check(dm.with === 'Alice_1' && dm.msg.x === 'hello <b>bob</b>', 'a friend gets a message (control characters and extra spaces removed)');
+  check((await A.next('dm')).with === 'Bob', 'the sender sees their own message');
+  b.send({ t: 'dmOpen', name: 'Alice_1' });
+  check((await b.next('dmLog')).list.length === 1, 'messages are kept for later');
+  A.send({ t: 'dmSend', to: 'nobody_here', x: 'hi' });
+  check(/only message friends/.test((await A.next('acctErr')).msg), 'only friends can be messaged');
+  await wait(600);
+  A.send({ t: 'dmSend', to: 'Bob', x: 'x'.repeat(500) });
+  check((await b.next('dm')).msg.x.length === 200, 'messages are cut at 200 characters');
+  await wait(600);
+  A.send({ t: 'partySay', x: 'party time' });
+  check((await b.next('partyMsg')).msg.x === 'party time', 'party chat reaches the party');
+  // quick chat only (kids): no free text either way
+  b.send({ t: 'chatMode', mode: 'quick' });
+  check((await b.next('talk', (m) => !!m.mode)).mode === 'quick', 'Bob turns on Quick chat only');
+  await wait(600);
+  A.send({ t: 'dmSend', to: 'Bob', x: 'free text' });
+  check(/quick chat only/.test((await A.next('acctErr')).msg), 'free text to a quick-chat-only player is refused');
+  await wait(600);
+  A.send({ t: 'dmSend', to: 'Bob', q: 1 });
+  check((await b.next('dm')).msg.q === 1, 'quick lines still reach them');
+  await wait(600);
+  A.send({ t: 'partySay', x: 'secret words' });
+  check(!(await b.next('partyMsg', null, 800).catch(() => null)), 'free party chat skips a quick-chat-only player');
+  b.send({ t: 'partySay', x: 'can I type?' });
+  check(/Quick chat only/.test((await b.next('acctErr')).msg), 'a quick-chat-only player cannot type freely');
+  b.send({ t: 'vcState', on: true });
+  check(/Voice chat is off/.test((await b.next('acctErr')).msg), 'and gets no voice chat');
+  b.send({ t: 'chatMode', mode: 'free' });
+  await b.next('talk', (m) => m.mode === 'free');
+  // voice: party members get connected, call set-up passes between them
+  A.send({ t: 'vcState', on: true, hear: 'game' });
+  b.send({ t: 'vcState', on: true, hear: 'party' });
+  const pa = await A.next('vcPeers', (m) => m.list.length === 1, 3000);
+  const pb = await b.next('vcPeers', (m) => m.list.length === 1, 3000);
+  check(pa.list[0].name === 'Bob' && pa.list[0].party && pb.list[0].name === 'Alice_1' && pa.ice.length >= 1, 'voice chat connects party members');
+  A.send({ t: 'vcSig', to: pa.list[0].id, d: { sdp: { type: 'offer', sdp: 'v=0' } } });
+  check((await b.next('vcSig')).d.sdp.type === 'offer', 'call set-up passes from one player to the other');
+  A.send({ t: 'vcSig', to: 999999, d: { x: 1 } });
+  // block: nothing reaches you, no voice
+  b.send({ t: 'block', name: 'Alice_1' });
+  check((await b.next('talk', (m) => !!m.blocked)).blocked[0] === 'Alice_1', 'Bob blocks Alice');
+  check(!!(await A.next('vcPeers', (m) => m.list.length === 0, 3000)), 'a blocked player is cut from voice chat');
+  await wait(600);
+  A.send({ t: 'dmSend', to: 'Bob', x: 'hey' });
+  check(/can't message/.test((await A.next('acctErr')).msg), 'a blocked player cannot message you');
+  b.send({ t: 'unblock', name: 'Alice_1' });
+  await b.next('talk', (m) => m.blocked && !m.blocked.length);
+  b.send({ t: 'report', name: 'Alice_1', why: 'Spam' });
+  check(/Thanks/.test((await b.next('note', (m) => /report/.test(m.msg))).msg), 'reporting a player is confirmed');
+  A.send({ t: 'vcState', on: false }); b.send({ t: 'vcState', on: false });
+  await wait(600);
   const waitA = A.next('room'), waitB = b.next('room');
   A.send({ t: 'quick' });
   const [ar, br] = await Promise.all([waitA, waitB]);
   check(ar.room.code === br.room.code, 'party member follows the leader into Quick Match');
+
 
   console.log('trophies');
   A.send({ t: 'begin', payload: {} });
@@ -392,6 +460,29 @@ async function main() {
   gg.send({ t: 'emailName', name: 'GoogleFan' });
   check((await gg.next('acctOk')).email === 'someone@gmail.com', 'Google sign-in makes an account with the Google email');
   gg.ws.close();
+  // Google in the player's own browser: the game waits with a secret, the browser page posts the token
+  const secret = crypto.randomBytes(24).toString('hex');
+  const go = await get('/auth/google?s=' + secret);
+  check(go.status === 302 && /accounts\.google\.com/.test(go.headers.location) && go.headers.location.includes('state=' + secret) && go.headers.location.includes(encodeURIComponent('/auth/google/done')), 'the sign-in link sends the browser to Google, coming back to the game');
+  check((await get('/auth/google/done')).status === 200, 'the page Google sends players back to is there');
+  const gw = await player();
+  gw.send({ t: 'googleStart', s: secret });
+  await wait(200);
+  check((await post('/auth/google/finish', { s: secret, token: googleToken('browser.fan@gmail.com', 'test-client', 'wrong-nonce') })).status === 400, 'a token from another sign-in is refused');
+  const fin = await post('/auth/google/finish', { s: secret, token: googleToken('browser.fan@gmail.com', 'test-client', nonceOf(secret)) });
+  check(fin.status === 200 && fin.body.ok, 'the browser page finishes the sign-in');
+  check((await gw.next('acctPickName')).google === true, 'the waiting game is asked for a username');
+  gw.send({ t: 'emailName', name: 'BrowserFan' });
+  const bfOk = await gw.next('acctOk');
+  check(bfOk.email === 'browser.fan@gmail.com' && !bfOk.hasPass, 'a Google account is made without a password');
+  gw.ws.close();
+  // logging in again later: same Google account, straight in
+  const secret2 = crypto.randomBytes(24).toString('hex');
+  await post('/auth/google/finish', { s: secret2, token: googleToken('browser.fan@gmail.com', 'test-client', nonceOf(secret2)) }); // the game was reconnecting
+  const gw2 = await player();
+  gw2.send({ t: 'googleStart', s: secret2 });
+  check((await gw2.next('acctOk')).me.name === 'BrowserFan', 'logging in with Google again goes straight in (even after a reconnect)');
+  gw2.ws.close();
   // an old username + password account adds an email, then logs in with it
   const ol = await player();
   ol.send({ t: 'acctLogin', name: 'Spender', pass: 'spend1234' });
@@ -429,8 +520,8 @@ async function main() {
   const joined = (await cB.next('club', (m) => m.club && m.club.list.length === 2)).club;
   check(joined.members === 2, 'a second player joins');
   check(!!(await cA.next('club', (m) => m.club && m.club.list.length === 2)), 'the owner sees them join');
-  cB.send({ t: 'clubChat', i: 2 });
-  check((await cA.next('clubChat')).i === 2, 'club quick chat reaches members');
+  cB.send({ t: 'clubSay', x: 'hi club' });
+  check((await cA.next('clubMsg')).msg.x === 'hi club', 'club chat reaches members');
   cA.send({ t: 'profile', name: cB.last('acctOk').me.name });
   check((await cA.next('profile')).p.club === 'Gear Heads', 'profiles show the club');
   cA.send({ t: 'clubLeave' });

@@ -10,6 +10,7 @@ app.whenReady().then(async () => {
   const mk = async (name, xp) => {
     const win = new BrowserWindow({ show: false, width: name === 'ann' ? W : 1280, height: name === 'ann' ? H : 720, useContentSize: true, webPreferences: { offscreen: true, partition: 'p-' + name + Date.now(), backgroundThrottling: false } });
     win.webContents.setAudioMuted(true);
+    require('./no-voice-ask')(win); // not a voice chat test
     win.webContents.on('console-message', (e, level, msg) => { if (level >= 2) errors.push(name + ': ' + msg); });
     await win.loadURL('http://localhost:8781/');
     const js = (code) => win.webContents.executeJavaScript(code);

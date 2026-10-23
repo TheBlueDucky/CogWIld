@@ -8,7 +8,7 @@
   const CW = window.CW;
   const V3 = THREE.Vector3;
   const $ = (id) => document.getElementById(id);
-  const NET_VERSION = 'cogwild-net-8';
+  const NET_VERSION = 'cogwild-net-9';
   const SEND_HZ = 20;
   const r2 = (v) => Math.round(v * 100) / 100;
   // names and texts from other players: plain short text only
@@ -126,6 +126,7 @@
           if (!was) { this.ready = !!m.room.auto; this.sendReady(); this.chatLog = []; }
           if (g.state === 'lobby') this.renderLobby();
           if (!was && g.state !== 'match') this.showLobby();
+          if (!was && g.talk) g.talk.refresh(); // the chat gets its Match tab
           break;
         }
         case 'rooms': this.renderRooms(m.list); break;
@@ -134,7 +135,7 @@
           if (m.fatal && CW.APP && CW.PUBLIC_URL) {
             const msg = '⬆ A new version of Cogwild is out! Online play needs the update.';
             this.setStatus(msg);
-            g.account.note(msg, [{ label: 'Download update', main: true, fn: () => window.open(CW.PUBLIC_URL + 'download.html', '_blank') }, { label: 'Later' }], 60000);
+            g.account.note(msg, [{ label: 'Download update', main: true, fn: () => CW.openExternal(CW.PUBLIC_URL + 'download.html') }, { label: 'Later' }], 60000);
             break;
           }
           g.toast('⚠ ' + m.msg);
@@ -445,6 +446,7 @@
       (this.chatLog = this.chatLog || []).push(`<b>${esc(name)}:</b> ${text}`);
       if (this.chatLog.length > 30) this.chatLog.shift();
       this.renderChat();
+      if (this.game.talk) this.game.talk.refresh();
     }
     renderChat() {
       const box = $('lbChat');

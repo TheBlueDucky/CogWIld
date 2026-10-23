@@ -19,7 +19,7 @@ const CODE_LIFE = 10 * 60000; // login codes work for 10 minutes, 5 tries
 const BLOCKED = ['fuck', 'shit', 'bitch', 'cunt', 'nigg', 'fag', 'dick', 'cock', 'pussy', 'whore', 'slut', 'rape', 'nazi', 'hitler', 'porn', 'sexy', 'penis', 'vagina', 'retard', 'admin', 'moderator', 'official', 'cogwild'];
 const MAX_FRIENDS = 100;
 // clubs: up to 30 players under one name, with club trophies (everyone's added up) and a quick-chat wall
-const CLUB_MAX = 30, CLUB_BADGES = 12, CLUB_CHAT = 8;
+const CLUB_MAX = 30, CLUB_BADGES = 12;
 const CLUB_RE = /^[A-Za-z0-9][A-Za-z0-9 _-]{1,18}[A-Za-z0-9]$/;
 const PARTY_MAX = 4;
 const MAX_SAVE = 200 * 1024; // bytes of cloud save per player
@@ -27,6 +27,8 @@ const AVATARS = E.AVATAR_COUNT; // the client has the emoji list (24 free, the r
 const TOKENS_KEPT = 5; // devices that can stay logged in at once
 // shorter Quick Matches don't move trophies (no farming by quitting early)
 const QUICK_MIN_SECS = parseFloat(process.env.TROPHY_MIN_SECS || '40');
+// new accounts per network per hour (tests on your own PC can raise it)
+const SIGNUPS_PER_HOUR = parseInt(process.env.SIGNUPS_PER_HOUR || '5', 10);
 
 const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
 const scrypt = (pass, salt) => new Promise((res, rej) => crypto.scrypt(pass, salt, 32, { N: 16384, r: 8, p: 1 }, (e, k) => (e ? rej(e) : res(k))));
@@ -62,10 +64,12 @@ class Accounts {
     this.guestByIp = new Map(); // ip -> [timestamps] (new guest records)
     this.codes = new Map(); // email -> { hash, exp, tries } (email login codes waiting to be typed in)
     this.mailByIp = new Map(); // ip -> [timestamps] and 'e:'+email -> [timestamps] (codes sent)
+    this.googleWait = new Map(); // secret -> { cid, at, email } (a game waiting for its player to sign in with Google in the browser)
     // forget old sign-up and wrong-password records so the maps stay small
     setInterval(() => {
       const now = Date.now();
       for (const [k, v] of this.codes) if (v.exp < now) this.codes.delete(k);
+      for (const [k, v] of this.googleWait) if (now - v.at > 15 * 60000) this.googleWait.delete(k);
       for (const [m, win] of [[this.regByIp, 3600000], [this.fails, FAIL_WINDOW], [this.guestByIp, 3600000], [this.mailByIp, 3600000]]) {
         for (const [k, list] of m) { const keep = list.filter((x) => now - x < win); if (keep.length) m.set(k, keep); else m.delete(k); }
       }
@@ -91,7 +95,7 @@ class Accounts {
     this.db.users = Object.assign(Object.create(null), this.db.users || {});
     this.db.clubs = Object.assign(Object.create(null), this.db.clubs || {});
     this.db.guests = Object.assign(Object.create(null), this.db.guests || {});
-    this.clubLog = new Map(); // club id -> the last 30 quick-chat lines (not saved)
+    this.clubLog = new Map(); // club id -> the last club chat lines (not saved, see server/talk.js)
     for (const [k, u] of Object.entries(this.db.users)) for (const t of u.tokens || []) this.byToken.set(t, k);
     this.byEmail = new Map(); // email -> user key
     for (const [k, u] of Object.entries(this.db.users)) if (u.email) this.byEmail.set(u.email, k);
@@ -154,6 +158,7 @@ class Accounts {
     this.send(c, { t: 'acctOk', token, email: u.email || null, hasPass: !!u.hash, me: this.publicCard(u), created: u.created, save: this.withWallet(u, u.save) || null, claimed: this.wallet(u).road, wallet: this.walletView(u) });
     this.sendFriends(c);
     this.sendParty(k);
+    if (this.talk) this.talk.onLogin(c);
     this.friendsChanged(k);
     // the club sees you come online
     const club = this.clubOf(u);
@@ -202,6 +207,7 @@ class Accounts {
   // returns true when the message was an account message
   handle(c, m) {
     const t = m.t;
+    if (this.talk && this.talk.handle(c, m)) return true; // chat and voice (server/talk.js)
     if (!/^(acct|friend|party|invite|top|profile|save|status|earn|gift|buy|roadClaim|passClaim|club|guest|email|google)/.test(t)) return false;
     const fn = {
       acctRegister: () => this.register(c, m), acctSignup: () => this.signup(c, m), acctLogin: () => this.login(c, m), acctAuth: () => this.auth(c, m),
@@ -212,7 +218,7 @@ class Accounts {
       clubCreate: () => this.clubCreate(c, m), clubJoin: () => this.clubJoin(c, m), clubLeave: () => this.clubLeave(c), clubKick: () => this.clubKick(c, m),
       clubList: () => this.clubList(c, m), clubInfo: () => this.clubInfo(c, m), clubChat: () => this.clubChat(c, m), clubEdit: () => this.clubEdit(c, m),
       guest: () => this.guestHello(c, m), earn: () => this.earn(c, m),
-      emailStart: () => this.emailStart(c, m), emailCode: () => this.emailCode(c, m), emailName: () => this.emailName(c, m), googleLogin: () => this.googleLogin(c, m), acctResetPass: () => this.resetPass(c, m), gift: () => this.gift(c), buy: () => this.buy(c, m), roadClaim: () => this.roadClaim(c, m), passClaim: () => this.passClaim(c, m),
+      emailStart: () => this.emailStart(c, m), emailCode: () => this.emailCode(c, m), emailName: () => this.emailName(c, m), googleLogin: () => this.googleLogin(c, m), googleStart: () => this.googleStart(c, m), acctResetPass: () => this.resetPass(c, m), gift: () => this.gift(c), buy: () => this.buy(c, m), roadClaim: () => this.roadClaim(c, m), passClaim: () => this.passClaim(c, m),
       invite: () => this.inviteRoom(c, m), top: () => this.top(c, m), status: () => { c.busy = !!m.busy; if (c.user) this.friendsChanged(c.user); },
     }[t];
     if (!fn) return true;
@@ -301,6 +307,27 @@ class Accounts {
     try { email = await google.verify(m.credential); } catch (e) { return this.err(c, 'Google sign-in failed: ' + e.message); }
     this.emailVerified(c, email);
   }
+  // the game is about to open the browser to sign in with Google; the secret ties that sign-in to this game
+  googleStart(c, m) {
+    const s = String(m.s || '');
+    if (!/^[a-f0-9]{32,64}$/.test(s)) return;
+    if (!google.clientId) return this.err(c, "Google sign-in isn't set up on this server yet");
+    const w = this.googleWait.get(s);
+    if (w && w.email) { this.googleWait.delete(s); return this.emailVerified(c, w.email); } // signed in while we were reconnecting
+    if (this.googleWait.size > 5000) return this.err(c, 'Too many sign-ins right now. Try again in a minute.');
+    this.googleWait.set(s, { cid: c.id, at: Date.now() });
+  }
+  // the browser came back from Google with a token: log in the game that asked (or keep it for when it reconnects)
+  async googleDone(secret, token) {
+    const s = String(secret || '');
+    if (!/^[a-f0-9]{32,64}$/.test(s)) return 'This sign-in link is broken. Start again from the game.';
+    const email = await google.verify(token, google.nonceOf(s));
+    const w = this.googleWait.get(s);
+    const c = w && this.h.clients.get(w.cid);
+    if (c && c.ws) { this.googleWait.delete(s); this.emailVerified(c, email); return null; }
+    this.googleWait.set(s, { cid: 0, at: Date.now(), email });
+    return null;
+  }
   // a proven email: log in to its account, add it to the account you're in, or start a new account
   emailVerified(c, email) {
     const k = this.byEmail.get(email);
@@ -358,7 +385,7 @@ class Accounts {
     if (pass.toLowerCase() === key(name) || pass.toLowerCase() === email) return this.err(c, "Your password can't be your username or email");
     if (this.user(name)) return this.err(c, 'That username is taken');
     const now = Date.now();
-    if ((this.regByIp.get(c.ip) || []).filter((x) => now - x < 3600000).length >= 5) return this.err(c, 'Too many new accounts from your network. Try again later.');
+    if ((this.regByIp.get(c.ip) || []).filter((x) => now - x < 3600000).length >= SIGNUPS_PER_HOUR) return this.err(c, 'Too many new accounts from your network. Try again later.');
     const salt = crypto.randomBytes(16).toString('hex');
     const hash = (await scrypt(pass, salt)).toString('hex');
     if (mailer.ready) { c.pendingSignup = { email, name, salt, hash }; return this.emailStart(c, { email, purpose: 'signup' }); }
@@ -389,7 +416,7 @@ class Accounts {
     if (this.user(name)) return this.err(c, 'That username is taken');
     const now = Date.now();
     const recent = (this.regByIp.get(c.ip) || []).filter((x) => now - x < 3600000);
-    if (recent.length >= 5) return this.err(c, 'Too many new accounts from your network. Try again later.');
+    if (recent.length >= SIGNUPS_PER_HOUR) return this.err(c, 'Too many new accounts from your network. Try again later.');
     const salt = crypto.randomBytes(16).toString('hex');
     const hash = (await scrypt(pass, salt)).toString('hex');
     if (this.user(name)) return this.err(c, 'That username is taken'); // someone was faster during the hash
@@ -621,7 +648,8 @@ class Accounts {
   sendParty(k) {
     const p = this.party(k);
     const view = p ? { id: p.id, leader: this.db.users[p.leader].name, members: p.members.map((x) => this.friendView(x)).filter(Boolean) } : null;
-    for (const x of p ? p.members : [k]) { const oc = this.online.get(x); if (oc) this.send(oc, { t: 'party', party: view }); }
+    // each member also gets the party chat they may read
+    for (const x of p ? p.members : [k]) { const oc = this.online.get(x); if (oc) this.send(oc, { t: 'party', party: view && Object.assign({ log: this.talk ? this.talk.partyLines(oc) : [] }, view) }); }
   }
   partyInvite(c, m) {
     const u = this.me(c);
@@ -675,6 +703,7 @@ class Accounts {
       // a party of one isn't a party
       for (const x of p.members) { this.partyOf.delete(x); const xc = this.online.get(x); if (xc) this.send(xc, { t: 'party', party: null }); }
       this.parties.delete(p.id);
+      if (this.talk) this.talk.partyLog.delete(p.id);
     } else {
       if (p.leader === k) p.leader = p.members[0];
       this.sendParty(p.members[0]);
@@ -715,18 +744,20 @@ class Accounts {
   clubCard(club) {
     return { id: club.id, name: club.name, badge: club.badge | 0, desc: club.desc, open: club.open, minTro: club.minTro | 0, members: club.members.length, tro: this.clubTro(club) };
   }
-  clubView(club) {
+  // viewer: the member looking (their club wall leaves out what they may not read); none = a visitor
+  clubView(club, viewer) {
     const v = this.clubCard(club);
     v.list = club.members.map((k) => {
       const u = this.db.users[k];
       return u && { name: u.name, av: u.av | 0, tro: u.tro | 0, on: this.online.has(k), role: k === club.owner ? 'owner' : 'member' };
     }).filter(Boolean).sort((a, b) => b.tro - a.tro);
-    v.log = this.clubLog.get(club.id) || [];
+    const me = viewer && this.db.users[viewer];
+    v.log = me && club.members.includes(viewer) && this.talk ? this.talk.readable(this.clubLog.get(club.id) || [], me) : [];
     return v;
   }
   // tell every online member what their club looks like now
   clubChanged(club) {
-    for (const k of club.members) { const oc = this.online.get(k); if (oc) this.send(oc, { t: 'club', club: this.clubView(club) }); }
+    for (const k of club.members) { const oc = this.online.get(k); if (oc) this.send(oc, { t: 'club', club: this.clubView(club, k) }); }
   }
   clubInfo(c, m) {
     const u = this.me(c);
@@ -736,7 +767,7 @@ class Accounts {
       return club ? this.send(c, { t: 'clubPeek', club: this.clubView(club) }) : this.err(c, 'That club is gone');
     }
     const club = this.clubOf(u);
-    this.send(c, { t: 'club', club: club ? this.clubView(club) : null });
+    this.send(c, { t: 'club', club: club ? this.clubView(club, c.user) : null });
   }
   clubList(c, m) {
     const q = String((m && m.q) || '').toLowerCase().slice(0, 20);
@@ -787,7 +818,7 @@ class Accounts {
     club.members.push(c.user);
     u.club = club.id;
     this.dirty();
-    this.clubSay(club, null, `👋 ${u.name} joined the club`);
+    this.clubNote(club, `👋 ${u.name} joined the club`);
     this.clubChanged(club);
     this.friendsChanged(c.user);
   }
@@ -806,7 +837,7 @@ class Accounts {
   clubLeave(c) {
     const u = this.me(c), club = this.clubOf(u);
     if (!club) return;
-    this.clubSay(club, null, `🚪 ${u.name} left the club`);
+    this.clubNote(club, `🚪 ${u.name} left the club`);
     this.dropMember(club.id, c.user);
     this.send(c, { t: 'club', club: null });
     this.friendsChanged(c.user);
@@ -815,27 +846,16 @@ class Accounts {
     const u = this.me(c), club = this.clubOf(u);
     const k = key(m.name);
     if (!club || club.owner !== c.user || k === c.user || !club.members.includes(k)) return;
-    this.clubSay(club, null, `✖ ${this.db.users[k].name} was removed`);
+    this.clubNote(club, `✖ ${this.db.users[k].name} was removed`);
     this.dropMember(club.id, k);
     const oc = this.online.get(k);
     if (oc) { this.send(oc, { t: 'club', club: null }); this.send(oc, { t: 'note', kind: 'info', msg: `You were removed from ${club.name}` }); }
   }
-  clubSay(club, from, text) {
-    const log = this.clubLog.get(club.id) || [];
-    log.push({ from, text, at: Date.now() });
-    while (log.length > 30) log.shift();
-    this.clubLog.set(club.id, log);
+  // a line from the game on the club wall (joined, left, removed); players' lines: server/talk.js clubSay
+  clubNote(club, text) {
+    this.clubLog.set(club.id, (this.clubLog.get(club.id) || []).concat({ f: null, s: text, at: Date.now() }).slice(-40));
   }
-  clubChat(c, m) {
-    const u = this.me(c), club = this.clubOf(u);
-    const i = m.i | 0;
-    if (!club || i < 0 || i >= CLUB_CHAT) return;
-    const now = Date.now();
-    if (now - (c.clubChatAt || 0) < 1500) return;
-    c.clubChatAt = now;
-    this.clubSay(club, u.name, i);
-    for (const k of club.members) { const oc = this.online.get(k); if (oc) this.send(oc, { t: 'clubChat', from: u.name, i, at: now }); }
-  }
+  clubChat() {} // old games' quick-chat wall (now in the chat)
 
   // ======================= wallet: coins, XP and unlocks (the server's copy is the real one) =======================
   // Every player has one: accounts in db.users, guests in db.guests (a device token, no password).
