@@ -825,6 +825,7 @@
   .compact .bs-icon { width: 38px; }
   .compact .road-bar { width: 180px; min-width: 0; }
   .compact .lobby-side { top: 54px; grid-template-columns: repeat(2, 64px); gap: 5px; }
+  .compact .lobby-side.right .side-btn:last-child { grid-column: 2; } /* News sits flush right, like Help on the left */
   .compact .side-btn { width: 64px; height: 52px; font-size: 10px; }
   .compact .side-btn span { font-size: 21px; }
   .compact .lobby-logo .logo { font-size: 48px; }
@@ -938,7 +939,7 @@
   /* settings rows: no outline, the text turns blue while you point at it */
   label.set-row { outline: none !important; cursor: pointer; }
   label.set-row > span, label.set-row > span b { transition: color .12s; }
-  label.set-row:hover > span, label.set-row:hover > span b { color: #3d7fe0; }
+  label.set-row:hover > span, label.set-row:hover > span b { color: var(--muted2); } /* the same gray-blue as the titles */
   /* the daily gift: a small row that sits on the Shop's background */
   .shop-gift { display: inline-flex !important; width: auto !important; max-width: 100%; background: transparent !important; border: 1px solid var(--line2) !important; padding: 4px 10px !important; }
   .shop-gift > div { flex: 0 1 auto !important; }
@@ -1395,26 +1396,26 @@
 </div>
 
 <!-- three.js: from the CDN, or the local copy in js/vendor/ when offline (desktop build / no internet) -->
-<script src="js/vendor/three.min.js?v=18"></script>
-<script src="js/economy.js?v=18"></script>
-<script src="js/parts.js?v=18"></script>
-<script src="js/platform.js?v=18"></script>
-<script src="js/featured.js?v=18"></script>
-<script src="js/world.js?v=18"></script>
-<script src="js/entities.js?v=18"></script>
-<script src="js/meta.js?v=18"></script>
-<script src="js/extras.js?v=18"></script>
-<script src="js/modes.js?v=18"></script>
-<script src="js/tutorial.js?v=18"></script>
-<script src="js/clips.js?v=18"></script>
-<script src="js/gamepad.js?v=18"></script>
-<script src="js/workshop.js?v=18"></script>
-<script src="js/config.js?v=18"></script>
-<script src="js/net.js?v=18"></script>
-<script src="js/account.js?v=18"></script>
-<script src="js/touch.js?v=18"></script>
-<script src="js/supers.js?v=18"></script>
-<script src="js/gadgets.js?v=18"></script>
-<script src="js/game.js?v=18"></script>
+<script src="js/vendor/three.min.js?v=19"></script>
+<script src="js/economy.js?v=19"></script>
+<script src="js/parts.js?v=19"></script>
+<script src="js/platform.js?v=19"></script>
+<script src="js/featured.js?v=19"></script>
+<script src="js/world.js?v=19"></script>
+<script src="js/entities.js?v=19"></script>
+<script src="js/meta.js?v=19"></script>
+<script src="js/extras.js?v=19"></script>
+<script src="js/modes.js?v=19"></script>
+<script src="js/tutorial.js?v=19"></script>
+<script src="js/clips.js?v=19"></script>
+<script src="js/gamepad.js?v=19"></script>
+<script src="js/workshop.js?v=19"></script>
+<script src="js/config.js?v=19"></script>
+<script src="js/net.js?v=19"></script>
+<script src="js/account.js?v=19"></script>
+<script src="js/touch.js?v=19"></script>
+<script src="js/supers.js?v=19"></script>
+<script src="js/gadgets.js?v=19"></script>
+<script src="js/game.js?v=19"></script>
 </body>
 </html>

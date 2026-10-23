@@ -29,6 +29,7 @@ Then run one with `desktop/node_modules/.bin/electron tests/<file>.js` (screensh
 | `login-test.js` | the email-code sign-up flow (needs `MAIL_DEV=1`) |
 | `phone-test.js` | lobby, settings and match HUD at phone size with touch controls (`W=780 H=350`) |
 | `wall-aim-test.js` | a mech hopping into a cliff stays below it, camera stays out of the cliff, touch aim assist turns toward enemies |
+| `chat-test.js` | a quick-chat line shows once for the sender and once for the other player |
 | `hover-test.js` | pointing at a settings row turns its text blue, no outline box |
 | `ui-shots.js` | screenshots of lobby, panels, Workshop, a match and results (`SIZES=1280x720,800x450`; run one size per process) |
 

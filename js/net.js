@@ -142,7 +142,8 @@
           break;
         case 'kicked': this.room = null; this.stopMatch(); g.toast('You were removed from the room'); this.openOnline(); break;
         case 'pong': this.ping = Math.round(performance.now() - m.at); break;
-        case 'chat': this.showChat(m.from, m.i); break;
+        // your own lines already showed when you sent them; the server's copy back to you is skipped
+        case 'chat': if (m.from !== this.id) this.showChat(m.from, m.i); break;
         case 'autostart': if (this.isHost && this.room && this.room.state === 'lobby' && g.state === 'lobby' && !this.startProblem()) this.hostStart(); break;
         case 'begin': this.onBegin(m.payload); break;
         case 'st': this.onState(m); break;
