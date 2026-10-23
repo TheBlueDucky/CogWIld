@@ -461,8 +461,24 @@
       const lead = this.me && p.leader === this.me.name;
       bar.innerHTML = `<div class="pt-head"><b>🎉 Party ${p.members.length}/4</b><button class="link-btn" id="partyLeave">Leave</button></div>
         <div class="party-row">${p.members.map((f) => `<span class="party-m ${f.name === p.leader ? 'lead' : ''}" aria-label="${esc(f.name)}${f.name === p.leader ? ' (leader)' : ''}">${CW.face(f)}<small>${f.name === p.leader ? '👑 ' : ''}${esc(f.name)}</small></span>`).join('')}</div>
-        <div class="small">${lead ? 'You lead: press PLAY and your party comes along.' : `${esc(p.leader)} picks the match. You'll follow them in.`}</div>`;
+        <div class="small">${lead ? 'You lead: press PLAY and your party comes along.' : `${esc(p.leader)} picks the match. You'll follow them in.`}</div>
+        <div class="pc-chat"><div class="pc-log" id="pcLog"></div>
+          ${this.game.talk.freeOk && !this.game.touch.on ? '<form class="pc-form" id="pcForm"><input id="pcIn" maxlength="200" autocomplete="off" placeholder="💬 Message your party…"></form>' : '<button class="ws-btn pc-open" id="pcOpen">💬 Party chat</button>'}</div>`;
       $('partyLeave').onclick = () => this.net.send({ t: 'partyLeave' });
+      // PC: type right here; phones (and Quick chat only): the party chat opens (full screen on phones)
+      if ($('pcForm')) $('pcForm').onsubmit = (e) => { e.preventDefault(); const x = $('pcIn').value.trim(); if (x && this.game.talk.sayTo('party', { x })) $('pcIn').value = ''; };
+      if ($('pcOpen')) $('pcOpen').onclick = () => this.game.talk.open('party');
+      $('pcLog').onclick = () => { if (this.game.touch.on) this.game.talk.open('party'); };
+      this.renderPartyLog();
+    }
+    // the last party lines on the party card
+    renderPartyLog() {
+      const box = $('pcLog');
+      if (!box || !this.party) return;
+      const talk = this.game.talk, me = this.me && this.me.name;
+      const lines = (this.party.log || []).filter((l) => !talk.isBlocked(l.f)).slice(-4);
+      box.innerHTML = lines.map((l) => `<div class="${l.f === me ? 'me' : ''}"><b>${esc(l.f === me ? 'You' : l.f)}:</b> ${esc(talk.text(l))}</div>`).join('') || '<div class="small">No party messages yet</div>';
+      box.scrollTop = box.scrollHeight;
     }
     // a little card in the corner, optionally with buttons [{ label, fn }]
     note(html, buttons, ms) {

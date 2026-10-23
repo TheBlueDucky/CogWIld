@@ -369,7 +369,7 @@
           ${optKey('Deafen: stop hearing others (also mutes you)', 'vcDeaf')}
           <label class="set-row"><span>Microphone</span><select id="setVcMic"><option value="">Default microphone</option></select></label>
           <label class="set-row ${outOk ? '' : 'hidden'}"><span>Speakers / headphones</span><select id="setVcOut"><option value="">Default speakers</option></select></label>
-          <label class="set-row"><span>Voice volume <b id="setVcVolV"></b></span><input type="range" id="setVcVol" min="0" max="1" step="0.05"></label>
+          <label class="set-row"><span>Voice volume <b id="setVcVolV"></b></span><input type="range" id="setVcVol" min="0" max="2" step="0.05"></label>
           <div class="set-row"><span>Your mic <small class="small" id="vcCount"></small></span><div class="vc-meter"><i id="vcMeter"></i></div></div>
           <div class="small">On phones, tap 🎤 to mute (or hold it to talk with push to talk). Blocked players can't hear you or talk to you.</div>
           </section><section class="set-sec" data-sec="chat"><h3>💬 Chat</h3>
@@ -507,6 +507,7 @@
         body.innerHTML = `<div class="small">${n} / ${CW.ACHIEVEMENTS.length} unlocked. Each one pays coins.</div><div class="ach-grid">${CW.ACHIEVEMENTS.map((a) => `<div class="ach ${got[a.id] ? 'got' : ''}"><b>${got[a.id] ? '🏆' : '🔒'} ${a.name}</b><span class="small">${a.desc}</span>${got[a.id] ? '' : prog(a)}<div class="small">+${a.reward} 🪙</div></div>`).join('')}</div>`;
       } else if (k === 'news') {
         body.innerHTML = `<ul class="news">
+          <li><b>v1.7.2</b>: 🔊 Voice chat in matches comes from where that player is: quieter far away, left or right, all around (louder voice volume too). 💬 Chat and 🎤 voice while you wait for a match, and the 💬 button works during matches on phones. Drag ⠿ to put the chat anywhere; type to your party right on the party card; on phones the chat opens full screen (☰ Menu goes back). Newest messages sit at the bottom.</li>
           <li><b>v1.7.1</b>: 📷 Use <b>your own picture</b> as your profile picture (Profile), and club owners can give their club one. 💬 Message friends and club members straight from their lists, open the chat with <b>T</b>, and the chat is now small and see-through (on phones it turns upright while you type in the menu). 🎤 The microphone is only used in a party or a match, 🎧 deafen with N, and every voice key can be turned off. 🎟 Drag the Cog Pass with the mouse, and tap "how to tier up" to go there. Friends' and club messages are deleted after a week.</li>
           <li><b>v1.7</b>: 💬 <b>Chat</b> (💬 or Enter): type to your friends, party and club, in the lobby and during matches. Matches use quick chat. Tap a name to block or report a player.</li>
           <li>🎤 <b>Voice chat</b> with your party and your match: open mic or push-to-talk (B), mute with M or 🎤, pick your microphone and speakers, and choose who you hear (Settings › Voice chat).</li>

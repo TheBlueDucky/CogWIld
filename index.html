@@ -691,7 +691,7 @@
   #partyBar { padding: 8px 12px; }
   /* ---- one scale for the whole UI (Game.fitUi sets --z, --vw and --vh from the window size) ---- */
   :root { --z: 1; --vw: 100vw; --vh: 100vh; }
-  #menu, #panel, #modes, #picker, #online, #lobby, #search, #netWait, #workshopUI, #hud, #results, #pause, #modal, #confirm, #acct, #notes, #toast, #chat, #vcAsk, #vcTalk { zoom: var(--z); }
+  #menu, #panel, #modes, #picker, #online, #lobby, #search, #netWait, #workshopUI, #hud, #results, #pause, #modal, #confirm, #acct, #notes, #toast, #chat, #vcAsk, #vcTalk, #hudTalk { zoom: var(--z); }
   /* screens scroll when their content is taller than the window, so Back/Close is always reachable */
   .screen { overflow-y: auto; justify-content: safe center; }
   /* the Back/Close row of a full screen stays on the bottom edge, so it never needs scrolling to */
@@ -1153,7 +1153,10 @@
   .key-pair { display: flex; gap: 6px; align-items: center; }
   .key-off { background: transparent !important; border: 1px solid var(--line2) !important; padding: 4px 10px !important; font-size: 13px !important; }
   .vc-btn.talking { outline: 2px solid var(--hl) !important; outline-offset: -1px; }
-  #hudTalk { position: absolute; top: 12px; right: 194px; display: flex; gap: 6px; pointer-events: auto; }
+  /* above the touch controls (z 4) so phones can tap them; next to the minimap in matches, top-right while waiting */
+  #hudTalk { position: absolute; top: 12px; right: 194px; display: flex; gap: 6px; pointer-events: auto; z-index: 6; }
+  #hudTalk.waiting { right: 12px; top: 12px; }
+  .touch-ui #hudTalk.waiting { top: 8px; right: 8px; }
   #hudTalk button { position: relative; width: 40px; height: 40px; border-radius: var(--rad); background: rgba(11, 15, 30, .42); border: 1px solid rgba(255, 255, 255, .14); color: #fff; font-size: 18px; cursor: pointer; }
   #hudTalk .badge { top: -6px; right: -6px; }
   #chat { position: absolute; left: 0; top: 0; bottom: 0; width: min(380px, 100%); z-index: 7; display: flex; flex-direction: column; background: var(--bg1); border-right: 1px solid var(--line2); box-shadow: 8px 0 30px rgba(0, 0, 0, .35); }
@@ -1223,6 +1226,23 @@
   .pic-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .dm-btn { padding: 2px 8px !important; }
   .badge.inline { position: static; margin-left: 4px; }
+  /* the chat: newest messages at the bottom, a handle to move it anywhere */
+  .chat-log > :first-child { margin-top: auto; }
+  .chat-grip { flex: none; width: 26px; height: 30px; padding: 0; background: transparent; border: none; color: var(--muted2); font-size: 18px; cursor: grab; touch-action: none; }
+  .chat-grip:active { cursor: grabbing; }
+  body.talk-full .chat-grip, body.talk-portrait .chat-grip { display: none; }
+  /* phones in the menu: the chat takes the whole screen, like a chat app; ☰ Menu goes back */
+  body.talk-full #chat { inset: 0 !important; width: 100% !important; height: 100% !important; zoom: 1 !important; border: none; border-radius: 0; background: rgba(12, 18, 40, .94); }
+  body.talk-full #chatDone { display: inline-block; }
+  /* the party card's own little chat */
+  .pc-chat { margin-top: 6px; border-top: 1px solid var(--line2); padding-top: 5px; }
+  .pc-log { display: flex; flex-direction: column; gap: 2px; max-height: 58px; overflow-y: auto; font-size: 12px; line-height: 1.3; }
+  .pc-log b { color: var(--muted2); }
+  .pc-log .me b { color: var(--hl); }
+  .pc-form { display: flex; gap: 4px; margin-top: 4px; }
+  .pc-form input { flex: 1; min-width: 0; padding: 4px 8px; border-radius: 6px; background: rgba(0, 0, 0, .3); color: var(--txt); border: 1px solid var(--line2); font: 600 12px 'Nunito', sans-serif; }
+  .pc-open { padding: 2px 8px !important; font-size: 12px !important; }
+  .compact .pc-log { max-height: 18px; overflow: hidden; }
   /* the picture cropper */
   #picCrop { position: absolute; inset: 0; z-index: 32; background: rgba(6, 10, 24, .78); display: flex; align-items: center; justify-content: center; padding: 16px; zoom: var(--z); }
   .crop-box { width: min(340px, 100%); }
@@ -1465,7 +1485,6 @@
   <div id="specBar" class="hidden">👁 Watching <b id="specName"></b> <button id="specLeave" class="ws-btn">Leave (Esc)</button></div>
   <div id="hud" class="hidden">
     <div id="vignette"></div>
-    <div id="hudTalk"><button id="hudVoice" class="vc-btn" aria-label="Voice chat: mute">🎤</button><button id="hudDeaf" class="vc-btn deaf-btn" aria-label="Voice chat: deafen">🎧</button><button id="hudChat" aria-label="Chat (Enter)">💬<i class="badge hidden" id="hudChatBadge">0</i></button></div>
     <div id="tags"></div>
     <div id="crosshair"></div>
     <div id="topInfo"></div>
@@ -1548,9 +1567,11 @@
       </div>
     </div>
   </div>
+  <!-- 💬 🎤 🎧 in matches and while waiting for one (js/talk.js shows them) -->
+    <div id="hudTalk" class="hidden"><button id="hudVoice" class="vc-btn" aria-label="Voice chat: mute">🎤</button><button id="hudDeaf" class="vc-btn deaf-btn" aria-label="Voice chat: deafen">🎧</button><button id="hudChat" aria-label="Chat (Enter)">💬<i class="badge hidden" id="hudChatBadge">0</i></button></div>
   <!-- CHAT (js/talk.js) -->
   <div id="chat" class="hidden" role="dialog" aria-label="Chat">
-    <div class="chat-head"><div class="chat-tabs" id="chatTabs"></div><button id="chatDone" class="ws-btn" aria-label="Back to the game">↩ Done</button><button id="chatX" class="ws-btn" aria-label="Close (Esc)">✕</button></div>
+    <div class="chat-head"><button id="chatGrip" class="chat-grip" aria-label="Move the chat">⠿</button><div class="chat-tabs" id="chatTabs"></div><button id="chatDone" class="ws-btn" aria-label="Back to the menu">☰ Menu</button><button id="chatX" class="ws-btn" aria-label="Close (Esc)">✕</button></div>
     <div class="chat-sub hidden" id="chatSub"></div>
     <div class="chat-log" id="chatLog"></div>
     <div class="small chat-note hidden" id="chatNote">Quick chat only is on (Settings › Chat)</div>
@@ -1661,29 +1682,29 @@
 </div>
 
 <!-- three.js: from the CDN, or the local copy in js/vendor/ when offline (desktop build / no internet) -->
-<script src="js/vendor/three.min.js?v=22"></script>
-<script src="js/economy.js?v=22"></script>
-<script src="js/parts.js?v=22"></script>
-<script src="js/platform.js?v=22"></script>
-<script src="js/featured.js?v=22"></script>
-<script src="js/world.js?v=22"></script>
-<script src="js/entities.js?v=22"></script>
-<script src="js/meta.js?v=22"></script>
-<script src="js/extras.js?v=22"></script>
-<script src="js/modes.js?v=22"></script>
-<script src="js/tutorial.js?v=22"></script>
-<script src="js/clips.js?v=22"></script>
-<script src="js/gamepad.js?v=22"></script>
-<script src="js/workshop.js?v=22"></script>
-<script src="js/config.js?v=22"></script>
-<script src="js/net.js?v=22"></script>
-<script src="js/account.js?v=22"></script>
-<script src="js/touch.js?v=22"></script>
-<script src="js/supers.js?v=22"></script>
-<script src="js/gadgets.js?v=22"></script>
-<script src="js/pics.js?v=22"></script>
-<script src="js/talk.js?v=22"></script>
-<script src="js/voice.js?v=22"></script>
-<script src="js/game.js?v=22"></script>
+<script src="js/vendor/three.min.js?v=23"></script>
+<script src="js/economy.js?v=23"></script>
+<script src="js/parts.js?v=23"></script>
+<script src="js/platform.js?v=23"></script>
+<script src="js/featured.js?v=23"></script>
+<script src="js/world.js?v=23"></script>
+<script src="js/entities.js?v=23"></script>
+<script src="js/meta.js?v=23"></script>
+<script src="js/extras.js?v=23"></script>
+<script src="js/modes.js?v=23"></script>
+<script src="js/tutorial.js?v=23"></script>
+<script src="js/clips.js?v=23"></script>
+<script src="js/gamepad.js?v=23"></script>
+<script src="js/workshop.js?v=23"></script>
+<script src="js/config.js?v=23"></script>
+<script src="js/net.js?v=23"></script>
+<script src="js/account.js?v=23"></script>
+<script src="js/touch.js?v=23"></script>
+<script src="js/supers.js?v=23"></script>
+<script src="js/gadgets.js?v=23"></script>
+<script src="js/pics.js?v=23"></script>
+<script src="js/talk.js?v=23"></script>
+<script src="js/voice.js?v=23"></script>
+<script src="js/game.js?v=23"></script>
 </body>
 </html>

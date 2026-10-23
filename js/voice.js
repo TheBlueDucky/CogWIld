@@ -7,6 +7,8 @@
 // Settings > Voice: on/off, who you hear, open mic or push-to-talk, the keys (push-to-talk B, mute M, deafen N; any can
 // be turned off), microphone, speakers/headphones and volume. The first time (and after an update or on a new account)
 // the game asks whether you want it.
+// Voices play through the game's 3D sound: in the lobby they're normal; in a match each voice comes from where that
+// player is (quieter far away, from the left or right, in front or behind).
 (function () {
   const CW = window.CW;
   const $ = (id) => document.getElementById(id);
@@ -25,6 +27,20 @@
       this.bindUi();
       setInterval(() => this.tick(), 120);
       setInterval(() => { if (this.shouldJoin !== this.joined) this.apply(); }, 1000); // a party or match started/ended
+      setInterval(() => this.place(), 50);
+      // browsers start sound only after a click or key: wake the voice sound up then
+      const wake = () => { if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume().catch(() => {}); };
+      window.addEventListener('pointerdown', wake, true);
+      window.addEventListener('keydown', wake, true);
+    }
+    // one sound engine for voices and the level meters
+    audioCtx() {
+      if (!this.ctx) {
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (this.s.vcOut && this.ctx.setSinkId) this.ctx.setSinkId(this.s.vcOut).catch(() => {});
+      }
+      if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+      return this.ctx;
     }
     get s() { return this.game.settings; }
     get net() { return this.game.net; }
@@ -131,6 +147,8 @@
       if (join !== this.joined) {
         this.joined = join;
         this.net.send({ t: 'vcState', on: join, hear: this.s.vcHear === 'party' ? 'party' : 'game' });
+        // the Android app: voice out of the loudspeaker (or headphones), not the quiet earpiece
+        try { if (window.CogwildNative && window.CogwildNative.setVoiceAudio) window.CogwildNative.setVoiceAudio(join); } catch (e) { /* not the app */ }
         if (!join) for (const id of [...this.peers.keys()]) this.drop(id);
       } else if (join && this.hearSent !== this.s.vcHear) this.net.send({ t: 'vcState', on: true, hear: this.s.vcHear === 'party' ? 'party' : 'game' });
       this.hearSent = this.s.vcHear;
@@ -138,7 +156,7 @@
       const needMic = join && !this.muted && !this.deaf;
       if (needMic && !this.stream) await this.openMic();
       else if (!needMic && this.stream) this.releaseMic();
-      for (const p of this.peers.values()) if (p.audio) p.audio.muted = this.deaf;
+      this.changeVolume();
       this.applyMic();
     }
     async openMic() {
@@ -191,10 +209,20 @@
       if (!this.stream) return this.apply();
       try { this.useStream(await navigator.mediaDevices.getUserMedia({ audio: this.constraints() })); } catch (e) { this.game.toast('🎤 That microphone could not be used'); }
     }
-    changeOutput() { for (const p of this.peers.values()) this.sink(p.audio); }
+    changeOutput() {
+      if (this.ctx && this.ctx.setSinkId) this.ctx.setSinkId(this.s.vcOut || '').catch(() => {});
+      for (const p of this.peers.values()) this.sink(p.audio);
+    }
     sink(audio) { if (audio && audio.setSinkId && this.s.vcOut) audio.setSinkId(this.s.vcOut).catch(() => {}); }
-    changeVolume() { for (const p of this.peers.values()) if (p.audio) p.audio.volume = this.vol(); }
-    vol() { return Math.max(0, Math.min(1, this.s.vcVol == null ? 1 : this.s.vcVol)); }
+    // voice volume (up to 200%), nothing while deafened
+    changeVolume() {
+      const v = this.deaf ? 0 : this.vol();
+      for (const p of this.peers.values()) {
+        if (p.gain) p.gain.gain.value = v;
+        else if (p.audio) { p.audio.muted = this.deaf; p.audio.volume = Math.min(1, v); }
+      }
+    }
+    vol() { return Math.max(0, Math.min(2, this.s.vcVol == null ? 1 : this.s.vcVol)); }
     // push-to-talk: the microphone sends sound only while the key (or 🎤) is held
     applyMic() {
       if (this.stream) this.stream.getAudioTracks().forEach((t) => (t.enabled = this.sending));
@@ -232,15 +260,32 @@
       }
       pc.onicecandidate = (e) => { if (e.candidate) this.net.send({ t: 'vcSig', to: id, d: { ice: e.candidate.toJSON() } }); };
       pc.ontrack = (e) => {
+        const stream = e.streams[0] || new MediaStream([e.track]);
+        // the stream must stay attached to an element for browsers to play it through the 3D sound; that one is silent
         const audio = new Audio();
         audio.autoplay = true;
-        audio.srcObject = e.streams[0] || new MediaStream([e.track]);
-        audio.volume = this.vol();
-        audio.muted = this.deaf;
-        this.sink(audio);
+        audio.srcObject = stream;
+        audio.muted = true;
         audio.play().catch(() => {});
         peer.audio = audio;
-        this.watchLevel(audio.srcObject);
+        try {
+          const ctx = this.audioCtx();
+          peer.gain = ctx.createGain();
+          peer.pan = ctx.createPanner();
+          peer.pan.panningModel = 'HRTF'; // all around: left/right, front/behind
+          peer.pan.distanceModel = 'inverse';
+          peer.pan.refDistance = 10; // full volume up close, then quieter with distance
+          peer.pan.rolloffFactor = 1.3;
+          peer.pan.maxDistance = 1000;
+          ctx.createMediaStreamSource(stream).connect(peer.gain).connect(peer.pan).connect(ctx.destination);
+        } catch (err) {
+          // no 3D sound here: plain playback
+          peer.gain = peer.pan = null;
+          audio.muted = false;
+          this.sink(audio);
+        }
+        this.changeVolume();
+        this.watchLevel(stream);
       };
       pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed') { this.drop(id); this.render(); } };
       if (start) {
@@ -285,10 +330,40 @@
     }
 
     // ======================= who's talking =======================
+    // where each voice comes from: in a match from that player's mech (or pilot), heard from the camera; else straight ahead
+    place() {
+      const ctx = this.ctx, g = this.game;
+      if (!ctx || !this.peers.size || !window.THREE) return;
+      const L = ctx.listener, T = window.THREE;
+      const set3 = (node, names, v) => {
+        if (node[names[0]]) names.forEach((n, i) => node[n].setTargetAtTime(v[i], ctx.currentTime, 0.05));
+      };
+      const inMatch = g.state === 'match' && g.net.active && g.camera;
+      let pos = new T.Vector3(), fwd = new T.Vector3(0, 0, -1), up = new T.Vector3(0, 1, 0);
+      if (inMatch) {
+        g.camera.getWorldPosition(pos);
+        const q = new T.Quaternion();
+        g.camera.getWorldQuaternion(q);
+        fwd.applyQuaternion(q);
+        up.applyQuaternion(q);
+      }
+      if (L.positionX) { set3(L, ['positionX', 'positionY', 'positionZ'], [pos.x, pos.y, pos.z]); set3(L, ['forwardX', 'forwardY', 'forwardZ', 'upX', 'upY', 'upZ'], [fwd.x, fwd.y, fwd.z, up.x, up.y, up.z]); }
+      else if (L.setPosition) { L.setPosition(pos.x, pos.y, pos.z); L.setOrientation(fwd.x, fwd.y, fwd.z, up.x, up.y, up.z); }
+      for (const [id, p] of this.peers) {
+        if (!p.pan) continue;
+        let at = pos.clone().add(fwd); // right in front: normal volume, both ears
+        if (inMatch) {
+          const c = g.combatants.find((x) => x.human && x.owner === id);
+          const body = c && ((c.pilot && c.pilot.pos) ? c.pilot : c.mech);
+          if (body && body.pos) at = body.pos;
+        }
+        if (p.pan.positionX) set3(p.pan, ['positionX', 'positionY', 'positionZ'], [at.x, at.y, at.z]);
+        else p.pan.setPosition(at.x, at.y, at.z);
+      }
+    }
     watchLevel(stream) {
       try {
-        this.ctx = this.ctx || new (window.AudioContext || window.webkitAudioContext)();
-        if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+        this.audioCtx();
         const an = this.ctx.createAnalyser();
         an.fftSize = 512;
         this.ctx.createMediaStreamSource(stream).connect(an);

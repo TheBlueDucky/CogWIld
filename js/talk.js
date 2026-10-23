@@ -25,6 +25,7 @@
       this.who = null; // the name tapped (profile / block / report row)
       this.cards = {}; // name -> { name, av, pv } of people you message who aren't friends (club-mates)
       this.bindUi();
+      setInterval(() => this.placeButtons(), 250);
     }
     get acct() { return this.game.account; }
     get net() { return this.game.net; }
@@ -57,7 +58,8 @@
       const upright = () => { if (this.game.touch.on && this.game.state === 'menu') this.portrait(true); };
       $('chatInput').addEventListener('focus', upright);
       $('chatInput').addEventListener('pointerdown', upright);
-      $('chatDone').onclick = () => { $('chatInput').blur(); this.portrait(false); };
+      $('chatDone').onclick = () => this.close();
+      this.bindGrip();
     }
 
     // ======================= from the server =======================
@@ -87,6 +89,7 @@
         case 'partyMsg': {
           const p = this.acct.party;
           if (p) p.log = (p.log || []).concat(m.msg).slice(-40);
+          this.acct.renderPartyLog();
           this.heard('party', m.msg, '🎉 Party');
           return true;
         }
@@ -114,7 +117,8 @@
     }
 
     // ======================= sending =======================
-    // { x } free text or { q } a quick line, to the open tab. true when it was sent
+    // { x } free text or { q } a quick line, to a tab (the open one by default). true when it was sent
+    sayTo(tab, m) { const was = this.tab; this.tab = tab; const ok = this.say(m); this.tab = was; return ok; }
     say(m) {
       const net = this.net;
       if (m.x != null && !this.freeOk) { this.game.toast('Quick chat only is on (Settings > Chat)'); return false; }
@@ -141,10 +145,21 @@
       t.push('club', 'friends');
       return t;
     }
+    // the 💬 🎤 🎧 buttons: in the menu they're in the top bar; in a match next to the minimap; while waiting for a
+    // match (search screen, room) at the top right
+    placeButtons() {
+      const st = this.game.state;
+      const show = st === 'match' || st === 'lobby' || st === 'results';
+      $('hudTalk').classList.toggle('hidden', !show);
+      $('hudTalk').classList.toggle('waiting', st !== 'match');
+    }
     open(tab) {
       if (this.game.state === 'match' && document.pointerLockElement) document.exitPointerLock();
       const tabs = this.tabs();
       this.tab = tab && tabs.includes(tab) ? tab : this.tab && tabs.includes(this.tab) ? this.tab : tabs[0];
+      // phones in the menu: the whole screen, like a chat app (☰ Menu goes back); elsewhere a small window
+      document.body.classList.toggle('talk-full', this.game.touch.on && this.game.state === 'menu');
+      this.placeChat();
       $('chat').classList.remove('hidden');
       this.render();
       if (!this.game.touch.on) setTimeout(() => { if (!$('chatForm').classList.contains('hidden')) $('chatInput').focus(); }, 30);
@@ -154,6 +169,38 @@
       $('chatInput').blur();
       this.who = null;
       this.portrait(false);
+      document.body.classList.remove('talk-full');
+    }
+    // the chat stays where you dragged it (saved as a share of the screen)
+    placeChat() {
+      const box = $('chat'), p = this.game.settings.chatPos;
+      if (!p || document.body.classList.contains('talk-full')) { box.style.left = box.style.top = ''; return; }
+      const z = parseFloat(getComputedStyle(box).zoom) || 1;
+      const w = box.offsetWidth * z || 340, h = box.offsetHeight * z || 400;
+      const x = Math.max(0, Math.min(innerWidth - w, p.x * innerWidth)), y = Math.max(0, Math.min(innerHeight - h, p.y * innerHeight));
+      box.style.left = x / z + 'px';
+      box.style.top = y / z + 'px';
+    }
+    // drag ⠿ to move the chat anywhere
+    bindGrip() {
+      const grip = $('chatGrip'), box = $('chat');
+      grip.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        const z = parseFloat(getComputedStyle(box).zoom) || 1;
+        const r = box.getBoundingClientRect();
+        const start = { x: e.clientX, y: e.clientY, left: r.left * z, top: r.top * z };
+        const move = (ev) => {
+          const w = box.offsetWidth * z, h = box.offsetHeight * z;
+          const x = Math.max(0, Math.min(innerWidth - w, start.left + ev.clientX - start.x)), y = Math.max(0, Math.min(innerHeight - h, start.top + ev.clientY - start.y));
+          box.style.left = x / z + 'px';
+          box.style.top = y / z + 'px';
+          this.game.settings.chatPos = { x: x / innerWidth, y: y / innerHeight };
+        };
+        const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); this.game.saveProfile(); };
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', up);
+      });
+      window.addEventListener('resize', () => { if (this.isOpen) this.placeChat(); });
     }
     // straight to a private message with someone (Friends list, club members)
     openDm(name) {
@@ -244,7 +291,8 @@
           ? `<div class="chat-line ${l.f === me ? 'me' : ''}"><span class="chat-face">${CW.face({ name: l.f, av: l.a, pv: l.pv })}</span><span><b class="chat-who" data-who="${esc(l.f)}">${esc(l.f === me ? 'You' : l.f)}</b> ${esc(this.text(l))}</span></div>`
           : `<div class="chat-line sys">${esc(this.text(l))}</div>`)).join('')
           : `<div class="chat-empty">${tab === 'friends' ? `Say hi to ${esc(this.thread)}!` : 'No messages yet. Say hi!'}</div>`;
-        quick = QUICK().map((t, i) => `<button class="chat-q" data-q="${i}">${t}</button>`);
+        // ready-made lines only for "Quick chat only" players: everyone else types
+        if (!this.freeOk) quick = QUICK().map((t, i) => `<button class="chat-q" data-q="${i}">${t}</button>`);
         canType = this.freeOk && !(tab === 'friends' && this.isBlocked(this.thread));
         if (tab === 'party' || tab === 'club') this.seen[tab] = this.lines(tab).length;
         if (tab === 'friends' && this.unread[this.thread]) { delete this.unread[this.thread]; this.net.send({ t: 'dmRead', name: this.thread }); }

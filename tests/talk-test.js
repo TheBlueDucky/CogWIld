@@ -70,6 +70,22 @@ app.whenReady().then(async () => {
   await js(B, `${G}.talk.open('party'); true`);
   await wait(300);
   await shot(B, 'talk-party');
+  check(await js(B, `document.getElementById('chatQuick').classList.contains('hidden')`), 'no ready-made lines in party chat (they type)');
+  check(await js(B, `(() => { const log = document.getElementById('chatLog'), last = log.lastElementChild; return log.getBoundingClientRect().bottom - last.getBoundingClientRect().bottom < 30; })()`), 'the newest message sits at the bottom, next to the typing box');
+  // drag ⠿ to move the chat
+  const grip = await js(B, `(() => { const r = document.getElementById('chatGrip').getBoundingClientRect(); const z = parseFloat(getComputedStyle(document.getElementById('chat')).zoom) || 1; return { x: (r.left + r.width / 2) * z, y: (r.top + r.height / 2) * z, left: document.getElementById('chat').getBoundingClientRect().left * z }; })()`);
+  B.webContents.sendInputEvent({ type: 'mouseDown', x: Math.round(grip.x), y: Math.round(grip.y), button: 'left', clickCount: 1 });
+  for (let i = 1; i <= 8; i++) { B.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(grip.x + i * 50), y: Math.round(grip.y + i * 15), button: 'left' }); await wait(20); }
+  B.webContents.sendInputEvent({ type: 'mouseUp', x: Math.round(grip.x + 400), y: Math.round(grip.y + 120), button: 'left', clickCount: 1 });
+  await wait(300);
+  check(await js(B, `(() => { const z = parseFloat(getComputedStyle(document.getElementById('chat')).zoom) || 1; return document.getElementById('chat').getBoundingClientRect().left * z > ${grip.left} + 300 && !!${G}.settings.chatPos; })()`), 'dragging ⠿ moves the chat (and it stays there)');
+  await shot(B, 'talk-moved');
+  await js(B, `${G}.settings.chatPos = null; ${G}.talk.close(); true`);
+  // the party card: type to the party right there
+  await js(B, `document.getElementById('pcIn').value = 'from the party card'; document.getElementById('pcForm').requestSubmit(); true`);
+  await wait(900);
+  check(await js(A, `/from the party card/.test(document.getElementById('pcLog').textContent)`), 'typing in the party card reaches the party (and shows on their party card)');
+  await shot(A, 'talk-party-card');
   check(await js(B, `document.getElementById('badgeChat').classList.contains('hidden')`), 'opening the chat clears the badge');
   // a private message
   await js(A, `${G}.talk.tab = 'friends'; ${G}.talk.thread = '${nameB}'; ${G}.net.send({ t: 'dmOpen', name: '${nameB}' }); ${G}.talk.render(); true`);
@@ -115,11 +131,11 @@ app.whenReady().then(async () => {
   A.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'N' });
   A.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'N' });
   await wait(500);
-  check(await js(A, `${G}.voice.deaf && ${G}.voice.stream === null && [...${G}.voice.peers.values()].every((p) => !p.audio || p.audio.muted)`), 'N deafens: nobody is heard and the microphone is off');
+  check(await js(A, `${G}.voice.deaf && ${G}.voice.stream === null && [...${G}.voice.peers.values()].every((p) => p.gain && p.gain.gain.value === 0)`), 'N deafens: nobody is heard and the microphone is off');
   await shot(A, 'talk-deafened');
   await js(A, `${G}.voice.toggleDeaf(); true`);
   await wait(1500);
-  check(await js(A, `!${G}.voice.deaf && !!${G}.voice.stream && [...${G}.voice.peers.values()].every((p) => !p.audio || !p.audio.muted)`), 'undeafening brings sound and the microphone back');
+  check(await js(A, `!${G}.voice.deaf && !!${G}.voice.stream && [...${G}.voice.peers.values()].every((p) => p.gain && p.gain.gain.value > 0)`), 'undeafening brings sound and the microphone back');
   // a key can be turned off
   await js(A, `${G}.settings.vcDeaf = 'none'; true`);
   A.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'N' });
@@ -255,6 +271,7 @@ app.whenReady().then(async () => {
   await js(P, `${G}.meta.closePanel(); document.getElementById('vcAsk').classList.add('hidden'); ${G}.talk.openDm('${nameA}'); true`);
   await wait(500);
   await shot(P, 'talk-phone-chat');
+  check(await js(P, `document.body.classList.contains('talk-full') && document.getElementById('chat').getBoundingClientRect().width > innerWidth - 4 && !document.getElementById('chatDone').classList.contains('hidden')`), 'phone menu: the chat opens full screen with a ☰ Menu button');
   await js(P, `document.getElementById('chatInput').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' })); document.getElementById('chatInput').focus(); true`);
   await wait(300);
   check(await js(P, `document.body.classList.contains('talk-portrait')`), 'phone: typing in the menu switches the chat to upright');
@@ -265,8 +282,19 @@ app.whenReady().then(async () => {
   await js(P, `document.getElementById('chatDone').click(); true`);
   P.setContentSize(915, 412);
   await wait(500);
-  check(await js(P, `!document.body.classList.contains('talk-portrait')`), 'Done goes back to sideways');
-  await js(P, `${G}.talk.close(); true`);
+  check(await js(P, `!document.body.classList.contains('talk-portrait') && !${G}.talk.isOpen`), '☰ Menu goes back to the menu (sideways again)');
+  // phone, in a match: the 💬 button can be tapped (it's above the touch controls) and opens the chat
+  await wait(3000);
+  await js(P, `if (!document.getElementById('vcAsk').classList.contains('hidden')) document.getElementById('vcNo').click(); ${G}.playOffline('clash', 'canyon'); true`);
+  await wait(6000);
+  const hc = await js(P, `(() => { const b = document.getElementById('hudChat'), r = b.getBoundingClientRect(); const z = parseFloat(getComputedStyle(document.getElementById('hudTalk')).zoom) || 1; return { x: (r.left + r.width / 2) * z, y: (r.top + r.height / 2) * z, top: document.elementFromPoint((r.left + r.width / 2) * z, (r.top + r.height / 2) * z) === b, what: (() => { const e = document.elementFromPoint((r.left + r.width / 2) * z, (r.top + r.height / 2) * z); return e && (e.id || e.className); })(), state: ${G}.state, hidden: document.getElementById('hudTalk').className, size: [innerWidth, innerHeight], r: [r.left, r.top, r.width] }; })()`);
+  check(hc.top, `phone match: nothing covers the 💬 button (${JSON.stringify(hc)})`);
+  P.webContents.sendInputEvent({ type: 'mouseDown', x: Math.round(hc.x), y: Math.round(hc.y), button: 'left', clickCount: 1 });
+  P.webContents.sendInputEvent({ type: 'mouseUp', x: Math.round(hc.x), y: Math.round(hc.y), button: 'left', clickCount: 1 });
+  await wait(400);
+  check(await js(P, `${G}.talk.isOpen && ${G}.state === 'match'`), 'phone match: tapping 💬 opens the chat');
+  await shot(P, 'talk-phone-match-chat');
+  await js(P, `${G}.talk.close(); ${G}.showMenu(); true`);
 
   // chat during a match (A's party tab), with the 💬 and 🎙 buttons on the HUD
   await js(A, `${G}.talk.close(); ${G}.playOffline('clash', 'canyon'); true`);
@@ -297,6 +325,29 @@ app.whenReady().then(async () => {
   await wait(300);
   check(await js(L, `!document.getElementById('fLogin').classList.contains('hidden')`), 'older accounts can still log in with email and password');
 
+  // the party looks for a match: while waiting, the 💬 🎤 🎧 buttons are there and voice keeps going
+  await js(A, `${G}.talk.close(); ${G}.showMenu(); true`);
+  await js(B, `${G}.talk.close(); ${G}.meta.closePanel(); true`);
+  await wait(1500);
+  await js(A, `document.getElementById('btnPlay').click(); true`);
+  await wait(2500);
+  check(await js(B, `${G}.state === 'lobby' && !document.getElementById('hudTalk').classList.contains('hidden') && ${G}.voice.joined`), 'waiting for a match: chat and voice buttons are there, voice is on');
+  await shot(B, 'talk-waiting');
+  await js(B, `document.getElementById('hudChat').click(); true`);
+  await wait(300);
+  check(await js(B, `${G}.talk.isOpen && ${G}.talk.tabs().includes('game')`), 'waiting for a match: the chat opens, with the match tab');
+  await js(B, `${G}.talk.close(); true`);
+  let inMatch = false;
+  for (let i = 0; i < 30 && !inMatch; i++) { await wait(1000); inMatch = await js(B, `${G}.state === 'match' && ${G}.net.active`); }
+  check(inMatch, 'the party is in an online match together');
+  await wait(2500);
+  const sp = await js(B, `(() => { const g = ${G}, [id, p] = [...g.voice.peers.entries()][0] || []; if (!p || !p.pan) return null; const c = g.combatants.find((x) => x.human && x.owner === id); const b = c && (c.pilot || c.mech); const cam = new THREE.Vector3(); g.camera.getWorldPosition(cam); const L = g.voice.ctx.listener; return { pan: [p.pan.positionX.value, p.pan.positionZ.value], them: b && [b.pos.x, b.pos.z], listener: [L.positionX.value, L.positionZ.value], cam: [cam.x, cam.z] }; })()`);
+  const near = (a, b) => a && b && Math.abs(a[0] - b[0]) < 3 && Math.abs(a[1] - b[1]) < 3;
+  check(!!sp && near(sp.pan, sp.them) && near(sp.listener, sp.cam), `in a match each voice comes from that player's mech, heard from your camera (${JSON.stringify(sp)})`);
+  await shot(B, 'talk-voice-in-match');
+  await js(A, `${G}.showMenu(); true`);
+  await js(B, `${G}.showMenu(); true`);
+  await wait(1500);
   // leaving the party: no one to talk to, so the microphone is let go
   await js(B, `${G}.net.send({ t: 'partyLeave' }); true`);
   await wait(2500);

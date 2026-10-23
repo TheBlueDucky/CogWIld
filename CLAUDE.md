@@ -5,7 +5,7 @@ You build a mech from parts in the Workshop, then fight online (bots fill empty 
 It runs in the browser (three.js r128, no build step), as a Windows app (Electron) and an Android app (Capacitor),
 and on game portals (itch.io, CrazyGames, Poki). The online server is zero-dependency Node.js.
 
-**Live:** https://cogwild.duckdns.org (download page `/download`) · **Current version:** v1.7.1 · **Online protocol:** `cogwild-net-9`
+**Live:** https://cogwild.duckdns.org (download page `/download`) · **Current version:** v1.7.2 · **Online protocol:** `cogwild-net-9`
 The user is not a programmer: explain things in plain words, test everything yourself, and show screenshots as proof.
 
 ## How the user wants things done
@@ -24,7 +24,12 @@ The user is not a programmer: explain things in plain words, test everything you
   Esc closes any menu/pop-up (also the Workshop). No hover text on anything (no `title=`; use `aria-label`).
   Shop cards are clickable as a whole (gray-blue `--muted2` outline all around on hover) and ask "Buy it?" first.
   Shop, Cog Pass (sideways tier track, Brawl Stars-like; mouse-drag scrolls it) and Settings (a button per category) are full screens.
-  The chat is small and see-through (top-left); on phones in the menu it goes upright full-screen while typing (Done = back).
+  The chat is small and see-through (top-left, ⠿ drags it anywhere, saved in settings.chatPos); on phones in the menu it opens
+  full screen (☰ Menu = back) and goes upright while typing. No ready-made lines except for "Quick chat only" (and the Match tab).
+  The party card has its own mini chat (PC: type there; phones: tap = full-screen party chat). 💬 🎤 🎧 (#hudTalk) show in matches,
+  while waiting for one and on results; above the touch layer. Voices play through WebAudio PannerNodes (HRTF): in a match from
+  that player's mech/pilot, heard from the camera; otherwise straight ahead. Android app: voice uses the loudspeaker
+  (CogwildNative.setVoiceAudio).
   Players' own pictures and club pictures are circles; "Quick chat only" players see the preset avatars instead. Brawl Stars-like, but not a copy. Must fit phones (Galaxy A57 sideways
   ≈ 915×412; also check 780×350).
 - Lobby layout: left = Shop, Workshop, Challenges, Achievements, Help; right = Friends, Clubs, Leaderboard, Trophy

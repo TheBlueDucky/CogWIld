@@ -2,6 +2,8 @@ package com.cogwild.game;
 
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
+import android.media.AudioDeviceInfo;
+import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.WindowManager;
@@ -33,6 +35,27 @@ public class MainActivity extends BridgeActivity {
             public void setOrientation(String o) {
                 final int want = "portrait".equals(o) ? ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT : ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE;
                 runOnUiThread(() -> setRequestedOrientation(want));
+            }
+            // voice chat on: sound from the loudspeaker (or the headphones/earbuds plugged in), not the quiet earpiece
+            @JavascriptInterface
+            public void setVoiceAudio(boolean on) {
+                runOnUiThread(() -> {
+                    AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+                    if (am == null) return;
+                    if (on) {
+                        boolean headset = false;
+                        for (AudioDeviceInfo d : am.getDevices(AudioManager.GET_DEVICES_OUTPUTS)) {
+                            int t = d.getType();
+                            if (t == AudioDeviceInfo.TYPE_WIRED_HEADSET || t == AudioDeviceInfo.TYPE_WIRED_HEADPHONES || t == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
+                                || t == AudioDeviceInfo.TYPE_BLUETOOTH_SCO || t == AudioDeviceInfo.TYPE_USB_HEADSET || t == 26 /* BLE headset */) headset = true;
+                        }
+                        am.setMode(AudioManager.MODE_IN_COMMUNICATION);
+                        am.setSpeakerphoneOn(!headset);
+                    } else {
+                        am.setSpeakerphoneOn(false);
+                        am.setMode(AudioManager.MODE_NORMAL);
+                    }
+                });
             }
         }, "CogwildNative");
         hideSystemBars();
