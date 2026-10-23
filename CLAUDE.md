@@ -130,5 +130,13 @@ apps would break with the new server; they then get an "update" prompt.
 - Optional cleanup of old downloads on the server (1.0–1.6.3).
 - Confirm the Oracle alert email subscription.
 - Store launch: Google Play closed test (12 testers × 14 days), itch.io/CrazyGames/Poki submissions (zips in `dist/`).
-- **Google sign-in**: they create the OAuth client (LAUNCH.md > "Turn on Google sign-in") and give the Client ID; then
-  `deploy\set-google.ps1`. Until then sign-up stays username/password. Possibly a chat word filter later (they asked to wait).
+- Possibly a chat word filter later (they asked to wait).
+- Optional: delete the empty "CogWild" Google Cloud project on the personal Google account (made by mistake, no billing).
+
+## Google sign-in (done 23 Oct 2026)
+Google Cloud project **cogwild-512516** owned by theblueduckymc@gmail.com (no billing account: free), Google Auth Platform
+External + **In production**, support email theblueduckymc@gmail.com, scopes openid + email only (no review needed),
+web client "Cogwild game", redirect URI `https://cogwild.duckdns.org/auth/google/done`, Client ID
+`763067835148-fvqhbbrbv5ugnb7160aqajm7vhaacgdr.apps.googleusercontent.com` (public, set with `deploy\set-google.ps1`).
+The client secret is not used (implicit id_token flow) and was not saved. The built-in browser has both Google accounts
+signed in, which makes Cloud Console pages fail to load now and then: Retry, or go through `/apis/credentials/consent`.
