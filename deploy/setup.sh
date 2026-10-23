@@ -84,6 +84,7 @@ WorkingDirectory=$APP
 Environment=PORT=$PORT
 Environment=HOST=127.0.0.1
 Environment=DATA_DIR=$APP/data
+EnvironmentFile=-/etc/cogwild.env
 ReadWritePaths=$APP/data
 ExecStart=$(command -v node) $APP/server/server.js
 Restart=always
@@ -156,6 +157,15 @@ elif command -v iptables >/dev/null; then
   done
   if command -v netfilter-persistent >/dev/null; then netfilter-persistent save; fi
 fi
+
+# ---- 7b. Upkeep: a watchdog every 2 minutes, an off-server database backup every night ----
+install -m 755 "$SRC/deploy/watchdog.sh" /usr/local/sbin/cogwild-watchdog
+install -m 755 "$SRC/deploy/backup-offsite.sh" /usr/local/sbin/cogwild-backup
+cat > /etc/cron.d/cogwild <<EOF
+*/2 * * * * root /usr/local/sbin/cogwild-watchdog
+17 4 * * * root /usr/local/sbin/cogwild-backup
+EOF
+chmod 644 /etc/cron.d/cogwild
 
 # ---- 8. Start ----
 systemctl daemon-reload
