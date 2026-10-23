@@ -55,12 +55,15 @@ class Accounts {
     this.partyOf = new Map(); // user key -> party id
     this.regByIp = new Map(); // ip -> [timestamps] (sign-up spam limit)
     this.fails = new Map(); // 'n:'+name / 'i:'+ip -> [timestamps] of wrong passwords
+    this.guestByIp = new Map(); // ip -> [timestamps] (new guest records)
     // forget old sign-up and wrong-password records so the maps stay small
     setInterval(() => {
       const now = Date.now();
-      for (const [m, win] of [[this.regByIp, 3600000], [this.fails, FAIL_WINDOW]]) {
+      for (const [m, win] of [[this.regByIp, 3600000], [this.fails, FAIL_WINDOW], [this.guestByIp, 3600000]]) {
         for (const [k, list] of m) { const keep = list.filter((x) => now - x < win); if (keep.length) m.set(k, keep); else m.delete(k); }
       }
+      // guests nobody has seen for half a year are forgotten
+      for (const [k, g] of Object.entries(this.db.guests)) if (now - (g.seen || 0) > 180 * 86400000) delete this.db.guests[k];
     }, 600000).unref();
     this.topCache = null;
     this.load();
@@ -80,6 +83,7 @@ class Accounts {
     // no prototype: a player called __proto__ or constructor is just a name
     this.db.users = Object.assign(Object.create(null), this.db.users || {});
     this.db.clubs = Object.assign(Object.create(null), this.db.clubs || {});
+    this.db.guests = Object.assign(Object.create(null), this.db.guests || {});
     this.clubLog = new Map(); // club id -> the last 30 quick-chat lines (not saved)
     for (const [k, u] of Object.entries(this.db.users)) for (const t of u.tokens || []) this.byToken.set(t, k);
     console.log(`accounts: ${Object.keys(this.db.users).length} players in ${DB_FILE}`);
@@ -129,6 +133,7 @@ class Accounts {
   // sign in this socket as user k (one live session per player: the older one is signed out)
   attach(c, k, token) {
     if (c.user && c.user !== k) this.detach(c); // switching accounts on one connection
+    c.guest = null; // an account's wallet, not the device's guest one
     const old = this.online.get(k);
     if (old && old !== c) { this.detach(old); this.send(old, { t: 'acctOut', reason: 'You logged in somewhere else' }); }
     c.user = k;
@@ -188,7 +193,7 @@ class Accounts {
   // returns true when the message was an account message
   handle(c, m) {
     const t = m.t;
-    if (!/^(acct|friend|party|invite|top|profile|save|status|earn|gift|buy|roadClaim|passClaim|club)/.test(t)) return false;
+    if (!/^(acct|friend|party|invite|top|profile|save|status|earn|gift|buy|roadClaim|passClaim|club|guest)/.test(t)) return false;
     const fn = {
       acctRegister: () => this.register(c, m), acctLogin: () => this.login(c, m), acctAuth: () => this.auth(c, m),
       acctLogout: () => this.logout(c), acctPass: () => this.changePass(c, m), acctDelete: () => this.remove(c, m),
@@ -197,7 +202,7 @@ class Accounts {
       partyInvite: () => this.partyInvite(c, m), partyAccept: () => this.partyAccept(c, m), partyLeave: () => c.user && this.leaveParty(c.user), partyKick: () => this.partyKick(c, m),
       clubCreate: () => this.clubCreate(c, m), clubJoin: () => this.clubJoin(c, m), clubLeave: () => this.clubLeave(c), clubKick: () => this.clubKick(c, m),
       clubList: () => this.clubList(c, m), clubInfo: () => this.clubInfo(c, m), clubChat: () => this.clubChat(c, m), clubEdit: () => this.clubEdit(c, m),
-      earn: () => this.earn(c, m), gift: () => this.gift(c), buy: () => this.buy(c, m), roadClaim: () => this.roadClaim(c, m), passClaim: () => this.passClaim(c, m),
+      guest: () => this.guestHello(c, m), earn: () => this.earn(c, m), gift: () => this.gift(c), buy: () => this.buy(c, m), roadClaim: () => this.roadClaim(c, m), passClaim: () => this.passClaim(c, m),
       invite: () => this.inviteRoom(c, m), top: () => this.top(c, m), status: () => { c.busy = !!m.busy; if (c.user) this.friendsChanged(c.user); },
     }[t];
     if (!fn) return true;
@@ -223,7 +228,9 @@ class Accounts {
     recent.push(now);
     this.regByIp.set(c.ip, recent);
     const k = key(name);
+    const guest = c.guest && this.db.guests[c.guest];
     this.db.users[k] = { name, salt, hash, created: now, seen: now, av: Math.floor(Math.random() * E.FREE_AVATARS), tro: 0, best: 0, wins: 0, played: 0, streak: 0, lv: 1, friends: [], reqIn: [], reqOut: [], claimed: [], tokens: [] };
+    if (guest && guest.w) { this.db.users[k].w = guest.w; delete this.db.guests[c.guest]; }
     this.attach(c, k, this.addToken(k));
   }
   async login(c, m) {
@@ -294,7 +301,7 @@ class Accounts {
     const fresh = w.imp === false;
     if (fresh) { this.importGuest(w, m.data && m.data.profile); w.imp = true; }
     u.save = this.withWallet(u, { at: Date.now(), data: m.data });
-    if (m.lv) u.lv = Math.max(1, Math.min(999, m.lv | 0));
+    u.lv = E.levelOf(w.xp);
     this.dirty();
     this.send(c, { t: 'saved', at: u.save.at });
     if (fresh) this.sendWallet(c, u);
@@ -306,7 +313,7 @@ class Accounts {
       const av = Math.max(0, Math.min(AVATARS - 1, m.av | 0));
       if (av < E.FREE_AVATARS || this.wallet(u).owned.avatars.includes('av' + av)) u.av = av; // premium ones must be owned
     }
-    if (m.lv) u.lv = Math.max(1, Math.min(999, m.lv | 0));
+    u.lv = E.levelOf(this.wallet(u).xp);
     this.dirty();
     this.send(c, { t: 'acctMe', me: this.publicCard(u) });
     this.friendsChanged(c.user);
@@ -644,40 +651,84 @@ class Accounts {
     for (const k of club.members) { const oc = this.online.get(k); if (oc) this.send(oc, { t: 'clubChat', from: u.name, i, at: now }); }
   }
 
-  // ======================= wallet: coins and unlocks (the server's copy is the real one) =======================
+  // ======================= wallet: coins, XP and unlocks (the server's copy is the real one) =======================
+  // Every player has one: accounts in db.users, guests in db.guests (a device token, no password).
+  // The game only shows the wallet and asks: it reports what a match paid (capped), the server sets every price.
   wallet(u) {
     if (!u.w) {
       const had = !!(u.save && u.save.data);
-      u.w = { coins: 0, owned: { paints: [], trails: ['spark'], avatars: [] }, gift: { day: '', streak: 0 }, earn: { day: '', total: 0, ch: 0, ads: 0, last: 0 }, ach: [], road: (u.claimed || []).filter(Number.isInteger), pass: null, imp: had };
+      u.w = { coins: 0, xp: 0, owned: { paints: [], trails: ['spark'], avatars: [] }, gift: { day: '', streak: 0 }, earn: { day: '', total: 0, ads: 0, off: 0, offXp: 0, last: 0 }, ch: { day: '', got: [] }, ach: [], road: (u.claimed || []).filter(Number.isInteger), pass: null, imp: had };
       // accounts from before the server kept coins: their last backup counts once
-      if (had) this.importGuest(u.w, u.save.data.profile, 50000);
+      if (had) this.importGuest(u.w, u.save.data.profile, 50000, 200000);
     }
+    const w = u.w;
+    if (w.xp === undefined) w.xp = Math.min(200000, Math.max(0, Math.floor(+(u.save && u.save.data && u.save.data.profile && u.save.data.profile.xp) || 0)));
+    if (!w.ch) w.ch = { day: '', got: [] };
     const s = E.season().id;
-    if (!u.w.pass || u.w.pass.s !== s) u.w.pass = { s, pts: 0, claimed: [] };
+    if (!w.pass || w.pass.s !== s) w.pass = { s, pts: 0, claimed: [] };
     const d = E.day();
-    if (u.w.earn.day !== d) u.w.earn = { day: d, total: 0, ch: 0, ads: 0, last: u.w.earn.last || 0 };
-    return u.w;
+    if (w.earn.day !== d) w.earn = { day: d, total: 0, ads: 0, off: 0, offXp: 0, last: w.earn.last || 0 };
+    if (w.ch.day !== d) w.ch = { day: d, got: [] };
+    return w;
   }
-  importGuest(w, p, cap = 3000) {
+  // progress from before this device had a server wallet: counts once, worth at most `cap` coins in total
+  // (coins plus the price of the items), so editing the device's save can't buy anything
+  importGuest(w, p, cap = 3000, xpCap = 50000) {
     if (!p || typeof p !== 'object') return;
     const own = p.owned || {};
-    const valid = (kind) => (Array.isArray(own[kind]) ? own[kind] : []).filter((id) => { const it = E.item(kind, id); return it && !it.pass; });
-    w.coins = Math.max(w.coins, Math.min(cap, Math.max(0, Math.floor(+p.coins || 0))));
-    for (const kind of ['paints', 'trails', 'avatars']) w.owned[kind] = [...new Set(w.owned[kind].concat(valid(kind)))];
+    let left = Math.max(0, cap - w.coins);
+    const items = [];
+    for (const kind of ['paints', 'trails', 'avatars']) {
+      for (const id of Array.isArray(own[kind]) ? own[kind] : []) {
+        const it = E.item(kind, id);
+        if (it && !it.pass && !w.owned[kind].includes(id)) items.push({ kind, it });
+      }
+    }
+    items.sort((a, b) => a.it.price - b.it.price);
+    for (const { kind, it } of items) if (it.price <= left) { w.owned[kind].push(it.id); left -= it.price; }
+    w.coins += Math.min(left, Math.max(0, Math.floor(+p.coins || 0)));
+    w.xp = Math.max(w.xp || 0, Math.min(xpCap, Math.max(0, Math.floor(+p.xp || 0))));
     if (Array.isArray(p.road)) w.road = [...new Set(w.road.concat(p.road.filter((at) => Number.isInteger(at) && E.ROAD.some((r) => r.at === at))))];
   }
   walletView(u) {
     const w = this.wallet(u);
-    return { coins: w.coins, owned: w.owned, gift: w.gift, road: w.road, pass: w.pass, season: E.season(), fresh: w.imp === false };
+    return { coins: w.coins, xp: w.xp, owned: w.owned, gift: w.gift, road: w.road, pass: w.pass, ch: w.ch.got, ach: w.ach, season: E.season(), fresh: w.imp === false };
   }
-  // the backup stored with the account carries the server's coins and unlocks, never the device's
+  // the backup stored with the account carries the server's coins, XP and unlocks, never the device's
   withWallet(u, save) {
     if (!save || !save.data || !save.data.profile || typeof save.data.profile !== 'object') return save;
     const w = this.wallet(u);
-    Object.assign(save.data.profile, { coins: w.coins, owned: w.owned, road: w.road, dailyClaimed: w.gift.day, dailyStreak: w.gift.streak });
+    Object.assign(save.data.profile, { coins: w.coins, xp: w.xp, owned: w.owned, road: w.road, dailyClaimed: w.gift.day, dailyStreak: w.gift.streak });
     return save;
   }
+  // whose wallet this connection uses: the account, or the device's guest record
+  owner(c) { return c.user ? this.db.users[c.user] || null : c.guest ? this.db.guests[c.guest] || null : null; }
+  level(c) { const o = this.owner(c); return o ? E.levelOf(this.wallet(o).xp) : 1; }
   sendWallet(c, u, extra) { this.dirty(); this.send(c, Object.assign({ t: 'wallet', w: this.walletView(u) }, extra || {})); }
+  // a device without an account: its token picks its guest record (a new device gets one)
+  guestHello(c, m) {
+    if (c.user) return;
+    const token = typeof m.token === 'string' && /^[0-9a-f]{64}$/.test(m.token) ? m.token : null;
+    let k = token && sha(token);
+    let g = k && this.db.guests[k];
+    let fresh = null;
+    if (!g) {
+      const now = Date.now();
+      const recent = (this.guestByIp.get(c.ip) || []).filter((x) => now - x < 3600000);
+      if (recent.length >= 30) return this.err(c, 'Too many new players from your network. Try again later.');
+      this.guestByIp.set(c.ip, recent.concat(now));
+      fresh = crypto.randomBytes(32).toString('hex');
+      k = sha(fresh);
+      g = this.db.guests[k] = { created: now, seen: now };
+      this.wallet(g);
+      this.importGuest(g.w, m.profile); // what this device earned before guests had a server wallet
+      g.w.imp = true;
+    }
+    g.seen = Date.now();
+    c.guest = k;
+    this.dirty();
+    this.send(c, { t: 'guestOk', token: fresh, wallet: this.walletView(g) });
+  }
   // give a reward ({ coins, paint/paints, trail/trails, avatar/avatars }); things you already own pay their price
   grant(w, r) {
     let coins = r.coins | 0;
@@ -693,38 +744,54 @@ class Accounts {
     w.coins += coins;
     return { coins, got };
   }
-  // the game reports coins it gave out: only so much per kind, per match and per day
+  // the game reports what it paid out; the server decides how much of it counts
   earn(c, m) {
-    const u = this.me(c);
+    const u = this.owner(c);
     if (!u) return;
     const w = this.wallet(u);
     const src = String(m.src || '');
-    if (!Object.prototype.hasOwnProperty.call(E.EARN, src)) return;
-    let n = Math.max(0, Math.min(E.EARN[src], Math.floor(+m.n || 0)));
     const now = Date.now();
-    let pts = 0;
+    let n = 0, xp = 0, pts = 0;
+    const ask = Math.max(0, Math.floor(+m.n || 0));
     if (src === 'match') {
-      if (now - (w.earn.last || 0) < E.MATCH_GAP * 1000) n = 0;
-      else { w.earn.last = now; pts = Math.max(0, Math.min(E.PASS.match, m.pp | 0)); }
-    } else if (src === 'challenge') {
-      if (w.earn.ch >= 4) n = 0;
-      else { w.earn.ch++; pts = E.PASS.challenge; }
-    } else if (src === 'ach') {
-      const id = String(m.key || '').slice(0, 24);
-      if (!/^\w+$/.test(id) || w.ach.includes(id) || w.ach.length >= 200) n = 0;
-      else w.ach.push(id);
+      // one match at a time: a match reward can't be bigger than what that much playing time can earn
+      const gap = (now - (w.earn.last || 0)) / 1000;
+      if (gap >= E.MATCH_GAP) {
+        n = Math.min(ask, E.EARN.match, 60 + gap * 8);
+        xp = Math.min(Math.max(0, Math.floor(+m.xp || 0)), 1500, 60 + gap * 10);
+        pts = Math.max(0, Math.min(E.PASS.match, m.pp | 0));
+        w.earn.last = now;
+        w.earn.after = n; // a results crate and an ad doubling may follow this match, once
+        w.earn.crate = true;
+      }
+    } else if (src === 'chest') {
+      if (w.earn.crate) { n = Math.min(ask, E.EARN.chest); w.earn.crate = false; }
     } else if (src === 'ad') {
-      if (w.earn.ads >= 15) n = 0;
-      else w.earn.ads++;
-    }
-    n = Math.min(n, Math.max(0, E.EARN_PER_DAY - w.earn.total));
+      if (w.earn.after && w.earn.ads < 15) { n = Math.min(ask, w.earn.after); w.earn.after = 0; w.earn.ads++; }
+    } else if (src === 'challenge') {
+      // today's challenges are the same for everyone (js/economy.js); each pays its listed reward once
+      const i = m.key | 0, ch = E.dailyChallenges(E.day())[i];
+      if (ch && !w.ch.got.includes(i)) { w.ch.got.push(i); n = ch.reward; pts = E.PASS.challenge; }
+    } else if (src === 'ach') {
+      const id = String(m.key || '');
+      if (Object.prototype.hasOwnProperty.call(E.ACH, id) && !w.ach.includes(id)) { w.ach.push(id); n = E.ACH[id]; }
+    } else if (src === 'offline') {
+      // matches played without a connection: a little, once it's back
+      n = Math.min(ask, Math.max(0, 1500 - w.earn.off));
+      xp = Math.min(Math.max(0, Math.floor(+m.xp || 0)), Math.max(0, 3000 - w.earn.offXp));
+      w.earn.off += n;
+      w.earn.offXp += xp;
+    } else return;
+    n = Math.max(0, Math.min(Math.floor(n), E.EARN_PER_DAY - w.earn.total));
     w.coins += n;
+    w.xp += Math.floor(xp);
     w.earn.total += n;
     w.pass.pts += pts;
-    this.sendWallet(c, u, { earned: n, src, pts });
+    if (c.user) { const lv = E.levelOf(w.xp); if (u.lv !== lv) { u.lv = lv; this.friendsChanged(c.user); } }
+    this.sendWallet(c, u, { earned: n, src, pts, xp: Math.floor(xp), key: m.key });
   }
   gift(c) {
-    const u = this.me(c);
+    const u = this.owner(c);
     if (!u) return;
     const w = this.wallet(u);
     const d = E.day();
@@ -737,7 +804,7 @@ class Accounts {
     this.sendWallet(c, u, { gift: n, pts: E.PASS.gift });
   }
   buy(c, m) {
-    const u = this.me(c);
+    const u = this.owner(c);
     if (!u) return;
     const w = this.wallet(u);
     const kind = String(m.kind || ''), it = E.item(kind, String(m.id || ''));
@@ -760,7 +827,7 @@ class Accounts {
     this.sendWallet(c, u, { road: r.at, reward: this.grant(w, r) });
   }
   passClaim(c, m) {
-    const u = this.me(c);
+    const u = this.owner(c);
     if (!u) return;
     const w = this.wallet(u);
     const r = E.passRewards(w.pass.s)[(m.tier | 0) - 1];

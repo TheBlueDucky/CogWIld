@@ -59,6 +59,8 @@
     lamp:   { name: 'Lamp', cat: 'Decor', cost: 1, mass: 0.3, hp: 10, color: 0xfff3b0, decor: true, desc: 'A glowing light. Pure style.' },
     horn:   { name: 'Horns', cat: 'Decor', cost: 2, mass: 0.3, hp: 15, color: 0xf8f9fa, decor: true, desc: 'Look scary. Very important.' },
   };
+  // cost, movement type and unlock level come from js/economy.js, so the server checks mechs with the same numbers
+  for (const [id, [cost, domain]] of Object.entries(CW.ECON.PARTS)) if (CW.PARTS[id]) { CW.PARTS[id].cost = cost; if (domain) CW.PARTS[id].domain = domain; }
 
   // ---------- Mesh factory ----------
   const geoCache = {};

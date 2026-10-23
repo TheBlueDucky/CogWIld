@@ -1774,7 +1774,7 @@
       // Cog Pass points: more for doing well, a bonus in featured and weekly events
       const passPts = Math.min(CW.ECON.PASS.match, 15 + (this.won ? 15 : 0) + Math.max(0, 10 - (p.place - 1) * 3) + (featured ? 5 : 0) + (weekly ? 10 : 0));
       this.lastPassPts = passPts;
-      this.meta.addCoins(coins, this.isPractice() ? null : 'match', null, passPts);
+      this.meta.addCoins(coins, this.isPractice() ? null : 'match', null, passPts, xp);
       const st = this.profile.stats;
       st.matches++;
       if (this.won) st.wins++;
@@ -1796,6 +1796,7 @@
       if (this.modeId === 'race') { if (p.place <= 3) this.meta.track('podium'); if (this.won) st.raceWins = (st.raceWins || 0) + 1; }
       if (this.modeId === 'gold') { const gld = this.obj.carried(p); st.maxGold = Math.max(st.maxGold || 0, gld); this.meta.track('goldcollect', gld); }
       if (this.modeId === 'boss' && this.won) { st.bossKills = (st.bossKills || 0) + 1; this.meta.track('bosswin'); }
+      if (this.modeId === 'bounty' && this.won) this.meta.track('bountywin');
       const achieved = CW.checkAchievements(this);
       const unlocked = [];
       for (let lv = beforeLv + 1; lv <= this.level(); lv++) unlocked.push(...CW.unlocksAt(lv));

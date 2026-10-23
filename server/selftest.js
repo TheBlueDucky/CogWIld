@@ -79,7 +79,7 @@ async function main() {
   const a3 = await player();
   a3.send({ t: 'acctLogin', name: 'alice_1', pass: 'secret123' });
   const relog = await a3.next('acctOk');
-  check(relog.save && relog.save.data.profile.coins === 99 && relog.me.lv === 4, 'save comes back on the next login');
+  check(relog.save && relog.save.data.profile.coins === 99 && relog.me.lv === 3, 'save comes back on the next login (level from the server XP)');
   const A = a3; // Alice's live session from here on
 
   console.log('friends');
@@ -194,22 +194,33 @@ async function main() {
   check((await ec.next('acctOk')).wallet.fresh === true, 'a new account starts with a fresh wallet');
   ec.send({ t: 'save', data: { profile: { xp: 5, coins: 99999, owned: { paints: ['gold', 'p_aurora', 'bogus'], trails: ['fire'], avatars: [] } } } });
   const w0 = (await ec.next('wallet')).w;
-  check(w0.coins === 3000 && w0.owned.paints.join() === 'gold' && w0.owned.trails.includes('fire'), `guest progress comes along once, capped and checked (${w0.coins} coins, ${w0.owned.paints})`);
-  ec.send({ t: 'earn', src: 'match', n: 500, pp: 40 });
+  check(w0.coins === 3000 - 550 && w0.owned.paints.join() === 'gold' && w0.owned.trails.includes('fire'), `device progress comes along once, worth 3000 coins at most (${w0.coins} coins, ${w0.owned.paints})`);
+  ec.send({ t: 'earn', src: 'match', n: 500, pp: 40, xp: 300 });
   const w1 = await ec.next('wallet');
-  check(w1.w.coins === 3500 && w1.w.pass.pts === 40, 'a match pays coins and pass points');
+  check(w1.w.coins === 2950 && w1.w.pass.pts === 40 && w1.w.xp === 305, 'a match pays coins, XP and pass points');
   ec.send({ t: 'earn', src: 'match', n: 500, pp: 40 });
   check((await ec.next('wallet')).earned === 0, 'two match rewards in a row are refused');
   ec.send({ t: 'earn', src: 'match', n: 999999 });
-  for (let i = 0; i < 5; i++) ec.send({ t: 'earn', src: 'challenge', n: 9999 });
+  const E0 = require('../js/economy.js');
+  for (let i = 0; i < 3; i++) ec.send({ t: 'earn', src: 'challenge', n: 9999, key: 0 });
+  ec.send({ t: 'earn', src: 'challenge', key: 1 });
+  ec.send({ t: 'earn', src: 'ach', key: 'first', n: 9999 });
+  ec.send({ t: 'earn', src: 'ach', key: 'first' });
+  ec.send({ t: 'earn', src: 'ach', key: 'madeup' });
   let wc;
-  for (let i = 0; i < 6; i++) wc = await ec.next('wallet');
-  check(wc.w.coins === 3500 + 4 * 250, `challenge rewards are capped per claim and per day (${wc.w.coins})`);
+  for (let i = 0; i < 8; i++) wc = await ec.next('wallet');
+  const dc = E0.dailyChallenges(E0.day());
+  check(wc.w.coins === 2950 + dc[0].reward + dc[1].reward + E0.ACH.first, `challenges and achievements pay their listed reward once (${wc.w.coins})`);
+  ec.send({ t: 'earn', src: 'chest', n: 150 });
+  ec.send({ t: 'earn', src: 'chest', n: 150 });
+  const cr1 = await ec.next('wallet'), cr2 = await ec.next('wallet');
+  check(cr1.earned === 150 && cr2.earned === 0, 'one results crate per match');
+  wc = cr2;
   ec.send({ t: 'buy', kind: 'paints', id: 'p_aurora' });
   check(/for sale/.test((await ec.next('acctErr')).msg), 'Cog Pass items cannot be bought');
   ec.send({ t: 'buy', kind: 'paints', id: 'neon' });
   const wb = await ec.next('wallet');
-  check(wb.bought && wb.w.owned.paints.includes('neon') && wb.w.coins <= 4500 - 140, 'buying a paint takes the coins on the server');
+  check(wb.bought && wb.w.owned.paints.includes('neon') && wb.w.coins === wc.w.coins - (wb.bought.price), `buying a paint takes the server's price (${wb.bought.price})`);
   ec.send({ t: 'gift' });
   const wg = await ec.next('wallet');
   ec.send({ t: 'gift' });
@@ -230,6 +241,35 @@ async function main() {
   const back2 = await ec2.next('acctOk');
   check(back2.save.data.profile.coins === back2.wallet.coins && !back2.wallet.owned.paints.includes('chrome'), 'a backup cannot change coins or unlocks');
   ec2.ws.close();
+
+  console.log('guests (wallet on the server too)');
+  const gu = await player();
+  gu.send({ t: 'guest', profile: { coins: 500, xp: 1000, owned: { paints: ['chrome'] } } });
+  const gok = await gu.next('guestOk');
+  check(gok.token && gok.wallet.coins === 500 && gok.wallet.owned.paints.includes('chrome') && gok.wallet.xp === 1000, 'a new device gets a guest wallet with its progress');
+  gu.send({ t: 'earn', src: 'match', n: 200, xp: 100, pp: 30 });
+  check((await gu.next('wallet')).w.coins === 700, 'guests earn on the server');
+  gu.send({ t: 'buy', kind: 'trails', id: 'fire' });
+  const gb = await gu.next('wallet');
+  check(gb.bought && gb.w.coins === 700 - gb.bought.price, 'guests buy at the server price');
+  gu.ws.close();
+  const gu2 = await player();
+  gu2.send({ t: 'guest', token: gok.token, profile: { coins: 999999 } });
+  const gback = await gu2.next('guestOk');
+  check(!gback.token && gback.wallet.coins === gb.w.coins && gback.wallet.owned.trails.includes('fire'), 'the same device gets the same guest wallet back (and cannot add coins)');
+  gu2.send({ t: 'acctRegister', name: 'FromGuest', pass: 'guest1234' });
+  const fg = await gu2.next('acctOk');
+  check(fg.wallet.coins === gb.w.coins && fg.wallet.owned.trails.includes('fire') && !fg.wallet.fresh, 'signing up keeps the guest wallet');
+  // mechs online must fit the player's level (FromGuest has 1100 XP = level 4: no lasers yet)
+  gu2.send({ t: 'create', pub: false, settings: {} });
+  await gu2.next('room');
+  gu2.send({ t: 'ready', ready: true, bp: { name: 'Cheat', color: 1, parts: [{ t: 'core', x: 0, y: 0, z: 0 }, { t: 'laser', x: 0, y: 1, z: 0 }] } });
+  check(/allowed/.test((await gu2.next('err')).msg) && (await gu2.next('room')).room.players[0].bp === null, 'a mech with parts above your level is refused');
+  gu2.send({ t: 'ready', ready: true, bp: { name: 'Fat', color: 1, parts: [{ t: 'core', x: 0, y: 0, z: 0 }].concat([...Array(9)].map((_, i) => ({ t: 'armor', x: i - 4, y: 1, z: 0 }))).concat([...Array(9)].map((_, i) => ({ t: 'rotor', x: i - 4, y: 2, z: 0 }))) } });
+  check(/over budget/.test((await gu2.next('err')).msg), 'an over-budget mech is refused');
+  gu2.send({ t: 'begin', payload: { kind: 'match', arena: 'canyon', roster: [{ i: 1, o: gu2.id, h: 1, bp: { parts: [{ t: 'core', x: 0, y: 0, z: 0 }, { t: 'railgun', x: 0, y: 1, z: 0 }] } }] } });
+  check(!!(await gu2.next('kicked', null, 2000).catch(() => null)), 'a host who starts a match with a mech that is not allowed is removed');
+  gu2.ws.close();
 
   console.log('clubs');
   const cA = await player(), cB = await player();
@@ -320,8 +360,7 @@ async function main() {
   mk.send({ t: 'create', pub: false, settings: {} });
   await mk.next('room');
   mk.send({ t: 'ready', ready: true, bp: { name: '<b>x</b>', color: 123, parts: [{ t: 'core', x: 1e9, y: 0, z: 0 }, { t: '__proto__' }, { t: 'constructor', x: 'a' }, null, { t: 'wheel<script>' }] } });
-  const rb = (await mk.next('room', (m) => m.room.players.some((p) => p.bp))).room.players[0].bp;
-  check(rb && rb.name === 'bx/b' && rb.parts.length === 2 && rb.parts[0].x === 64 && rb.parts[1].t === 'constructor' && rb.parts[1].x === 0, 'mech parts are cleaned (bad names dropped, positions clamped)');
+  check(/allowed/.test((await mk.next('err')).msg) && (await mk.next('room')).room.players[0].bp === null, 'a junk mech (bad parts, positions off the grid) is refused');
   console.log('fair play');
   // two players matched together; the server picks one of them at random to host
   const pair = async (mode, arena) => {
@@ -364,7 +403,8 @@ async function main() {
   // results that don't fit what the other game reported are refused
   const rigged = async (res) => {
     const q = await pair('clash', 'city');
-    const roster = [{ i: 1, o: q.host.id, h: 1 }, { i: 2, o: q.other.id, h: 1 }];
+    const bp = { parts: [{ t: 'core', x: 0, y: 0, z: 0 }, { t: 'wheel', x: 1, y: 0, z: 0 }] };
+    const roster = [{ i: 1, o: q.host.id, h: 1, bp }, { i: 2, o: q.other.id, h: 1, bp }];
     q.host.send({ t: 'begin', payload: { kind: 'match', arena: 'city', roster } });
     await q.other.next('begin');
     q.other.send({ t: 'st', s: [], e: [{ k: 'elim', c: 2, by: 1 }] }); // the other player's game: "I'm out"

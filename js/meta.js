@@ -16,26 +16,7 @@
 
   // the Shop's catalog lives in js/economy.js (CW.SHOP), shared with the server
 
-  const CHALLENGES = [
-    { type: 'wreck', text: (n) => `Wreck ${n} mechs`, n: [3, 5, 8], reward: 60 },
-    { type: 'win', text: (n) => `Win ${n} match${n > 1 ? 'es' : ''}`, n: [1, 2], reward: 90 },
-    { type: 'rush', text: (n) => `Play ${n} Rush Build matches`, n: [2, 3], reward: 60 },
-    { type: 'clash', text: (n) => `Play ${n} Workshop Clash matches`, n: [2, 3], reward: 60 },
-    { type: 'dash', text: (n) => `Dash ${n} times`, n: [15, 30], reward: 40 },
-    { type: 'air', text: (n) => `Fly for ${n} seconds`, n: [30, 60], reward: 60 },
-    { type: 'water', text: (n) => `Spend ${n} seconds in water`, n: [30, 60], reward: 50 },
-    { type: 'elim', text: (n) => `Eliminate ${n} pilots`, n: [2, 4], reward: 70 },
-    { type: 'parts', text: (n) => `Blow off ${n} enemy parts`, n: [25, 50], reward: 50 },
-    { type: 'ram', text: (n) => `Land ${n} spike rams`, n: [3, 6], reward: 70 },
-    { type: 'team', text: () => 'Win a team match (3v3 or 2v2v2v2)', n: [1], reward: 100 },
-    { type: 'chest', text: (n) => `Open ${n} loot chests`, n: [3, 6], reward: 60 },
-    { type: 'kothwin', text: () => 'Win a King of the Hill match', n: [1], reward: 90 },
-    { type: 'podium', text: () => 'Finish a Combat Race in the top 3', n: [1], reward: 80 },
-    { type: 'goldcollect', text: (n) => `Collect ${n} gold in Gold Rush`, n: [10, 20], reward: 70 },
-    { type: 'bosswin', text: () => 'Defeat the Titan in Boss Battle', n: [1], reward: 150 },
-    { type: 'maps', text: (n) => `Play on ${n} different maps`, n: [3, 4], reward: 70 },
-    { type: 'wave', text: (n) => `Reach wave ${n} in Survival`, n: [4, 6], reward: 80 },
-  ];
+  // daily challenges come from js/economy.js (CW.ECON.dailyChallenges), shared with the server
 
   const TIPS = [
     'Hold Shift + A/D with Legs to sidestep-dash out of rocket fire.',
@@ -68,16 +49,6 @@
     return code.replace(/^Key/, '').replace(/^Digit/, '').replace(/^(Shift|Control|Alt)Left$/, '$1 (L)').replace(/^(Shift|Control|Alt)Right$/, '$1 (R)');
   };
 
-  function today() {
-    const d = new Date();
-    return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
-  }
-  function seeded(seedStr) {
-    let h = 2166136261;
-    for (const c of seedStr) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
-    return () => { h = Math.imul(h ^ (h >>> 15), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); return ((h ^= h >>> 16) >>> 0) / 4294967296; };
-  }
-
   class Meta {
     constructor(game) {
       this.game = game;
@@ -96,19 +67,12 @@
     save() { this.game.saveProfile(); }
 
     // ---------------- challenges ----------------
+    // today's challenges: the same for everyone (js/economy.js), and the server pays their listed reward
     rollChallenges() {
       const p = this.game.profile;
-      const d = today();
-      if (p.challenges && p.challenges.date === d) return;
-      const rnd = seeded('cw' + d);
-      const pool = CHALLENGES.slice();
-      const list = [];
-      while (list.length < 3) {
-        const c = pool.splice(Math.floor(rnd() * pool.length), 1)[0];
-        const n = c.n[Math.floor(rnd() * c.n.length)];
-        list.push({ type: c.type, text: c.text(n), target: n, progress: 0, reward: c.reward + (n > c.n[0] ? 30 : 0), claimed: false });
-      }
-      p.challenges = { date: d, list };
+      const d = E.day();
+      if (p.challenges && p.challenges.date === d && p.challenges.list.length === E.DAILY_CHALLENGES) return;
+      p.challenges = { date: d, list: E.dailyChallenges(d).map((c) => Object.assign(c, { progress: 0, claimed: false })) };
       this.save();
     }
 
@@ -130,12 +94,16 @@
     claimable() { return this.game.profile.challenges.list.filter((c) => c.progress >= c.target && !c.claimed).length; }
 
     // coins shown at once; for logged-in players the server checks them and sends the real total back
-    addCoins(n, src, key, pp) {
+    addCoins(n, src, key, pp, xp) {
       const p = this.game.profile;
       p.coins += n;
       p.stats.coinsEarned += n;
       const a = this.game.account;
-      if (src && a && a.loggedIn) a.net.send({ t: 'earn', src, n, key, pp });
+      if (!src || !a) return;
+      if (a.walletLive) return a.net.send({ t: 'earn', src, n, key, pp, xp });
+      // no connection: match rewards and achievements are reported when it's back
+      if (src === 'ach') (p.pendingAch = p.pendingAch || []).push(key);
+      else if (src === 'match' || src === 'chest') { p.pending = p.pending || { n: 0, xp: 0 }; p.pending.n += n; p.pending.xp += xp || 0; }
     }
 
     // ---------------- menu ----------------
@@ -170,13 +138,9 @@
     claimDaily() {
       const p = this.game.profile;
       if (p.dailyClaimed === E.day()) return;
-      // logged in: the server keeps the streak and pays (the answer comes back as a wallet message)
-      if (this.game.account.loggedIn) { this.game.account.net.send({ t: 'gift' }); return; }
-      p.dailyStreak = p.dailyClaimed === E.day(Date.now() - 86400000) ? (p.dailyStreak || 0) + 1 : 1;
-      p.dailyClaimed = E.day();
-      this.addCoins(E.giftAmount(p.dailyStreak));
-      this.save();
-      this.giftToast(E.giftAmount(p.dailyStreak));
+      // the server keeps the streak and pays (the answer comes back as a wallet message)
+      if (!this.game.account.walletLive) return this.game.toast('🎁 Your gift needs an internet connection');
+      this.game.account.net.send({ t: 'gift' });
     }
     giftToast(amount) {
       const p = this.game.profile;
@@ -236,8 +200,9 @@
           b.onclick = () => {
             const c = p.challenges.list.find((x) => x.text === b.dataset.ch);
             if (!c || c.claimed) return;
+            if (!this.game.account.walletLive) return this.game.toast('🎯 Claiming needs an internet connection');
             c.claimed = true;
-            this.addCoins(c.reward, 'challenge');
+            this.addCoins(c.reward, 'challenge', p.challenges.list.indexOf(c));
             this.save();
             this.game.toast(`+${c.reward} coins!`);
             this.game.audio.click(1.5);
@@ -273,11 +238,10 @@
             const it = CW.SHOP[b.dataset.kind].find((x) => x.id === b.dataset.id);
             const price = b.dataset.deal ? this.dealPrice(it) : it.price;
             if (p.coins < price) return this.game.toast(`Need ${price - p.coins} more coins`);
-            // logged in: the server takes the coins and sends back the new wallet (see afterBuy)
-            if (this.game.account.loggedIn) { b.disabled = true; this.game.account.net.send({ t: 'buy', kind: b.dataset.kind, id: it.id }); return; }
-            p.coins -= price;
-            p.owned[b.dataset.kind].push(it.id);
-            this.afterBuy(b.dataset.kind, it.id);
+            // the server sets the price, takes the coins and sends back the new wallet (see afterBuy)
+            if (!this.game.account.walletLive) return this.game.toast('🛒 The Shop needs an internet connection');
+            b.disabled = true;
+            this.game.account.net.send({ t: 'buy', kind: b.dataset.kind, id: it.id });
           };
         });
         body.querySelectorAll('.equip').forEach((b) => {

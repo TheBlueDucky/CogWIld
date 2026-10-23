@@ -4,7 +4,8 @@
   const V3 = THREE.Vector3;
 
   // ======================= PART UNLOCKS =======================
-  CW.PART_LEVEL = { lamp: 2, spikes: 2, horn: 3, rocket: 3, saw: 3, booster: 4, flamer: 4, shield: 5, drone: 5, laser: 6, railgun: 7 };
+  CW.PART_LEVEL = {}; // parts that unlock above level 1 (from js/economy.js)
+  for (const [id, r] of Object.entries(CW.ECON.PARTS)) if (r[2] > 1) CW.PART_LEVEL[id] = r[2];
   CW.partLocked = (t, game) => (CW.PART_LEVEL[t] || 1) > game.level();
   CW.unlocksAt = (level) => Object.keys(CW.PART_LEVEL).filter((t) => CW.PART_LEVEL[t] === level).map((t) => CW.PARTS[t].name);
 
@@ -438,8 +439,8 @@
     { id: 'golddigger', name: 'Gold Digger', desc: 'End a Gold Rush carrying 25+ gold', reward: 200, test: (s) => (s.maxGold || 0) >= 25 },
     { id: 'speeddemon', name: 'Speed Demon', desc: 'Win a Combat Race', reward: 200, test: (s) => (s.raceWins || 0) >= 1 },
     { id: 'titanslayer', name: 'Titan Slayer', desc: 'Defeat the Titan', reward: 400, test: (s) => (s.bossKills || 0) >= 1 },
-    { id: 'worldtour', name: 'World Tour', desc: 'Play a match on all 7 maps', reward: 300, test: (s) => Object.keys(s.maps || {}).length >= 7 },
-    { id: 'modemaster', name: 'Mode Master', desc: 'Play all 7 game modes', reward: 300, test: (s) => Object.keys(s.modes || {}).length >= 7 },
+    { id: 'worldtour', name: 'World Tour', desc: 'Play a match on every map', reward: 300, test: (s) => Object.keys(s.maps || {}).length >= Object.keys(CW.ARENAS).length },
+    { id: 'modemaster', name: 'Mode Master', desc: 'Play every game mode', reward: 300, test: (s) => Object.keys(s.modes || {}).length >= Object.keys(CW.MM_FORMAT).length },
     { id: 'bothModes', name: 'All-Rounder', desc: 'Play both Rush Build and Workshop Clash', reward: 100, test: (s) => s.rush >= 1 && s.clash >= 1 },
     { id: 'hybrid', name: 'Hybrid', desc: 'Reach the Hybrid rank', reward: 200, test: (s, g) => g.level() >= 3 },
     { id: 'omni', name: 'Omni', desc: 'Reach the Omni rank', reward: 400, test: (s, g) => g.level() >= 6 },

@@ -182,7 +182,81 @@
   };
   RANKED.rank = (rp) => RANKED.ranks.filter((x) => (rp | 0) >= x.at).pop();
 
-  const api = { SHOP, AVATAR_COUNT, FREE_AVATARS, item, dealPrice, dailyDeals, ROAD, giftAmount, EARN, EARN_PER_DAY, MATCH_GAP, day, nextMidnight, seeded, hash, season, PASS, passRewards, WEEKLY, week, RANKED };
+  // ---------------- levels, parts and mech rules (the server checks online mechs with these) ----------------
+  const xpFor = (level) => { const n = level - 1; return 150 * n + 50 * n * (n - 1); };
+  const levelOf = (xp) => { let lv = 1; while (xpFor(lv + 1) <= (xp || 0)) lv++; return lv; };
+  // movement types a mech may combine, by level (Mono / Hybrid / Omni)
+  const domainsAt = (level) => (level >= 6 ? 3 : level >= 3 ? 2 : 1);
+  // [cost, movement type, level it unlocks at] for every part (parts.js takes cost, type and level from here)
+  const PARTS = {
+    core: [0, null, 1], camera: [0, null, 1], frame: [4, null, 1], armor: [10, null, 1], wheel: [12, 'land', 1], leg: [20, 'land', 1],
+    float: [8, 'water', 1], prop: [16, 'water', 1], wing: [12, 'air', 1], rotor: [30, 'air', 1], jet: [26, 'air', 1], engine: [20, null, 1],
+    cannon: [24, null, 1], rocket: [36, null, 3], laser: [34, null, 6], railgun: [42, null, 7], flamer: [28, null, 4], saw: [16, null, 3],
+    spikes: [10, null, 2], shield: [32, null, 5], drone: [30, null, 5], booster: [18, null, 4], flag: [1, null, 1], lamp: [1, null, 2], horn: [2, null, 3],
+  };
+  const BUDGET = 300, GRID = { minX: -4, maxX: 4, minY: -2, maxY: 4, minZ: -4, maxZ: 4 };
+  // why a mech isn't allowed for a player of this level (or null when it's fine)
+  function mechProblem(parts, level, budget) {
+    if (!Array.isArray(parts) || !parts.length || parts.length > 120) return 'no parts';
+    let cost = 0, cores = 0;
+    const doms = new Set(), at = new Set();
+    for (const p of parts) {
+      const r = p && Object.prototype.hasOwnProperty.call(PARTS, p.t) ? PARTS[p.t] : null;
+      if (!r) return 'unknown part';
+      if (r[2] > level) return `${p.t} unlocks at level ${r[2]}`;
+      if (!(p.x >= GRID.minX && p.x <= GRID.maxX && p.y >= GRID.minY && p.y <= GRID.maxY && p.z >= GRID.minZ && p.z <= GRID.maxZ)) return 'part outside the grid';
+      const k = p.x + ',' + p.y + ',' + p.z;
+      if (at.has(k)) return 'two parts in one spot';
+      at.add(k);
+      cost += r[0];
+      if (r[1]) doms.add(r[1]);
+      if (p.t === 'core') cores++;
+    }
+    if (cores !== 1) return 'needs exactly one core';
+    if (cost > (budget || BUDGET)) return `over budget (${cost})`;
+    if (doms.size > domainsAt(level)) return 'too many movement types for this level';
+    return null;
+  }
+
+  // ---------------- daily challenges: the same 6 for everyone each UTC day; the server pays the listed reward ----------------
+  const CHALLENGES = [
+    { type: 'wreck', text: 'Wreck {n} mechs', n: [3, 5, 8], reward: 60 },
+    { type: 'win', text: 'Win {n} match{es}', n: [1, 2], reward: 90 },
+    { type: 'rush', text: 'Play {n} Rush Build matches', n: [2, 3], reward: 60 },
+    { type: 'clash', text: 'Play {n} Workshop Clash matches', n: [2, 3], reward: 60 },
+    { type: 'dash', text: 'Dash {n} times', n: [15, 30], reward: 40 },
+    { type: 'air', text: 'Fly for {n} seconds', n: [30, 60], reward: 60 },
+    { type: 'water', text: 'Spend {n} seconds in water', n: [30, 60], reward: 50 },
+    { type: 'elim', text: 'Eliminate {n} pilots', n: [2, 4], reward: 70 },
+    { type: 'parts', text: 'Blow off {n} enemy parts', n: [25, 50], reward: 50 },
+    { type: 'ram', text: 'Land {n} spike rams', n: [3, 6], reward: 70 },
+    { type: 'team', text: 'Win a team match (3v3 or 2v2v2v2)', n: [1], reward: 100 },
+    { type: 'chest', text: 'Open {n} loot chests', n: [3, 6], reward: 60 },
+    { type: 'kothwin', text: 'Win a King of the Hill match', n: [1], reward: 90 },
+    { type: 'podium', text: 'Finish a Combat Race in the top 3', n: [1], reward: 80 },
+    { type: 'goldcollect', text: 'Collect {n} gold in Gold Rush', n: [10, 20], reward: 70 },
+    { type: 'bosswin', text: 'Defeat the Titan in Boss Battle', n: [1], reward: 150 },
+    { type: 'maps', text: 'Play on {n} different maps', n: [3, 4], reward: 70 },
+    { type: 'wave', text: 'Reach wave {n} in Survival', n: [4, 6], reward: 80 },
+    { type: 'bountywin', text: 'Win a Bounty Hunt match', n: [1], reward: 90 },
+    { type: 'gadget', text: 'Use your gadget {n} times', n: [5, 10], reward: 50 },
+  ];
+  const DAILY_CHALLENGES = 6;
+  function dailyChallenges(dayStr) {
+    const rnd = seeded('cw' + dayStr);
+    const pool = CHALLENGES.slice();
+    const list = [];
+    while (list.length < DAILY_CHALLENGES) {
+      const c = pool.splice(Math.floor(rnd() * pool.length), 1)[0];
+      const n = c.n[Math.floor(rnd() * c.n.length)];
+      list.push({ type: c.type, text: c.text.replace('{n}', n).replace('{es}', n > 1 ? 'es' : ''), target: n, reward: c.reward + (n > c.n[0] ? 30 : 0) });
+    }
+    return list;
+  }
+  // achievement rewards (each achievement's test lives in js/extras.js)
+  const ACH = { first: 50, win1: 100, win10: 300, wreck10: 100, wreck50: 250, wreck200: 600, elim25: 200, ram10: 150, dash100: 100, fly300: 150, swim300: 150, streak3: 150, pickup20: 120, chest25: 200, survive10: 300, hillking: 150, golddigger: 200, speeddemon: 200, titanslayer: 400, worldtour: 300, modemaster: 300, bothModes: 100, hybrid: 200, omni: 400, big: 200, flawless: 300 };
+
+  const api = { xpFor, levelOf, domainsAt, PARTS, BUDGET, GRID, mechProblem, CHALLENGES, DAILY_CHALLENGES, dailyChallenges, ACH, SHOP, AVATAR_COUNT, FREE_AVATARS, item, dealPrice, dailyDeals, ROAD, giftAmount, EARN, EARN_PER_DAY, MATCH_GAP, day, nextMidnight, seeded, hash, season, PASS, passRewards, WEEKLY, week, RANKED };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
-  else { root.CW.ECON = api; root.CW.SHOP = SHOP; root.CW.ROAD = ROAD; }
+  else { root.CW = root.CW || {}; root.CW.ECON = api; root.CW.SHOP = SHOP; root.CW.ROAD = ROAD; }
 })(this);

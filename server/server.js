@@ -399,6 +399,11 @@ function handle(c, data) {
       if (!room || room.state !== 'lobby') break;
       c.ready = !!m.ready;
       c.bp = m.bp && Array.isArray(m.bp.parts) && m.bp.parts.length <= 120 ? { name: clean(m.bp.name, 24), color: m.bp.color & 0xffffff, parts: cleanParts(m.bp.parts) } : null;
+      // the mech must fit this player's level (from the server's XP) and the budget
+      if (c.bp) {
+        const why = E.mechProblem(c.bp.parts, accounts.level(c), E.BUDGET);
+        if (why) { c.bp = null; c.ws.send({ t: 'err', msg: `That mech isn't allowed online (${why}), so you'll get an example mech` }); }
+      }
       sendRoom(room);
       break;
     case 'kick':
@@ -425,6 +430,18 @@ function handle(c, data) {
       room.out = new Map();
       if (room.phase === 'match' && m.payload && Array.isArray(m.payload.roster)) {
         for (const e of m.payload.roster.slice(0, 64)) if (e && Number.isInteger(e.i)) room.roster.set(e.i, { o: e.o | 0, h: !!e.h });
+        // every player's mech in the match must fit that player's level and the mode's budget
+        const budget = room.settings.mode === 'rush' ? 250 : E.BUDGET;
+        const bad = m.payload.roster.find((e) => e && e.h && clients.get(e.o | 0) && E.mechProblem(e.bp && e.bp.parts, accounts.level(clients.get(e.o | 0)), budget));
+        if (bad) {
+          console.warn(`match refused in ${room.code}: ${clean(bad.n, 16)}'s mech is not allowed`);
+          resetRoom(room);
+          c.ws.send({ t: 'err', msg: 'A mech in this match is not allowed online' });
+          broadcast(room, { t: 'hostLeft' }, c.id);
+          leaveRoom(c);
+          c.ws.send({ t: 'kicked' });
+          break;
+        }
       }
       broadcast(room, { t: 'begin', payload: m.payload }, c.id);
       for (const id of room.players) accounts.roomChanged(clients.get(id));

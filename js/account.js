@@ -44,25 +44,37 @@
       this.lbTab = 'global';
       this.bindUi();
       this.renderChips();
-      // already logged in on this device: connect right away so friends see you online
-      if (this.session) setTimeout(() => this.connect(), 300);
+      // connect right away: logged in, friends see you online; as a guest, your coins come from the server too
+      setTimeout(() => this.connect(), 300);
       setInterval(() => this.watchStatus(), 1000);
     }
 
     get loggedIn() { return !!this.me; }
+    // connected with a server wallet (an account's or this device's guest one): coins and the Shop work
+    get walletLive() { return !!this.wallet && this.net.status === 'online' && (this.loggedIn || this.guestOn); }
     get net() { return this.game.net; }
     connect() { if (this.net.canConnect()) this.net.connect().catch(() => {}); }
 
     // ======================= from the net layer =======================
-    onWelcome() { if (this.session) this.net.send({ t: 'acctAuth', token: this.session.token }); }
+    onWelcome() {
+      if (this.session) return this.net.send({ t: 'acctAuth', token: this.session.token });
+      this.helloGuest();
+    }
+    // no account: this device's guest wallet (the first time, the progress it already has comes along, capped)
+    helloGuest() {
+      const token = load('cogwild.guest', null);
+      const p = this.game.profile;
+      this.net.send({ t: 'guest', token, profile: token ? undefined : { coins: p.coins, xp: p.xp, owned: p.owned } });
+    }
     onDisconnect() {
       const was = this.loggedIn;
       this.me = null;
+      this.guestOn = false;
       this.friends = [];
       this.party = null;
       this.renderChips();
-      // stay connected while logged in: retry with a growing pause
-      if (this.session) {
+      // stay connected: retry with a growing pause
+      if (this.net.canConnect()) {
         this.retry = Math.min(60000, (this.retry || 2500) * 1.6);
         clearTimeout(this.retryT);
         this.retryT = setTimeout(() => this.connect(), this.retry);
@@ -73,6 +85,12 @@
       const g = this.game;
       switch (m.t) {
         case 'acctOk': this.onLogin(m); break;
+        case 'guestOk':
+          if (m.token) keep('cogwild.guest', m.token);
+          this.guestOn = true;
+          this.applyWallet(m.wallet);
+          this.afterWallet();
+          break;
         case 'acctOut':
           if (this.session) { this.session = null; keep('cogwild.session', null); }
           this.me = null;
@@ -133,7 +151,10 @@
       this.net.name = m.me.name;
       $('acct').classList.add('hidden');
       const user = m.me.name.toLowerCase();
-      if (m.wallet && !m.wallet.fresh) this.applyWallet(m.wallet);
+      this.guestOn = false;
+      if (this.signing) keep('cogwild.guest', null); // the guest wallet became this account's
+      this.signing = false;
+      if (m.wallet && !m.wallet.fresh) { this.applyWallet(m.wallet); this.afterWallet(); }
       const server = m.save;
       // which copy of the progress wins: the newest one
       const sameUser = this.sync.user === user;
@@ -251,6 +272,7 @@
       try { await this.net.connect(); } catch (e) { this.busy(false); $('acctErr').textContent = "Can't reach the server. Check your internet."; return; }
       $('acctErr').textContent = '';
       this.welcomeToast = sign ? `🎉 Welcome to Cogwild, ${name}!` : `👋 Welcome back, ${name}!`;
+      this.signing = sign;
       this.net.send({ t: sign ? 'acctRegister' : 'acctLogin', name, pass });
       $('acctPass').value = '';
       $('acctPass2').value = '';
@@ -376,7 +398,24 @@
       p.dailyClaimed = w.gift.day;
       p.dailyStreak = w.gift.streak;
       p.pass = w.pass;
+      if (w.xp !== undefined) p.xp = w.xp;
+      // today's claimed challenges and every paid achievement, so nothing is offered twice
+      const ch = p.challenges;
+      if (ch && ch.date === CW.ECON.day()) ch.list.forEach((c, i) => { c.claimed = w.ch.includes(i); });
+      p.achievements = p.achievements || {};
+      for (const id of w.ach || []) if (!p.achievements[id]) p.achievements[id] = 1;
       keep('cogwild.profile', p); // not a change to back up: it came from the server
+    }
+    // back online: what was earned without a connection gets reported (the server pays a capped amount)
+    afterWallet() {
+      const g = this.game, p = g.profile;
+      if (p.pending && (p.pending.n || p.pending.xp)) { this.net.send({ t: 'earn', src: 'offline', n: p.pending.n | 0, xp: p.pending.xp | 0 }); p.pending = null; }
+      for (const id of p.pendingAch || []) this.net.send({ t: 'earn', src: 'ach', key: id });
+      p.pendingAch = [];
+      keep('cogwild.profile', p);
+      this.renderChips();
+      if (g.state === 'menu') g.meta.renderMenu();
+      g.workshop.buildPaint();
     }
     onWallet(m) {
       const g = this.game;
@@ -400,15 +439,14 @@
     canRanked() { return !!this.me && (this.me.best | 0) >= CW.ECON.RANKED.unlockAt; }
     passReady() {
       const w = this.wallet;
-      if (!this.loggedIn || !w) return 0;
+      if (!w) return 0;
       return CW.ECON.passRewards(w.pass.s).filter((r) => r.at <= w.pass.pts && !w.pass.claimed.includes(r.tier)).length;
     }
     passPanel(body) {
       const E = CW.ECON, g = this.game;
       const ss = E.season();
-      if (!this.loggedIn || !this.wallet) {
-        body.innerHTML = `<div class="small">The Cog Pass is a free reward track that starts over every 4 weeks, with paints, trails and avatars you can't buy in the Shop. Log in to start earning pass points.</div><button class="ws-btn on" id="passLogin">👤 Log in or sign up</button>`;
-        $('passLogin').onclick = () => { g.meta.closePanel(); this.openLogin('Log in to play the Cog Pass'); };
+      if (!this.wallet) {
+        body.innerHTML = `<div class="small">The Cog Pass is a free reward track that starts over every 4 weeks, with paints, trails and avatars you can't buy in the Shop. It needs an internet connection.</div>`;
         return;
       }
       const ps = this.wallet.pass;
