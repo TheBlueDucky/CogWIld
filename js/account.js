@@ -78,12 +78,27 @@
       if (this.session) return this.net.send({ t: 'acctAuth', token: this.session.token });
       if (this.gSecret && this.view === 'gwait') this.net.send({ t: 'googleStart', s: this.gSecret }); // reconnected while signing in with Google
       this.helloGuest();
-      // when the server can log people in by email or Google, everyone plays with an account
-      // (not on game portals like Poki and CrazyGames, which don't allow a forced login)
-      if (this.loginRequired()) this.openLogin('Log in to play. Your progress is saved to your account.');
+      // anyone can play as a guest; a friendly reminder says what an account adds
+      clearTimeout(this.nudgeT);
+      this.nudgeT = setTimeout(() => this.guestNudge(), 6000);
     }
     mailLogin() { return !!this.loginOpts && !!(this.loginOpts.email || this.loginOpts.google); }
-    loginRequired() { return !CW.PORTAL && !!this.loginOpts && !!(this.loginOpts.email || this.loginOpts.google) && !this.loggedIn; }
+    // nobody has to log in to play (guests keep their progress on this device)
+    loginRequired() { return false; }
+    // guests: a small card (at most once a day, never over the tutorial or a menu) about saving progress with an account
+    guestNudge(tries = 0) {
+      if (this.loggedIn || this.session || !this.net.canConnect()) return;
+      const day = new Date().toISOString().slice(0, 10);
+      if (load('cogwild.guestNudge', null) === day) return;
+      const g = this.game;
+      const busy = g.state !== 'menu' || !$('firstRun').classList.contains('hidden') || !$('panel').classList.contains('hidden')
+        || !$('acct').classList.contains('hidden') || !$('vcAsk').classList.contains('hidden') || g.talk.isOpen;
+      if (busy) { if (tries < 20) this.nudgeT = setTimeout(() => this.guestNudge(tries + 1), 15000); return; }
+      if ([...$('notes').children].some((n) => /Playing as a guest/.test(n.textContent))) return; // already showing
+      keep('cogwild.guestNudge', day);
+      this.note('👤 <b>Playing as a guest</b>: your progress is saved on this device only. Log in to keep it on every device and to get trophies, friends, clubs and voice chat.',
+        [{ label: 'Log in / Sign up', main: true, fn: () => this.openLogin() }, { label: 'Later' }], 20000);
+    }
     // no account: this device's guest wallet (the first time, the progress it already has comes along, capped)
     helloGuest() {
       const token = load('cogwild.guest', null);

@@ -9,9 +9,9 @@ The game, server, website, apps and store texts are ready. What's left below nee
 |---|---|---|
 | Website (play in browser, installable) | https://cogwild.duckdns.org | `deploy\upload.ps1` (see deploy/README.md) |
 | Download page | https://cogwild.duckdns.org/download | `build-apps.ps1 -Upload ...` |
-| Windows installer + portable | `dist\downloads\Cogwild-Setup-1.7.2.exe`, `Cogwild-1.7.2-portable.exe` | `build-apps.ps1` |
-| Android (sideload) | `dist\downloads\Cogwild-1.7.2.apk` (release-signed) | `build-apps.ps1` |
-| Google Play | `dist\store\Cogwild-1.7.2.aab` | `build-apps.ps1` |
+| Windows installer + portable | `dist\downloads\Cogwild-Setup-1.7.3.exe`, `Cogwild-1.7.3-portable.exe` | `build-apps.ps1` |
+| Android (sideload) | `dist\downloads\Cogwild-1.7.3.apk` (release-signed) | `build-apps.ps1` |
+| Google Play | `dist\store\Cogwild-1.7.3.aab` | `build-apps.ps1` |
 | itch.io / CrazyGames / Poki | `dist\cogwild-itch.zip`, `cogwild-crazygames.zip`, `cogwild-poki.zip` | `build-itch.ps1 -Portal all` |
 | Store texts, ratings, data safety | [STORE_PAGE.md](STORE_PAGE.md) | |
 | Screenshots + share image | `dist\store\screenshots\`, `img\og-image.png` | `cd desktop; node copy-game.js; npx electron shots.js` |
@@ -29,13 +29,13 @@ The game, server, website, apps and store texts are ready. What's left below nee
 
 ## 1. itch.io (free, fastest)
 - [ ] Create a project → Kind **HTML** → upload `dist\cogwild-itch.zip` → tick **"played in the browser"**, viewport **1280×720**, **fullscreen button** and **mobile friendly** (landscape).
-- [ ] Also upload `Cogwild-Setup-1.7.2.exe` (Windows) and `Cogwild-1.7.2.apk` (Android) as downloads.
+- [ ] Also upload `Cogwild-Setup-1.7.3.exe` (Windows) and `Cogwild-1.7.3.apk` (Android) as downloads.
 - [ ] Texts from STORE_PAGE.md, the 6 screenshots, cover image 630×500 (crop one screenshot).
 - [ ] Price: $0 or "name your price".
 
 ## 2. Google Play (Android)
 - [ ] Google Play Console account: **$25 once**. New personal accounts must run a **closed test with at least 12 testers for 14 days** before going public. Start that early!
-- [ ] Create the app → upload `dist\store\Cogwild-1.7.2.aab` → turn on **Play App Signing** (default).
+- [ ] Create the app → upload `dist\store\Cogwild-1.7.3.aab` → turn on **Play App Signing** (default).
 - [ ] Store listing: title, short and long description, icon `img\icon-512.png`, feature graphic **1024×500** (crop `img\og-image.png`), at least 2 phone screenshots (the 16:9 screenshots work).
 - [ ] App content: privacy policy URL, **Data safety** and **content rating** answers (STORE_PAGE.md), target audience (choose 13+ or "all ages"; if you include under-13s, Google's Families policy applies), ads: **no**, account deletion URL `https://cogwild.duckdns.org/privacy.html#deleting`.
 - [ ] For each update: raise `versionCode` (+1) and `versionName` in `android\android\app\build.gradle`.

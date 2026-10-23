@@ -5,7 +5,7 @@ You build a mech from parts in the Workshop, then fight online (bots fill empty 
 It runs in the browser (three.js r128, no build step), as a Windows app (Electron) and an Android app (Capacitor),
 and on game portals (itch.io, CrazyGames, Poki). The online server is zero-dependency Node.js.
 
-**Live:** https://cogwild.duckdns.org (download page `/download`) · **Current version:** v1.7.2 · **Online protocol:** `cogwild-net-9`
+**Live:** https://cogwild.duckdns.org (download page `/download`) · **Current version:** v1.7.3 · **Online protocol:** `cogwild-net-9`
 The user is not a programmer: explain things in plain words, test everything yourself, and show screenshots as proof.
 
 ## How the user wants things done
@@ -82,7 +82,8 @@ The user is not a programmer: explain things in plain words, test everything you
   Google returns to `/auth/google/done` (implicit id_token + nonce), that page posts the token, the server logs in the
   waiting game (`googleStart`/`googleDone`); new players then pick a username (no password). Older accounts: email or
   username + password behind a link. Without Google: email + password + username sign-up (`acctSignup`; a 6-digit code
-  when mail is configured). When mail or Google is configured, the game asks everyone to log in (not on portals).
+  when mail is configured). Nobody has to log in: guests play with progress on their device (plus the guest wallet) and get a
+  "Playing as a guest" card at most once a day (account.js guestNudge) with Log in / Sign up.
 - **Chat/voice:** matches = quick chat only (keys 1-8); friends/party/club = free text (200 chars, no word filter yet) or
   quick lines (`TALK_QUICK` in economy.js). "Quick chat only" (kids) is per account and also turns voice off. Voice needs an
   account; peers = same party, or same room when both chose "my match"; always via the TURN relay (no IPs shared). Free

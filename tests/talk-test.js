@@ -308,9 +308,20 @@ app.whenReady().then(async () => {
   check(await js(A, `!${G}.talk.isOpen && !${G}.paused`), 'Esc closes the chat (without pausing)');
 
   // the login box when Google sign-in is on (server on 8782)
-  await start(L, 8782, { xp: 0, settings: { tutorialDone: true, music: 0, sfx: 0 } });
-  await wait(1000);
-  check(await js(L, `!document.getElementById('acct').classList.contains('hidden') && !document.getElementById('gBtnWrap').classList.contains('hidden')`), 'the login box offers Google');
+  // a brand-new player: no login box in their way, the tutorial question shows and stays
+  await start(L, 8782, { xp: 0, settings: { music: 0, sfx: 0 } });
+  await wait(4000);
+  check(await js(L, `document.getElementById('acct').classList.contains('hidden') && !document.getElementById('firstRun').classList.contains('hidden')`), 'a new player can play without logging in (the tutorial question stays, no login box)');
+  await shot(L, 'talk-new-player');
+  await js(L, `document.getElementById('firstNo').click(); true`);
+  await wait(3500);
+  await js(L, `if (!document.getElementById('vcAsk').classList.contains('hidden')) document.getElementById('vcNo').click(); localStorage.removeItem('cogwild.guestNudge'); ${G}.account.guestNudge(); true`);
+  await wait(500);
+  check(await js(L, `/Playing as a guest/.test(document.getElementById('notes').textContent)`), 'guests get a small "log in to save your progress" card');
+  await shot(L, 'talk-guest-nudge');
+  await js(L, `[...document.querySelectorAll('#notes button')].find((b) => /Log in/.test(b.textContent)).click(); true`);
+  await wait(500);
+  check(await js(L, `!document.getElementById('acct').classList.contains('hidden') && !document.getElementById('gBtnWrap').classList.contains('hidden') && !document.getElementById('acctGuest').classList.contains('hidden')`), 'its Log in button opens the login box (with Google, and Play as guest)');
   await shot(L, 'talk-login-google');
   await js(L, `document.getElementById('tabSign').click(); true`);
   await wait(300);
