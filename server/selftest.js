@@ -518,6 +518,24 @@ async function main() {
     q.host.ws.close(); q.other.ws.close();
     return !r;
   };
+  // the referee: spoofed hits, impossible damage, impossible speed
+  {
+    const q = await pair('koth', 'jungle');
+    const bp = { parts: [{ t: 'core', x: 0, y: 0, z: 0 }, { t: 'cannon', x: 0, y: 1, z: 0 }, { t: 'wheel', x: 1, y: 0, z: 0 }] };
+    q.host.send({ t: 'begin', payload: { kind: 'match', arena: 'jungle', roster: [{ i: 1, o: q.host.id, h: 1, bp }, { i: 2, o: q.other.id, h: 1, bp }, { i: 3, o: q.host.id, h: 0, bp }] } });
+    await q.other.next('begin');
+    q.host.cursor = q.host.got.length;
+    q.other.send({ t: 'st', s: [], e: [{ k: 'hit', c: 3, pt: 0, d: 50, by: 1, l: 0 }] }); // "your" mech hitting? it isn't yours
+    const spoof = await q.host.next('st', null, 700).catch(() => null);
+    check(!spoof || !(spoof.e || []).length, 'hits sent for a mech you don\'t control are dropped');
+    q.other.send({ t: 'st', s: [], e: [...Array(10)].map(() => ({ k: 'hit', c: 1, pt: 0, d: 500, by: 2, l: 0 })) });
+    const flood = await q.host.next('st', (m) => (m.e || []).length > 0, 2000);
+    check(flood.e.length <= 3, `more damage than a mech can deal is dropped (${flood.e.length} of 10 hits got through)`);
+    for (let i = 0; i < 14; i++) { q.other.send({ t: 'st', s: [{ i: 2, l: 0, m: [i * 400, 5, 0] }] }); await wait(60); }
+    q.host.send({ t: 'end', res: { [q.host.id]: 1, [q.other.id]: 2 }, n: 2 });
+    check(!!(await q.other.next('note', (m) => /odd/.test(m.msg), 2000).catch(() => null)), 'a speed hacker\'s match doesn\'t count for them');
+    q.host.ws.close(); q.other.ws.close();
+  }
   check(await rigged((h, o) => ({ [h]: 1, [o]: 2 })), 'a result that fits is accepted');
   check(!(await rigged((h, o) => ({ [h]: 2, [o]: 1 }))), 'a player who was knocked out first cannot be put ahead');
   check(!(await rigged((h, o) => ({ [h]: 1, [o]: 1 }))), 'two players in 1st place in free-for-all is refused');

@@ -187,13 +187,20 @@
   const levelOf = (xp) => { let lv = 1; while (xpFor(lv + 1) <= (xp || 0)) lv++; return lv; };
   // movement types a mech may combine, by level (Mono / Hybrid / Omni)
   const domainsAt = (level) => (level >= 6 ? 3 : level >= 3 ? 2 : 1);
-  // [cost, movement type, level it unlocks at] for every part (parts.js takes cost, type and level from here)
+  // [cost, movement type, level it unlocks at, HP, damage per second] for every part
+  // (parts.js takes cost and type from here; the server's referee uses HP and damage)
   const PARTS = {
-    core: [0, null, 1], camera: [0, null, 1], frame: [4, null, 1], armor: [10, null, 1], wheel: [12, 'land', 1], leg: [20, 'land', 1],
-    float: [8, 'water', 1], prop: [16, 'water', 1], wing: [12, 'air', 1], rotor: [30, 'air', 1], jet: [26, 'air', 1], engine: [20, null, 1],
-    cannon: [24, null, 1], rocket: [36, null, 3], laser: [34, null, 6], railgun: [42, null, 7], flamer: [28, null, 4], saw: [16, null, 3],
-    spikes: [10, null, 2], shield: [32, null, 5], drone: [30, null, 5], booster: [18, null, 4], flag: [1, null, 1], lamp: [1, null, 2], horn: [2, null, 3],
+    core: [0, null, 1, 150, 0], camera: [0, null, 1, 45, 0], frame: [4, null, 1, 35, 0], armor: [10, null, 1, 120, 0], wheel: [12, 'land', 1, 35, 0], leg: [20, 'land', 1, 45, 0],
+    float: [8, 'water', 1, 25, 0], prop: [16, 'water', 1, 28, 0], wing: [12, 'air', 1, 25, 0], rotor: [30, 'air', 1, 30, 0], jet: [26, 'air', 1, 30, 0], engine: [20, null, 1, 45, 0],
+    cannon: [24, null, 1, 40, 33], rocket: [36, null, 3, 40, 28], laser: [34, null, 6, 35, 26], railgun: [42, null, 7, 40, 22], flamer: [28, null, 4, 40, 34], saw: [16, null, 3, 60, 45],
+    spikes: [10, null, 2, 70, 40], shield: [32, null, 5, 40, 0], drone: [30, null, 5, 30, 0], booster: [18, null, 4, 30, 0], flag: [1, null, 1, 10, 0], lamp: [1, null, 2, 10, 0], horn: [2, null, 3, 15, 0],
   };
+  // a mech's total HP and the most damage per second its weapons can deal (for the referee)
+  function mechPower(parts) {
+    let hp = 0, dps = 0;
+    for (const p of Array.isArray(parts) ? parts : []) { const r = p && Object.prototype.hasOwnProperty.call(PARTS, p.t) ? PARTS[p.t] : null; if (r) { hp += r[3]; dps += r[4]; } }
+    return { hp, dps };
+  }
   const BUDGET = 300, GRID = { minX: -4, maxX: 4, minY: -2, maxY: 4, minZ: -4, maxZ: 4 };
   // why a mech isn't allowed for a player of this level (or null when it's fine)
   function mechProblem(parts, level, budget) {
@@ -256,7 +263,7 @@
   // achievement rewards (each achievement's test lives in js/extras.js)
   const ACH = { first: 50, win1: 100, win10: 300, wreck10: 100, wreck50: 250, wreck200: 600, elim25: 200, ram10: 150, dash100: 100, fly300: 150, swim300: 150, streak3: 150, pickup20: 120, chest25: 200, survive10: 300, hillking: 150, golddigger: 200, speeddemon: 200, titanslayer: 400, worldtour: 300, modemaster: 300, bothModes: 100, hybrid: 200, omni: 400, big: 200, flawless: 300 };
 
-  const api = { xpFor, levelOf, domainsAt, PARTS, BUDGET, GRID, mechProblem, CHALLENGES, DAILY_CHALLENGES, dailyChallenges, ACH, SHOP, AVATAR_COUNT, FREE_AVATARS, item, dealPrice, dailyDeals, ROAD, giftAmount, EARN, EARN_PER_DAY, MATCH_GAP, day, nextMidnight, seeded, hash, season, PASS, passRewards, WEEKLY, week, RANKED };
+  const api = { xpFor, levelOf, domainsAt, PARTS, mechPower, BUDGET, GRID, mechProblem, CHALLENGES, DAILY_CHALLENGES, dailyChallenges, ACH, SHOP, AVATAR_COUNT, FREE_AVATARS, item, dealPrice, dailyDeals, ROAD, giftAmount, EARN, EARN_PER_DAY, MATCH_GAP, day, nextMidnight, seeded, hash, season, PASS, passRewards, WEEKLY, week, RANKED };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.CW = root.CW || {}; root.CW.ECON = api; root.CW.SHOP = SHOP; root.CW.ROAD = ROAD; }
 })(this);

@@ -966,6 +966,12 @@ class Accounts {
       if (c) this.send(c, { t: 'note', kind: 'info', msg: "⚠ This match's result didn't add up, so no trophies changed." });
     }
   }
+  // the referee noted this player in a match: kept on the account (for a closer look later)
+  noted(c, why) {
+    const u = c && this.me(c);
+    if (u) { u.notes = (u.notes || []).slice(-19).concat({ at: Date.now(), why: String(why).slice(0, 80) }); this.dirty(); }
+    if (c) this.send(c, { t: 'note', kind: 'info', msg: "⚠ The server noticed something odd in your game this match, so it didn't count." });
+  }
   flagged(c) {
     const u = c && this.me(c);
     const now = Date.now();

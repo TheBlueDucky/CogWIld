@@ -11,6 +11,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { Accounts } = require('./accounts');
 const E = require('../js/economy.js');
+const { Referee } = require('./referee');
 
 const PORT = parseInt(process.env.PORT || '8765', 10);
 const ROOT = path.resolve(__dirname, '..');
@@ -286,13 +287,17 @@ function leaveRoom(c, reason) {
     room.hostId = pickHost(room);
     if (room.state === 'playing' && room.phase === 'match') {
       // host migration: another player's game takes over the bots and the rules, and the match goes on
+      if (room.ref) room.ref.reassign(c.id, room.hostId);
       broadcast(room, { t: 'host', id: room.hostId, old: c.id });
     } else if (room.state === 'playing') {
       // the old host had everyone's Rush builds: back to the lobby
       resetRoom(room);
       broadcast(room, { t: 'hostLeft' });
     }
-  } else if (room.state === 'playing') broadcast(room, { t: 'left', id: c.id, reason });
+  } else if (room.state === 'playing') {
+    if (room.ref) room.ref.reassign(c.id, room.hostId);
+    broadcast(room, { t: 'left', id: c.id, reason });
+  }
   sendRoom(room);
   accounts.roomChanged(c);
 }
@@ -431,8 +436,10 @@ function handle(c, data) {
       // who plays which mech (for checking the results later), and who got knocked out, in order
       room.roster = new Map();
       room.out = new Map();
+      room.ref = null;
       if (room.phase === 'match' && m.payload && Array.isArray(m.payload.roster)) {
         for (const e of m.payload.roster.slice(0, 64)) if (e && Number.isInteger(e.i)) room.roster.set(e.i, { o: e.o | 0, h: !!e.h });
+        room.ref = new Referee(room, m.payload.roster.slice(0, 64), room.hostId);
         // every player's mech in the match must fit that player's level and the mode's budget
         const budget = room.settings.mode === 'rush' ? 250 : E.BUDGET;
         const bad = m.payload.roster.find((e) => e && e.h && clients.get(e.o | 0) && E.mechProblem(e.bp && e.bp.parts, accounts.level(clients.get(e.o | 0)), budget));
@@ -453,7 +460,9 @@ function handle(c, data) {
       if (!isHost || room.state !== 'playing') break;
       {
         const n = Math.min(m.n | 0, seatsOf(room));
-        const why = room.auto ? resultProblem(room, m.res, n) : null;
+        const noted = room.ref ? room.ref.notes : new Map();
+        const why = room.auto ? (noted.has(c.id) ? `host ${noted.get(c.id)}` : resultProblem(room, m.res, n)) : null;
+        if (!why && m.res && typeof m.res === 'object') for (const id of noted.keys()) { delete m.res[id]; accounts.noted(clients.get(id), noted.get(id)); }
         if (why) {
           // the host's result doesn't fit what the other games reported: no trophies move
           console.warn(`results refused in ${room.code} (host ${c.name}): ${why}`);
@@ -474,6 +483,7 @@ function handle(c, data) {
     case 'ev':
       if (!room || room.state !== 'playing') break;
       m.from = c.id;
+      if (room.ref) room.ref.check(c.id, m);
       // a player's own game saying they were knocked out (nobody reports their own elimination falsely)
       if (Array.isArray(m.e) && room.roster) {
         for (const e of m.e) {
