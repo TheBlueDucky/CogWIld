@@ -14,6 +14,9 @@ const NAME_RE = /^[A-Za-z0-9_]{3,16}$/;
 // names kids shouldn't see (substring match, case-insensitive) and names that pretend to be staff
 const BLOCKED = ['fuck', 'shit', 'bitch', 'cunt', 'nigg', 'fag', 'dick', 'cock', 'pussy', 'whore', 'slut', 'rape', 'nazi', 'hitler', 'porn', 'sexy', 'penis', 'vagina', 'retard', 'admin', 'moderator', 'official', 'cogwild'];
 const MAX_FRIENDS = 100;
+// clubs: up to 30 players under one name, with club trophies (everyone's added up) and a quick-chat wall
+const CLUB_MAX = 30, CLUB_BADGES = 12, CLUB_CHAT = 8;
+const CLUB_RE = /^[A-Za-z0-9][A-Za-z0-9 _-]{1,18}[A-Za-z0-9]$/;
 const PARTY_MAX = 4;
 const MAX_SAVE = 200 * 1024; // bytes of cloud save per player
 const AVATARS = E.AVATAR_COUNT; // the client has the emoji list (24 free, the rest from the Shop, Trophy Road and Cog Pass)
@@ -76,6 +79,8 @@ class Accounts {
     }
     // no prototype: a player called __proto__ or constructor is just a name
     this.db.users = Object.assign(Object.create(null), this.db.users || {});
+    this.db.clubs = Object.assign(Object.create(null), this.db.clubs || {});
+    this.clubLog = new Map(); // club id -> the last 30 quick-chat lines (not saved)
     for (const [k, u] of Object.entries(this.db.users)) for (const t of u.tokens || []) this.byToken.set(t, k);
     console.log(`accounts: ${Object.keys(this.db.users).length} players in ${DB_FILE}`);
   }
@@ -118,7 +123,8 @@ class Accounts {
     return c.busy ? 'solo' : 'menu';
   }
   publicCard(u) {
-    return { name: u.name, av: u.av | 0, tro: u.tro | 0, best: u.best | 0, lv: u.lv | 0, wins: u.wins | 0, played: u.played | 0 };
+    const club = u.club && this.db.clubs[u.club];
+    return { name: u.name, av: u.av | 0, tro: u.tro | 0, best: u.best | 0, lv: u.lv | 0, wins: u.wins | 0, played: u.played | 0, club: club ? club.name : null };
   }
   // sign in this socket as user k (one live session per player: the older one is signed out)
   attach(c, k, token) {
@@ -135,6 +141,9 @@ class Accounts {
     this.sendFriends(c);
     this.sendParty(k);
     this.friendsChanged(k);
+    // the club sees you come online
+    const club = this.clubOf(u);
+    if (club) this.clubChanged(club); else this.send(c, { t: 'club', club: null });
   }
   detach(c) {
     const k = c.user;
@@ -143,6 +152,8 @@ class Accounts {
     if (this.online.get(k) === c) this.online.delete(k);
     c.user = null;
     this.friendsChanged(k);
+    const club = this.clubOf(this.db.users[k]);
+    if (club) this.clubChanged(club);
   }
   addToken(k) {
     const token = crypto.randomBytes(32).toString('hex');
@@ -177,13 +188,15 @@ class Accounts {
   // returns true when the message was an account message
   handle(c, m) {
     const t = m.t;
-    if (!/^(acct|friend|party|invite|top|profile|save|status|earn|gift|buy|roadClaim|passClaim)/.test(t)) return false;
+    if (!/^(acct|friend|party|invite|top|profile|save|status|earn|gift|buy|roadClaim|passClaim|club)/.test(t)) return false;
     const fn = {
       acctRegister: () => this.register(c, m), acctLogin: () => this.login(c, m), acctAuth: () => this.auth(c, m),
       acctLogout: () => this.logout(c), acctPass: () => this.changePass(c, m), acctDelete: () => this.remove(c, m),
       save: () => this.saveData(c, m), profileSet: () => this.setProfile(c, m), profile: () => this.showProfile(c, m),
       friendAdd: () => this.friendAdd(c, m), friendAccept: () => this.friendAccept(c, m), friendDecline: () => this.friendDecline(c, m), friendRemove: () => this.friendRemove(c, m),
       partyInvite: () => this.partyInvite(c, m), partyAccept: () => this.partyAccept(c, m), partyLeave: () => c.user && this.leaveParty(c.user), partyKick: () => this.partyKick(c, m),
+      clubCreate: () => this.clubCreate(c, m), clubJoin: () => this.clubJoin(c, m), clubLeave: () => this.clubLeave(c), clubKick: () => this.clubKick(c, m),
+      clubList: () => this.clubList(c, m), clubInfo: () => this.clubInfo(c, m), clubChat: () => this.clubChat(c, m), clubEdit: () => this.clubEdit(c, m),
       earn: () => this.earn(c, m), gift: () => this.gift(c), buy: () => this.buy(c, m), roadClaim: () => this.roadClaim(c, m), passClaim: () => this.passClaim(c, m),
       invite: () => this.inviteRoom(c, m), top: () => this.top(c), status: () => { c.busy = !!m.busy; if (c.user) this.friendsChanged(c.user); },
     }[t];
@@ -264,6 +277,7 @@ class Accounts {
       if (oc) this.sendFriends(oc);
     }
     for (const t of u.tokens || []) this.byToken.delete(t);
+    if (u.club) this.dropMember(u.club, k);
     delete this.db.users[k];
     this.dirty();
     this.send(c, { t: 'acctOut', reason: 'Account deleted' });
@@ -501,6 +515,134 @@ class Accounts {
     }
   }
   roomChanged(c) { if (c.user) this.friendsChanged(c.user); }
+
+  // ======================= clubs =======================
+  clubOf(u) { return u && u.club ? this.db.clubs[u.club] || null : null; }
+  clubTro(club) { return club.members.reduce((s, k) => s + ((this.db.users[k] && this.db.users[k].tro) | 0), 0); }
+  clubCard(club) {
+    return { id: club.id, name: club.name, badge: club.badge | 0, desc: club.desc, open: club.open, minTro: club.minTro | 0, members: club.members.length, tro: this.clubTro(club) };
+  }
+  clubView(club) {
+    const v = this.clubCard(club);
+    v.list = club.members.map((k) => {
+      const u = this.db.users[k];
+      return u && { name: u.name, av: u.av | 0, tro: u.tro | 0, on: this.online.has(k), role: k === club.owner ? 'owner' : 'member' };
+    }).filter(Boolean).sort((a, b) => b.tro - a.tro);
+    v.log = this.clubLog.get(club.id) || [];
+    return v;
+  }
+  // tell every online member what their club looks like now
+  clubChanged(club) {
+    for (const k of club.members) { const oc = this.online.get(k); if (oc) this.send(oc, { t: 'club', club: this.clubView(club) }); }
+  }
+  clubInfo(c, m) {
+    const u = this.me(c);
+    if (!u) return;
+    if (m && m.id) {
+      const club = this.db.clubs[String(m.id)];
+      return club ? this.send(c, { t: 'clubPeek', club: this.clubView(club) }) : this.err(c, 'That club is gone');
+    }
+    const club = this.clubOf(u);
+    this.send(c, { t: 'club', club: club ? this.clubView(club) : null });
+  }
+  clubList(c, m) {
+    const q = String((m && m.q) || '').toLowerCase().slice(0, 20);
+    const list = Object.values(this.db.clubs).filter((cl) => !q || cl.name.toLowerCase().includes(q)).map((cl) => this.clubCard(cl))
+      .sort((a, b) => b.tro - a.tro).slice(0, 40);
+    this.send(c, { t: 'clubs', list, q });
+  }
+  clubFields(m) {
+    return {
+      badge: Math.max(0, Math.min(CLUB_BADGES - 1, m.badge | 0)),
+      desc: String(m.desc || '').replace(/[<>&"'`\\]/g, '').replace(/\s+/g, ' ').trim().slice(0, 80),
+      open: m.open !== false,
+      minTro: Math.max(0, Math.min(10000, Math.round((m.minTro | 0) / 50) * 50)),
+    };
+  }
+  clubCreate(c, m) {
+    const u = this.me(c);
+    if (!u) return;
+    if (this.clubOf(u)) return this.err(c, 'Leave your club first');
+    const name = String(m.name || '').replace(/\s+/g, ' ').trim();
+    if (!CLUB_RE.test(name)) return this.err(c, 'Club names are 3-20 letters, numbers, spaces, _ or -');
+    if (BLOCKED.some((b) => name.toLowerCase().replace(/[ _-]/g, '').includes(b))) return this.err(c, 'Please pick a different club name');
+    if (Object.values(this.db.clubs).some((cl) => cl.name.toLowerCase() === name.toLowerCase())) return this.err(c, 'That club name is taken');
+    const id = crypto.randomBytes(5).toString('hex');
+    const club = Object.assign({ id, name, owner: c.user, members: [c.user], created: Date.now() }, this.clubFields(m));
+    this.db.clubs[id] = club;
+    u.club = id;
+    this.dirty();
+    this.clubChanged(club);
+    this.friendsChanged(c.user);
+  }
+  clubEdit(c, m) {
+    const u = this.me(c), club = this.clubOf(u);
+    if (!club || club.owner !== c.user) return;
+    Object.assign(club, this.clubFields(m));
+    this.dirty();
+    this.clubChanged(club);
+  }
+  clubJoin(c, m) {
+    const u = this.me(c);
+    if (!u) return;
+    if (this.clubOf(u)) return this.err(c, 'Leave your club first');
+    const club = this.db.clubs[String(m.id || '')];
+    if (!club) return this.err(c, 'That club is gone');
+    if (!club.open) return this.err(c, 'That club is closed right now');
+    if (club.members.length >= CLUB_MAX) return this.err(c, 'That club is full');
+    if ((u.tro | 0) < (club.minTro | 0)) return this.err(c, `You need ${club.minTro} trophies to join`);
+    club.members.push(c.user);
+    u.club = club.id;
+    this.dirty();
+    this.clubSay(club, null, `👋 ${u.name} joined the club`);
+    this.clubChanged(club);
+    this.friendsChanged(c.user);
+  }
+  dropMember(id, k) {
+    const club = this.db.clubs[id];
+    const u = this.db.users[k];
+    if (u) u.club = null;
+    if (!club) return;
+    club.members = club.members.filter((x) => x !== k);
+    if (!club.members.length) { delete this.db.clubs[id]; this.clubLog.delete(id); this.dirty(); return; }
+    // the club gets a new owner: whoever has the most trophies
+    if (club.owner === k) club.owner = club.members.slice().sort((a, b) => ((this.db.users[b] || {}).tro | 0) - ((this.db.users[a] || {}).tro | 0))[0];
+    this.dirty();
+    this.clubChanged(club);
+  }
+  clubLeave(c) {
+    const u = this.me(c), club = this.clubOf(u);
+    if (!club) return;
+    this.clubSay(club, null, `🚪 ${u.name} left the club`);
+    this.dropMember(club.id, c.user);
+    this.send(c, { t: 'club', club: null });
+    this.friendsChanged(c.user);
+  }
+  clubKick(c, m) {
+    const u = this.me(c), club = this.clubOf(u);
+    const k = key(m.name);
+    if (!club || club.owner !== c.user || k === c.user || !club.members.includes(k)) return;
+    this.clubSay(club, null, `✖ ${this.db.users[k].name} was removed`);
+    this.dropMember(club.id, k);
+    const oc = this.online.get(k);
+    if (oc) { this.send(oc, { t: 'club', club: null }); this.send(oc, { t: 'note', kind: 'info', msg: `You were removed from ${club.name}` }); }
+  }
+  clubSay(club, from, text) {
+    const log = this.clubLog.get(club.id) || [];
+    log.push({ from, text, at: Date.now() });
+    while (log.length > 30) log.shift();
+    this.clubLog.set(club.id, log);
+  }
+  clubChat(c, m) {
+    const u = this.me(c), club = this.clubOf(u);
+    const i = m.i | 0;
+    if (!club || i < 0 || i >= CLUB_CHAT) return;
+    const now = Date.now();
+    if (now - (c.clubChatAt || 0) < 1500) return;
+    c.clubChatAt = now;
+    this.clubSay(club, u.name, i);
+    for (const k of club.members) { const oc = this.online.get(k); if (oc) this.send(oc, { t: 'clubChat', from: u.name, i, at: now }); }
+  }
 
   // ======================= wallet: coins and unlocks (the server's copy is the real one) =======================
   wallet(u) {

@@ -15,6 +15,9 @@
     '🐉', '🦅', '🦂', '🐊', '🦍', '🦓', '🦩', '🦚', '🐳', '🦑', '🐞', '🦔', '🤠', '🥷', '🧙', '👑',
     '🛸', '🦾', '⚡', '🌋', '🪐', '🏴‍☠️', '🧊', '🎯']; // 40+: Cog Pass
   CW.FREE_AVATARS = 24;
+  // clubs: badges and the club wall's quick-chat lines (the server only passes their numbers around)
+  CW.CLUB_BADGES = ['🛡', '⚙', '🔥', '⚡', '🐉', '🦅', '🌟', '💀', '👑', '🚀', '🌊', '🍀'];
+  CW.CLUB_CHAT = ['👋 Hi club!', 'GG!', 'Who wants to play?', 'Party up! 🎉', 'Nice push! 🏆', 'Thanks! 🙏', 'Good night 🌙', "Let's go! 🔥"];
   CW.avatar = (i) => CW.AVATARS[i] || '🧑‍✈️';
   // trophy tiers shown on profiles and the leaderboard
   CW.TIERS = [
@@ -82,6 +85,13 @@
           break;
         case 'acctMe': this.me = m.me; this.renderChips(); this.rerender(); break;
         case 'wallet': this.onWallet(m); break;
+        case 'club': this.club = m.club; this.peek = null; this.rerender(); break;
+        case 'clubs': this.clubs = m.list; this.rerender(); break;
+        case 'clubPeek': this.peek = m.club; this.rerender(); break;
+        case 'clubChat':
+          if (this.club) { this.club.log = (this.club.log || []).concat({ from: m.from, text: m.i, at: m.at }).slice(-30); this.rerender(); }
+          if (m.from !== (this.me && this.me.name) && g.state === 'menu' && (g.meta.panel !== 'clubs' || $('panel').classList.contains('hidden'))) g.toast(`🛡 ${m.from}: ${CW.CLUB_CHAT[m.i] || ''}`);
+          break;
         case 'acctPassOk':
           this.session.token = m.token;
           keep('cogwild.session', this.session);
@@ -441,19 +451,72 @@
     }
 
     // ======================= panels (shown in the shared #panel) =======================
-    rerender() { const k = this.game.meta.panel; if (!$('panel').classList.contains('hidden') && ['profile', 'friends', 'road', 'top', 'player'].includes(k)) this.game.meta.renderPanel(); }
+    rerender() { const k = this.game.meta.panel; if (!$('panel').classList.contains('hidden') && ['profile', 'friends', 'road', 'top', 'player', 'clubs'].includes(k)) this.game.meta.renderPanel(); }
     renderPanel(k, body) {
       if (k === 'profile') return this.profilePanel(body);
       if (k === 'friends') return this.friendsPanel(body);
       if (k === 'road') return this.roadPanel(body);
       if (k === 'top') return this.topPanel(body);
       if (k === 'player') return this.playerPanel(body);
+      if (k === 'clubs') return this.clubsPanel(body);
     }
     card(p, extra) {
       const t = CW.tier(p.tro);
       return `<div class="prof-card"><div class="prof-av">${CW.avatar(p.av)}</div><div class="prof-main"><div class="prof-name">${esc(p.name)}</div>
         <div class="prof-tier">${t.icon} ${t.name} · 🏆 <b>${p.tro}</b> <span class="small">(best ${p.best})</span></div>
-        <div class="small">⭐ Level ${p.lv || 1} · ${p.wins} Quick Match wins · ${p.played} played${extra || ''}</div></div></div>`;
+        <div class="small">⭐ Level ${p.lv || 1} · ${p.wins} Quick Match wins · ${p.played} played${extra || ''}</div>${p.club ? `<div class="small">🛡 Club: <b>${esc(p.club)}</b></div>` : ''}</div></div>`;
+    }
+    // ======================= clubs =======================
+    clubsPanel(body) {
+      const g = this.game, net = this.net;
+      if (!this.me) { body.innerHTML = '<div class="small">Log in to join a club.</div>'; return; }
+      const badge = (i) => CW.CLUB_BADGES[i | 0] || '🛡';
+      const on = (sel, fn) => body.querySelectorAll(sel).forEach((b) => (b.onclick = () => fn(b)));
+      const row = (cl) => `<div class="club-row"><span style="font-size:26px">${badge(cl.badge)}</span><b>${esc(cl.name)}</b><span class="small">👥 ${cl.members}/30 · 🏆 ${cl.tro}${cl.minTro ? ` · needs ${cl.minTro}` : ''}${cl.open ? '' : ' · 🔒 closed'}</span>
+        <button class="ws-btn" data-peek="${esc(cl.id)}">View</button>${cl.open && cl.members < 30 && (this.me.tro | 0) >= cl.minTro ? `<button class="ws-btn on" data-join="${esc(cl.id)}">Join</button>` : ''}</div>`;
+      const members = (cl, mine) => cl.list.map((p) => `<div class="club-row"><span>${CW.avatar(p.av)}</span><b class="fr-name" data-view="${esc(p.name)}">${esc(p.name)}${p.role === 'owner' ? ' 👑' : ''}</b><span class="small">${p.on ? '🟢' : '⚫'} 🏆 ${p.tro}</span>${mine && this.club.list.some((x) => x.name === this.me.name && x.role === 'owner') && p.name !== this.me.name ? `<button class="tod-btn" data-kick="${esc(p.name)}" title="Remove from the club">✖</button>` : ''}</div>`).join('');
+      const head = (cl) => `<div class="club-card"><span class="club-badge">${badge(cl.badge)}</span><div style="flex:1"><b style="font-size:20px">${esc(cl.name)}</b><div class="small">${esc(cl.desc || '')}</div><div class="small">🏆 <b>${cl.tro}</b> club trophies · 👥 ${cl.members}/30 · ${cl.open ? '🔓 open' : '🔒 closed'}${cl.minTro ? ` · needs 🏆 ${cl.minTro}` : ''}</div></div></div>`;
+      if (this.club) {
+        const cl = this.club;
+        const owner = cl.list.some((x) => x.name === this.me.name && x.role === 'owner');
+        const log = (cl.log || []).slice(-12).map((l) => (l.from ? `<div><b>${esc(l.from)}:</b> ${CW.CLUB_CHAT[l.text] || ''}</div>` : `<div class="small">${esc(l.text)}</div>`)).join('') || '<div class="small">Say hi to your club with the buttons below.</div>';
+        body.innerHTML = head(cl) + `<div class="club-chat" id="clubChat">${log}</div><div class="menu-btns" style="justify-content:flex-start;flex-wrap:wrap">${CW.CLUB_CHAT.map((t, i) => `<button class="tod-btn" data-cchat="${i}">${t}</button>`).join('')}</div>
+          <h3>Members</h3>${members(cl, true)}
+          ${owner ? `<h3>Club settings</h3><div class="club-form"><select id="clOpen"><option value="1" ${cl.open ? 'selected' : ''}>🔓 Open: anyone can join</option><option value="0" ${cl.open ? '' : 'selected'}>🔒 Closed</option></select>
+            <select id="clMin">${[0, 50, 100, 200, 300, 500, 750, 1000, 1500, 2000].map((v) => `<option value="${v}" ${v === cl.minTro ? 'selected' : ''}>Needs 🏆 ${v}</option>`).join('')}</select>
+            <input id="clDesc" maxlength="80" placeholder="Description" value="${esc(cl.desc || '')}"><button class="ws-btn on" id="clSave">Save</button></div>` : ''}
+          <div class="menu-btns" style="justify-content:flex-start"><button class="ws-btn" id="clLeave">🚪 Leave club</button></div>`;
+        const box = $('clubChat');
+        box.scrollTop = box.scrollHeight;
+        on('[data-cchat]', (b) => net.send({ t: 'clubChat', i: +b.dataset.cchat }));
+        on('[data-kick]', (b) => { if (confirm(`Remove ${b.dataset.kick} from the club?`)) net.send({ t: 'clubKick', name: b.dataset.kick }); });
+        on('[data-view]', (b) => this.showPlayer(b.dataset.view, 'clubs'));
+        $('clLeave').onclick = () => { if (confirm(`Leave ${cl.name}?${owner && cl.members > 1 ? ' The member with the most trophies becomes the owner.' : ''}`)) net.send({ t: 'clubLeave' }); };
+        if (owner) $('clSave').onclick = () => net.send({ t: 'clubEdit', open: $('clOpen').value === '1', minTro: +$('clMin').value, desc: $('clDesc').value, badge: cl.badge });
+        return;
+      }
+      if (this.peek) {
+        const cl = this.peek;
+        body.innerHTML = `<button class="ws-btn" id="clBack">← Back</button>` + head(cl) + (cl.open && cl.members < 30 && (this.me.tro | 0) >= cl.minTro ? `<button class="btn" data-join="${esc(cl.id)}">Join ${esc(cl.name)}</button>` : '') + `<h3>Members</h3>${members(cl, false)}`;
+        $('clBack').onclick = () => { this.peek = null; this.rerender(); };
+        on('[data-join]', (b) => net.send({ t: 'clubJoin', id: b.dataset.join }));
+        on('[data-view]', (b) => this.showPlayer(b.dataset.view, 'clubs'));
+        return;
+      }
+      if (!this.clubs) net.send({ t: 'clubList' });
+      this.newBadge = this.newBadge | 0;
+      body.innerHTML = `<div class="small">Clubs are teams of up to 30 players. Your trophies count toward your club's total, and you can cheer each other on the club wall.</div>
+        <div class="club-form"><input id="clQ" maxlength="20" placeholder="Search clubs"><button class="ws-btn" id="clFind">🔍 Search</button></div>
+        <div>${(this.clubs || []).map(row).join('') || '<div class="small">No clubs yet. Start the first one!</div>'}</div>
+        <h3>Start a club</h3><div class="club-form"><input id="clName" maxlength="20" placeholder="Club name"><input id="clNewDesc" maxlength="80" placeholder="Description (optional)"></div>
+        <div class="club-form">${CW.CLUB_BADGES.map((b, i) => `<button class="tod-btn ${i === this.newBadge ? 'sel' : ''}" data-badge="${i}">${b}</button>`).join('')}</div>
+        <button class="btn" id="clCreate">🛡 Create club</button>`;
+      $('clFind').onclick = () => net.send({ t: 'clubList', q: $('clQ').value });
+      $('clQ').onkeydown = (e) => { if (e.key === 'Enter') $('clFind').click(); };
+      on('[data-badge]', (b) => { this.newBadge = +b.dataset.badge; body.querySelectorAll('[data-badge]').forEach((x) => x.classList.toggle('sel', x === b)); });
+      on('[data-peek]', (b) => net.send({ t: 'clubInfo', id: b.dataset.peek }));
+      on('[data-join]', (b) => net.send({ t: 'clubJoin', id: b.dataset.join }));
+      $('clCreate').onclick = () => net.send({ t: 'clubCreate', name: $('clName').value, desc: $('clNewDesc').value, badge: this.newBadge, open: true });
     }
     profilePanel(body) {
       const g = this.game;
@@ -553,17 +616,18 @@
         const list = this.friends.concat(this.me ? [Object.assign({}, this.me)] : []).sort((a, b) => b.tro - a.tro);
         return list.map((p, i) => this.lbRow(p, i + 1)).join('') || '<div class="small">Add friends to compare trophies!</div>';
       };
-      const tabs = `<div class="menu-btns" style="justify-content:flex-start"><button class="ws-btn ${this.lbTab === 'global' ? 'on' : ''}" data-tab="global">🌍 World</button><button class="ws-btn ${this.lbTab === 'friends' ? 'on' : ''}" data-tab="friends">👥 Friends</button></div>`;
+      const tabs = `<div class="menu-btns" style="justify-content:flex-start"><button class="ws-btn ${this.lbTab === 'global' ? 'on' : ''}" data-tab="global">🌍 World</button><button class="ws-btn ${this.lbTab === 'friends' ? 'on' : ''}" data-tab="friends">👥 Friends</button><button class="ws-btn ${this.lbTab === 'clubs' ? 'on' : ''}" data-tab="clubs">🛡 Clubs</button></div>`;
       if (this.lbTab === 'friends') body.innerHTML = tabs + (this.me ? friendsBoard() : '<div class="small">Log in to see your friends here.</div>');
+      else if (this.lbTab === 'clubs') body.innerHTML = tabs + ((this.clubs || []).map((cl, i) => `<div class="fr-row lb-row"><span class="lb-rank">${['🥇', '🥈', '🥉'][i] || '#' + (i + 1)}</span><span class="av">${CW.CLUB_BADGES[cl.badge] || '🛡'}</span><b class="fr-name">${esc(cl.name)}</b><span class="small">👥 ${cl.members}</span><b class="lb-tro">🏆 ${cl.tro}</b></div>`).join('') || '<div class="small">No clubs yet.</div>');
       else if (!t) body.innerHTML = tabs + '<div class="small">Loading…</div>';
       else body.innerHTML = tabs + `<div class="small">${t.total} players. ${t.me ? `You are <b>#${t.me.rank}</b>.` : 'Log in to get on the board!'}</div>` + t.list.map((p, i) => this.lbRow(p, i + 1)).join('') + (t.me && t.me.rank > 50 ? '<div class="small">…</div>' + this.lbRow(t.me.card, t.me.rank) : '');
-      body.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => { this.lbTab = b.dataset.tab; if (this.lbTab === 'global') this.net.send({ t: 'top' }); this.game.meta.renderPanel(); }));
+      body.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => { this.lbTab = b.dataset.tab; if (this.lbTab === 'global') this.net.send({ t: 'top' }); if (this.lbTab === 'clubs') this.net.send({ t: 'clubList' }); this.game.meta.renderPanel(); }));
       body.querySelectorAll('[data-view]').forEach((b) => (b.onclick = () => this.showPlayer(b.dataset.view, 'top')));
     }
     lbRow(p, rank) {
       const me = this.me && p.name === this.me.name;
       const medal = ['🥇', '🥈', '🥉'][rank - 1] || '#' + rank;
-      return `<div class="fr-row lb-row ${me ? 'me' : ''}"><span class="lb-rank">${medal}</span><span class="av">${CW.avatar(p.av)}</span><b class="fr-name" data-view="${esc(p.name)}">${esc(p.name)}</b><span class="small">${CW.tier(p.tro).icon} ⭐${p.lv || 1}</span><b class="lb-tro">🏆 ${p.tro}</b></div>`;
+      return `<div class="fr-row lb-row ${me ? 'me' : ''}"><span class="lb-rank">${medal}</span><span class="av">${CW.avatar(p.av)}</span><b class="fr-name" data-view="${esc(p.name)}">${esc(p.name)}${p.club ? `<span class="club-tag">${esc(p.club)}</span>` : ''}</b><span class="small">${CW.tier(p.tro).icon} ⭐${p.lv || 1}</span><b class="lb-tro">🏆 ${p.tro}</b></div>`;
     }
   }
 

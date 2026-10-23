@@ -230,6 +230,40 @@ async function main() {
   check(back2.save.data.profile.coins === back2.wallet.coins && !back2.wallet.owned.paints.includes('chrome'), 'a backup cannot change coins or unlocks');
   ec2.ws.close();
 
+  console.log('clubs');
+  const cA = await player(), cB = await player();
+  cA.send({ t: 'acctLogin', name: 'Spender', pass: 'spend1234' });
+  await cA.next('acctOk');
+  cB.send({ t: 'acctLogin', name: 'Newbie', pass: 'newbie123' }); // locked by the wrong-password test? log in another way below
+  const nb = await Promise.race([cB.next('acctOk').then(() => true), cB.next('acctErr').then(() => false)]);
+  if (!nb) { cB.send({ t: 'acctLogin', name: 'Alice_1', pass: 'newpass456' }); await cB.next('acctOk'); }
+  cA.send({ t: 'clubCreate', name: '<b>', badge: 3 });
+  check(/Club names/.test((await cA.next('acctErr')).msg), 'bad club names are refused');
+  cA.send({ t: 'clubCreate', name: 'Gear Heads', badge: 3, desc: 'We build', open: true });
+  const made = (await cA.next('club', (m) => !!m.club)).club;
+  check(made.name === 'Gear Heads' && made.list.length === 1 && made.list[0].role === 'owner', 'create a club');
+  cB.send({ t: 'clubCreate', name: 'gear heads' });
+  check(/taken/.test((await cB.next('acctErr')).msg), 'club names are unique');
+  cB.send({ t: 'clubList', q: 'gear' });
+  const found = (await cB.next('clubs')).list;
+  check(found.length === 1 && found[0].id === made.id, 'search finds the club');
+  cB.send({ t: 'clubJoin', id: made.id });
+  const joined = (await cB.next('club', (m) => m.club && m.club.list.length === 2)).club;
+  check(joined.members === 2, 'a second player joins');
+  check(!!(await cA.next('club', (m) => m.club && m.club.list.length === 2)), 'the owner sees them join');
+  cB.send({ t: 'clubChat', i: 2 });
+  check((await cA.next('clubChat')).i === 2, 'club quick chat reaches members');
+  cA.send({ t: 'profile', name: cB.last('acctOk').me.name });
+  check((await cA.next('profile')).p.club === 'Gear Heads', 'profiles show the club');
+  cA.send({ t: 'clubLeave' });
+  await cA.next('club', (m) => m.club === null);
+  check((await cB.next('club', (m) => m.club && m.club.list.length === 1)).club.list[0].role === 'owner', 'when the owner leaves, a member takes over');
+  cB.send({ t: 'clubLeave' });
+  await cB.next('club', (m) => m.club === null);
+  cB.send({ t: 'clubList' });
+  check(!(await cB.next('clubs')).list.length, 'an empty club is closed');
+  cA.ws.close(); cB.ws.close();
+
   console.log('security');
   const bad = await get('/%E0%A4%A');
   check(bad.status === 400, `a broken URL gets 400, not a crash (${bad.status})`);
