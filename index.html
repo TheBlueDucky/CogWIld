@@ -912,6 +912,30 @@
   .pass-bar .pb-track { flex: 1; height: 8px; border-radius: 6px; background: rgba(255, 255, 255, .1); overflow: hidden; }
   .pass-bar .pb-track i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #2bb8e0, #5ce1ff); }
   .pass-bar .badge { position: absolute; top: -6px; right: -6px; }
+  /* matchmaking: the stage stays in view, the search info is a slim bar at the bottom */
+  #search { background: transparent !important; justify-content: flex-end !important; align-items: center !important; padding: 0 12px 14px !important; pointer-events: none; }
+  #search .search-box { pointer-events: auto; width: min(760px, 100%) !important; max-width: none !important; display: grid !important; grid-template-columns: auto 1fr auto; grid-template-areas: 'arena time cancel' 'seats seats seats'; gap: 8px 14px !important; align-items: center; padding: 10px 14px !important; background: rgba(14, 20, 42, .6) !important; border: 1px solid var(--line2) !important; backdrop-filter: blur(4px); }
+  #search .sr-arena { grid-area: arena; }
+  #search .sr-arena > span { font-size: 34px; }
+  #search .sr-arena b { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 17px; text-shadow: none; }
+  #search .sr-arena small { color: var(--muted2); font-size: 12px; }
+  #search #srTitle { display: none; }
+  #search .sr-time { grid-area: time; flex-direction: row; gap: 10px; }
+  #search .sr-time b { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 20px; text-shadow: none; }
+  #search .sr-time small { white-space: nowrap; color: var(--muted2); }
+  #search .sr-bar { height: 8px; background: rgba(255, 255, 255, .1); }
+  #search #srCancel { grid-area: cancel; }
+  #search .sr-players { grid-area: seats; grid-template-columns: repeat(var(--cols, 4), 1fr); gap: 6px; }
+  #search .sr-p { min-height: 0; padding: 4px; flex-direction: row; gap: 6px; font-size: 12px; }
+  #search .sr-p span { font-size: 18px; }
+  #search .sr-p small { display: none; }
+  #search .sr-mech { display: none; }
+  #search .sr-status { grid-column: 1 / -1; font-size: 13px; font-weight: 800; color: var(--hl); text-align: center; }
+  .party-bar { padding: 7px 10px !important; background: rgba(14, 20, 42, .5) !important; border: 1px solid var(--glass-line) !important; box-shadow: none !important; }
+  .pt-head { display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
+  .party-row { gap: 6px !important; margin: 4px 0 !important; }
+  .party-m { font-size: 20px !important; padding: 3px 6px !important; min-width: 54px !important; background: rgba(255, 255, 255, .05) !important; border: 1px solid var(--line2) !important; }
+  .party-m.lead { border-color: rgba(92, 225, 255, .5) !important; }
   .pass-tier .tier-n { color: var(--muted2) !important; font-family: 'Nunito', sans-serif !important; font-weight: 700 !important; font-size: 13px !important; }
   .pass-tier.reached .tier-n { color: var(--hl) !important; }
   .ach-pop { background: rgba(255, 255, 255, .05) !important; border: 1px solid var(--line2) !important; box-shadow: none !important; color: var(--txt) !important; }
@@ -1095,6 +1119,7 @@
     <div class="search-box card">
       <div class="sr-arena"><span id="srIcon">🔧</span><div><b id="srArena">Workshop Clash</b><small id="srMode">🎲 Any arena · 8 players</small></div></div>
       <h2 class="title-font" id="srTitle">Searching for players…</h2>
+      <div class="sr-status" id="srStatus"></div>
       <div class="sr-time"><b id="srClock">0:00</b><span class="sr-bar"><i id="srFill"></i></span><small id="srHint"></small></div>
       <div id="srPlayers" class="sr-players"></div>
       <label class="sr-mech">🤖 Your mech <select id="srMech"></select></label>

@@ -405,7 +405,7 @@
       const r = this.room;
       if (!r || !r.auto) {
         if (r) $('lbInfo').textContent = r.pub ? '🌍 Public room' : '🔒 Private room: share the code or invite link';
-        if (!r && this.game.state === 'lobby') { $('srTitle').textContent = 'Connecting…'; $('srClock').textContent = '0:00'; $('srFill').style.width = '0%'; $('srHint').textContent = ''; }
+        if (!r && this.game.state === 'lobby') { $('srTitle').textContent = $('srStatus').textContent = 'Connecting…'; $('srClock').textContent = '0:00'; $('srFill').style.width = '0%'; $('srHint').textContent = ''; }
         return;
       }
       // the search clock counts up; at the end bots take the empty seats and the match starts
@@ -417,6 +417,7 @@
       $('srClock').textContent = `0:${String(starting ? total : t).padStart(2, '0')}`;
       $('srFill').style.width = (starting ? 100 : Math.round(((total - left) / total) * 100)) + '%';
       $('srTitle').textContent = starting ? 'Match found! Starting…' : r.players.length > 1 ? `Found ${r.players.length} players…` : 'Searching for players…';
+      $('srStatus').textContent = $('srTitle').textContent;
       $('srHint').textContent = starting ? '' : `Bots fill the empty seats at 0:${String(total).padStart(2, '0')}`;
     }
 

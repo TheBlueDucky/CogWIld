@@ -208,7 +208,7 @@ class Accounts {
       acctLogout: () => this.logout(c), acctPass: () => this.changePass(c, m), acctDelete: () => this.remove(c, m),
       save: () => this.saveData(c, m), profileSet: () => this.setProfile(c, m), profile: () => this.showProfile(c, m),
       friendAdd: () => this.friendAdd(c, m), friendAccept: () => this.friendAccept(c, m), friendDecline: () => this.friendDecline(c, m), friendRemove: () => this.friendRemove(c, m),
-      partyInvite: () => this.partyInvite(c, m), partyAccept: () => this.partyAccept(c, m), partyLeave: () => c.user && this.leaveParty(c.user), partyKick: () => this.partyKick(c, m),
+      partyInvite: () => this.partyInvite(c, m), partyAccept: () => this.partyAccept(c, m), partyLeave: () => c.user && this.leaveParty(c.user), partyKick: () => this.partyKick(c, m), partyMech: () => this.partyMech(c, m),
       clubCreate: () => this.clubCreate(c, m), clubJoin: () => this.clubJoin(c, m), clubLeave: () => this.clubLeave(c), clubKick: () => this.clubKick(c, m),
       clubList: () => this.clubList(c, m), clubInfo: () => this.clubInfo(c, m), clubChat: () => this.clubChat(c, m), clubEdit: () => this.clubEdit(c, m),
       guest: () => this.guestHello(c, m), earn: () => this.earn(c, m),
@@ -475,7 +475,18 @@ class Accounts {
       if (room && room.state === 'lobby' && room.players.size < this.h.maxPlayers) v.room = room.code;
     }
     v.party = this.partyOf.get(k) || null;
+    if (oc && oc.showBp) v.bp = oc.showBp;
     return v;
+  }
+  // the mech a party member has out (shown next to yours in the lobby): only real parts on the grid
+  partyMech(c, m) {
+    if (!c.user || !m.bp || !Array.isArray(m.bp.parts)) return;
+    const G = E.GRID;
+    const parts = m.bp.parts.slice(0, 120).filter((p) => p && Object.prototype.hasOwnProperty.call(E.PARTS, p.t)).map((p) => ({ t: p.t, x: p.x | 0, y: p.y | 0, z: p.z | 0 }))
+      .filter((p) => p.x >= G.minX && p.x <= G.maxX && p.y >= G.minY && p.y <= G.maxY && p.z >= G.minZ && p.z <= G.maxZ);
+    if (!parts.length) return;
+    c.showBp = { color: m.bp.color & 0xffffff, parts };
+    if (this.partyOf.has(c.user)) this.sendParty(c.user);
   }
   sendFriends(c) {
     const u = this.me(c);

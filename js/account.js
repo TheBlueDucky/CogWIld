@@ -239,6 +239,10 @@
       if (!this.loggedIn) return;
       const g = this.game;
       const busy = !this.net.room && ['match', 'workshop', 'results', 'picker', 'modes'].includes(g.state);
+      if (this.party) {
+        const bp = g.currentBp, sig = bp ? bp.color + ':' + bp.parts.map((p) => p.t + p.x + p.y + p.z).join() : '';
+        if (sig !== this.partySig) { this.partySig = sig; this.net.send({ t: 'partyMech', bp: { color: bp.color || g.playerColor, parts: bp.parts } }); }
+      } else this.partySig = null;
       if (force || busy !== this.lastBusy) { this.lastBusy = busy; this.net.send({ t: 'status', busy }); }
     }
 
@@ -404,11 +408,10 @@
       bar.classList.toggle('hidden', !p);
       if (!p) return;
       const lead = this.me && p.leader === this.me.name;
-      bar.innerHTML = `<h3>🎉 Party (${p.members.length}/4)</h3><div class="party-row">${p.members.map((f) => `<span class="party-m ${f.name === p.leader ? 'lead' : ''}" title="${esc(f.name)}${f.name === p.leader ? ' (leader)' : ''}">${CW.avatar(f.av)}<small>${esc(f.name)}</small></span>`).join('')}</div>
-        <div class="small">${lead ? 'You lead: press PLAY and your party comes with you.' : `${esc(p.leader)} picks the match. You'll follow them in.`}</div>
-        <div class="menu-btns" style="justify-content:flex-start;margin-top:6px">${lead ? '<button class="ws-btn on" id="partyQuick">▶ Play together</button>' : ''}<button class="ws-btn" id="partyLeave">Leave party</button></div>`;
+      bar.innerHTML = `<div class="pt-head"><b>🎉 Party ${p.members.length}/4</b><button class="link-btn" id="partyLeave">Leave</button></div>
+        <div class="party-row">${p.members.map((f) => `<span class="party-m ${f.name === p.leader ? 'lead' : ''}" title="${esc(f.name)}${f.name === p.leader ? ' (leader)' : ''}">${CW.avatar(f.av)}<small>${f.name === p.leader ? '👑 ' : ''}${esc(f.name)}</small></span>`).join('')}</div>
+        <div class="small">${lead ? 'You lead: press PLAY and your party comes along.' : `${esc(p.leader)} picks the match. You'll follow them in.`}</div>`;
       $('partyLeave').onclick = () => this.net.send({ t: 'partyLeave' });
-      if (lead) $('partyQuick').onclick = () => this.game.play();
     }
     // a little card in the corner, optionally with buttons [{ label, fn }]
     note(html, buttons, ms) {

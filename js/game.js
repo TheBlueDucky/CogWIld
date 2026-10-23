@@ -2283,8 +2283,64 @@
       ring.position.y = minY - 0.45;
       g.add(ring);
       g.position.copy(this.showcaseSpot).add(new V3(0, 1.4 - minY, 0));
+      this.showcaseBase = undefined;
       this.showcase = g;
       this.scene.add(g);
+    }
+
+    // Other mechs on the lobby stage: your party in the menu; while searching, every player who joins
+    // drops in from the sky (and the bots at the end). `list` = [{ key, bp, color }], up to 7.
+    updateStage(dt) {
+      const want = [];
+      const net = this.net, acct = this.account;
+      if (this.state === 'menu' && acct && acct.party && acct.me) {
+        for (const m of acct.party.members) if (m.name !== acct.me.name && m.bp) want.push({ key: 'p:' + m.name, bp: m.bp });
+      } else if (this.state === 'lobby' && net.room) {
+        for (const p of net.room.players) if (p.id !== net.id && p.bp) want.push({ key: 'r:' + p.id, bp: p.bp });
+        net.room.bots.forEach((b, i) => want.push({ key: 'b:' + b.id, bp: CW.PRESETS[i % CW.PRESETS.length] }));
+      }
+      this.stage = this.stage || new Map();
+      const keys = new Set(want.slice(0, 7).map((w) => w.key));
+      for (const [k, s] of this.stage) if (!keys.has(k) || !this.showcase || !this.showcase.visible) { this.scene.remove(s.g); this.scene.remove(s.ped); this.stage.delete(k); }
+      if (!this.showcase || !this.showcase.visible) return;
+      // slots beside and behind your mech, as seen from the lobby camera
+      const c = this.showcase.position, a = 0.9;
+      const back = new V3(-Math.cos(a), 0, -Math.sin(a)), side = new V3(-back.z, 0, back.x);
+      const slots = [[7, 1.5], [-7, 1.5], [10.5, 6], [-10.5, 6], [13.5, 11], [-13.5, 11], [0, 12]];
+      want.slice(0, 7).forEach((w, i) => {
+        let s = this.stage.get(w.key);
+        const at = c.clone().addScaledVector(side, slots[i][0]).addScaledVector(back, slots[i][1]);
+        if (!s) {
+          const g = new THREE.Group();
+          let minY = 0;
+          for (const p of CW.ensureCamera(w.bp.parts).parts) {
+            const o = CW.buildPartMesh(p.t, w.bp.color || 0x3a86ff);
+            o.position.set(p.x, p.y, p.z);
+            g.add(o);
+            minY = Math.min(minY, p.y);
+          }
+          g.scale.setScalar(0.85);
+          this.scene.add(g);
+          // its own little pedestal, level with yours
+          const ped = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 3, 0.6, 24), CW.mat(0x2e3a63));
+          ped.receiveShadow = true;
+          this.scene.add(ped);
+          s = { g, ped, off: -minY * 0.85, y: 18, vy: 0, bounced: false, spin: Math.random() * 6 };
+          this.stage.set(w.key, s);
+        }
+        // fall in, bounce once, then stand and turn a little
+        const top = this.showcaseSpot.y + 0.9;
+        s.ped.position.set(at.x, top - 0.3, at.z);
+        const floor = top + s.off;
+        if (s.y > 0 || s.vy !== 0) {
+          s.vy -= 38 * dt;
+          s.y += s.vy * dt;
+          if (s.y <= 0) { s.y = 0; s.vy = s.bounced ? 0 : -s.vy * 0.3; s.bounced = true; if (s.vy) this.audio.tone(140, 0.06, 'triangle', 0.08); }
+        }
+        s.spin += dt;
+        s.g.position.set(at.x, floor + s.y, at.z);
+        s.g.rotation.y = Math.atan2(-back.x, -back.z) + Math.sin(s.spin * 0.7) * 0.5;
+      });
     }
 
     // the mech on display in the lobby: a click/tap on it or close around it opens it in the Workshop
@@ -2312,10 +2368,16 @@
 
     menuCamera() {
       const t = this.time * 0.05;
-      if (this.state === 'menu' && this.showcase) {
+      if (this.state === 'lobby' && this.net.room && this.net.room.auto && !this.showcase) this.buildShowcase(); // back from a match: the stage again
+      // the lobby and the matchmaking screen share the stage: your mech, your party, the players joining
+      if ((this.state === 'menu' || (this.state === 'lobby' && this.net.room && this.net.room.auto)) && this.showcase) {
         this.showcase.visible = true;
         this.showcase.rotation.y = this.time * 0.35;
-        const c = this.showcase.position;
+        // while searching, your mech hops now and then (Fall Guys style waiting)
+        const hop = this.state === 'lobby' ? Math.max(0, Math.sin(this.time * 2.2)) ** 6 * 1.6 : 0;
+        if (this.showcaseBase === undefined || this.showcaseBaseSpot !== this.showcaseSpot) { this.showcaseBase = this.showcase.position.y; this.showcaseBaseSpot = this.showcaseSpot; }
+        this.showcase.position.y = this.showcaseBase + hop;
+        const c = this.showcase.position.clone().setY(this.showcaseBase);
         const a = 0.9;
         this.camera.position.set(c.x + Math.cos(a) * 9, c.y + 2.8, c.z + Math.sin(a) * 9);
         // the mech stands in the middle of the lobby, a bit low so the logo fits above it
@@ -2455,6 +2517,7 @@
         this.menuCamera();
       } else if (this.state !== 'match') {
         this.menuCamera();
+        this.updateStage(dt);
       }
       this.pressed = {};
       this.world.updateSky(this.camera.position);
