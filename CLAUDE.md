@@ -115,6 +115,6 @@ apps would break with the new server; they then get an "update" prompt.
 - Email sending: run `deploy\set-login.ps1` (Gmail app password or other SMTP; optional Google OAuth client ID).
   Steps are in `LAUNCH.md` > "Turn on email login".
 - Decide whether to reserve the server IP (changes the address: update DuckDNS + tell Minecraft players).
-- Optional cleanup of old downloads on the server (1.0–1.6.1).
+- Optional cleanup of old downloads on the server (1.0–1.6.2).
 - Confirm the Oracle alert email subscription.
 - Store launch: Google Play closed test (12 testers × 14 days), itch.io/CrazyGames/Poki submissions (zips in `dist/`).

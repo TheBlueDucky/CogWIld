@@ -394,6 +394,7 @@
         body.innerHTML = `<div class="small">${n} / ${CW.ACHIEVEMENTS.length} unlocked. Each one pays coins.</div><div class="ach-grid">${CW.ACHIEVEMENTS.map((a) => `<div class="ach ${got[a.id] ? 'got' : ''}"><b>${got[a.id] ? '🏆' : '🔒'} ${a.name}</b><span class="small">${a.desc}</span><div class="small">+${a.reward} 🪙</div></div>`).join('')}</div>`;
       } else if (k === 'news') {
         body.innerHTML = `<ul class="news">
+          <li><b>v1.6.3</b>: Settings rows turn blue when you point at them instead of showing a big outline.</li>
           <li><b>v1.6.2</b>: 📱 Phones: new button layout (fire, super, gadget and dash for your right thumb, up and down next to the stick, the rest in the bottom row), hold 🚪 to get out of your mech, aim assist (Settings), and the lobby and party card fit small screens. Mechs no longer pop onto walls, the camera stays out of walls, and Esc closes the Workshop.</li>
           <li><b>v1.6.1</b>: Sign up asks for your email (one account per email), a password twice and a username, all in one step.</li>
           <li><b>v1.6</b>: 👁 Watch your friends' matches from the Friends list (they see who's watching).</li>
