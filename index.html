@@ -561,6 +561,28 @@
   .side-btn.profile { background: linear-gradient(180deg, #8794ff, #3f4bd1); }
   .side-btn.news { background: linear-gradient(180deg, #a8b4c8, #5a677d); }
   .side-btn.help { background: linear-gradient(180deg, #4fdccd, #168f84); }
+  .side-btn.pass { background: linear-gradient(180deg, #ff8ad8, #b5179e); }
+  .side-btn.clubs { background: linear-gradient(180deg, #7ee0a1, #1f8a5b); }
+  /* Cog Pass */
+  .pass-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  .pass-head .ch-bar { flex: 1; min-width: 160px; }
+  .pass-track { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+  .pass-tier { position: relative; padding: 8px 6px; border-radius: 14px; background: rgba(29, 40, 88, .08); border: 2px solid rgba(29, 40, 88, .15); text-align: center; display: flex; flex-direction: column; gap: 4px; align-items: center; }
+  .pass-tier.reached { background: linear-gradient(180deg, #fff3c4, #ffd76a); border-color: #e0a800; }
+  .pass-tier.claimed { opacity: .6; }
+  .pass-tier.big { border-color: #b5179e; box-shadow: 0 0 0 2px rgba(181, 23, 158, .25); }
+  .pass-tier .tier-n { font-family: 'Lilita One'; font-size: 13px; color: var(--ink); }
+  .pass-tier .tier-r { font-size: 13px; min-height: 34px; display: flex; align-items: center; justify-content: center; }
+  .pass-tier .swatch { width: 44px; height: 30px; }
+  /* Clubs */
+  .club-card { display: flex; gap: 10px; align-items: center; padding: 10px; border-radius: 16px; background: linear-gradient(180deg, #e9fff1, #c8f2d8); border: 2px solid #1f8a5b; margin-bottom: 8px; }
+  .club-badge { font-size: 40px; line-height: 1; }
+  .club-row { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 12px; background: rgba(29, 40, 88, .06); margin-bottom: 5px; }
+  .club-row b { flex: 1; }
+  .club-chat { max-height: 150px; overflow-y: auto; font-size: 14px; padding: 6px 8px; border-radius: 12px; background: rgba(29, 40, 88, .06); margin: 6px 0; }
+  .club-form { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 6px 0; }
+  .club-form input, .club-form select { padding: 6px 8px; border-radius: 10px; border: 2px solid rgba(29, 40, 88, .25); font: inherit; }
+  .club-tag { font-size: 12px; padding: 1px 6px; border-radius: 8px; background: #1f8a5b; color: #fff; margin-left: 4px; }
   .lobby-logo { position: absolute; top: 72px; left: 50%; transform: translateX(-50%); text-align: center; pointer-events: none; z-index: 1; }
   .lobby-logo .logo { font-size: 92px; }
   .lobby-logo .tag-line { font-family: 'Lilita One'; font-weight: 400; font-size: 18px; text-shadow: var(--ol-s); }
@@ -761,6 +783,7 @@
 
     <!-- side columns -->
     <div class="lobby-side left">
+      <button id="btnPass" class="side-btn pass"><span>🎟</span>Cog Pass<i id="badgePass" class="badge hidden">0</i></button>
       <button id="btnShop" class="side-btn shop"><span>🛒</span>Shop</button>
       <button id="btnWorkshop" class="side-btn workshop"><span>🔧</span>Workshop</button>
       <button id="btnChallenges" class="side-btn quests"><span>🎯</span>Challenges<i id="badgeChallenges" class="badge hidden">0</i></button>
@@ -769,6 +792,7 @@
     </div>
     <div class="lobby-side right">
       <button id="btnFriends" class="side-btn friends"><span>👥</span>Friends<i id="badgeFriends" class="badge hidden">0</i></button>
+      <button id="btnClubs" class="side-btn clubs"><span>🛡</span>Clubs</button>
       <button id="btnTop" class="side-btn top"><span>📈</span>Leaderboard</button>
       <button id="btnRoad" class="side-btn road"><span>🛤</span>Trophy Road<i id="badgeRoad" class="badge hidden">0</i></button>
       <button id="btnProfile" class="side-btn profile"><span>👤</span>Profile</button>
@@ -982,6 +1006,7 @@
       <div id="resTitle"></div>
       <div id="resPlace"></div>
       <div id="resTrophy"></div>
+      <div id="resPass" class="small"></div>
     </div>
     <div class="res-body">
       <div class="res-col">
@@ -1055,6 +1080,7 @@
 <script src="js/parts.js?v=11"></script>
 <script src="js/platform.js?v=11"></script>
 <script src="js/featured.js?v=11"></script>
+<script src="js/economy.js?v=11"></script>
 <script src="js/world.js?v=11"></script>
 <script src="js/entities.js?v=11"></script>
 <script src="js/meta.js?v=11"></script>

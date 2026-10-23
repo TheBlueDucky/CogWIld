@@ -4,6 +4,8 @@
 
   CW.VERSION = 'v1.2.1';
   // escape text before it goes into innerHTML (mech/player names can come from pasted save codes)
+  // "3h 12m" / "5d 4h" / "12m" until something ends
+  CW.timeLeft = (ms) => { const m = Math.max(1, Math.ceil(ms / 60000)); return m >= 2880 ? `${Math.floor(m / 1440)}d ${Math.floor((m % 1440) / 60)}h` : m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; };
   CW.esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   CW.SAVE_VERSION = 2;
   CW.WATER_Y = 0;

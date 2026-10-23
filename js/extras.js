@@ -455,7 +455,7 @@
       if (p.achievements[a.id]) continue;
       if (a.test(p.stats, game)) {
         p.achievements[a.id] = Date.now();
-        game.meta.addCoins(a.reward);
+        game.meta.addCoins(a.reward, 'ach', a.id);
         got.push(a);
       }
     }

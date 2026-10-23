@@ -3,6 +3,7 @@
   const CW = window.CW;
   const $ = (id) => document.getElementById(id);
   const hex = (c) => '#' + c.toString(16).padStart(6, '0');
+  const E = CW.ECON;
   // a paint preview: the mech panel texture tinted with the color (same look as on the parts)
   CW.paintSwatch = (el, c, tex) => {
     el.style.backgroundColor = hex(c);
@@ -13,59 +14,7 @@
   };
   const swatchStyle = (c, tex) => `background:${hex(c)} url(${CW.texURL(tex || 'panel')}) center/160% auto;background-blend-mode:multiply`;
 
-  CW.SHOP = {
-    paints: [
-      { id: 'gold', name: 'Gold Rush', color: 0xffd23f, price: 300 },
-      { id: 'neon', name: 'Neon Pink', color: 0xff4fd8, price: 200 },
-      { id: 'lime', name: 'Toxic Lime', color: 0xa7ff3c, price: 200 },
-      { id: 'night', name: 'Midnight', color: 0x2b2f5c, price: 250 },
-      { id: 'lava', name: 'Lava', color: 0xff4500, price: 250 },
-      { id: 'ice', name: 'Ice', color: 0x9be7ff, price: 200 },
-      { id: 'mint', name: 'Mint', color: 0x7dffc4, price: 150 },
-      { id: 'coal', name: 'Coal', color: 0x222222, price: 150 },
-      { id: 'chrome', name: 'Chrome', color: 0xc0c6cc, price: 350 },
-      { id: 'royal', name: 'Royal Purple', color: 0x5a189a, price: 250 },
-      { id: 'camo', name: 'Camo Green', color: 0x556b2f, price: 200 },
-      { id: 'sakura', name: 'Sakura', color: 0xffb7c5, price: 250 },
-      { id: 'ruby', name: 'Ruby', color: 0xc1121f, price: 250 },
-      { id: 'ocean', name: 'Ocean', color: 0x0077b6, price: 200 },
-      { id: 'sunset', name: 'Sunset', color: 0xff7b54, price: 200 },
-      { id: 'grape', name: 'Grape', color: 0x7b2cbf, price: 200 },
-      { id: 'sand', name: 'Desert Sand', color: 0xe9c46a, price: 150 },
-      { id: 'forest', name: 'Forest', color: 0x2d6a4f, price: 150 },
-      { id: 'snow', name: 'Snow White', color: 0xf1f5ff, price: 200 },
-      { id: 'cyber', name: 'Cyber Teal', color: 0x00f5d4, price: 300 },
-      { id: 'bronze', name: 'Bronze', color: 0xb5651d, price: 300 },
-      { id: 'magenta', name: 'Hot Magenta', color: 0xff006e, price: 250 },
-      { id: 'steel', name: 'Gunmetal', color: 0x4a4e69, price: 250 },
-      { id: 'banana', name: 'Banana', color: 0xffe74c, price: 150 },
-    ],
-    trails: [
-      { id: 'spark', name: 'Sparks', colors: [0xffe066], price: 0 },
-      { id: 'fire', name: 'Fire', colors: [0xff6b1a, 0xffb700, 0xff3d00], price: 250 },
-      { id: 'ice', name: 'Frost', colors: [0x9be7ff, 0xffffff, 0x5cc8ff], price: 250 },
-      { id: 'toxic', name: 'Toxic', colors: [0x7cff4f, 0xb6ff00, 0x2ee86a], price: 250 },
-      { id: 'void', name: 'Void', colors: [0x7b2cff, 0x2b0a5c, 0xc77dff], price: 350 },
-      { id: 'rainbow', name: 'Rainbow', colors: [0xff595e, 0xffca3a, 0x8ac926, 0x1982c4, 0x6a4c93], price: 500 },
-      { id: 'gold', name: 'Gold Dust', colors: [0xffd23f, 0xfff3b0, 0xc9a227], price: 400 },
-      { id: 'neon', name: 'Neon', colors: [0xff4fd8, 0x4cc9f0], price: 350 },
-      { id: 'ocean', name: 'Ocean Spray', colors: [0x48cae4, 0x0096c7, 0xcaf0f8], price: 300 },
-      { id: 'candy', name: 'Candy', colors: [0xff8fab, 0xffffff, 0xff4d6d], price: 300 },
-      { id: 'ember', name: 'Embers', colors: [0xff5400, 0x2b2d42, 0xffbd00], price: 350 },
-      { id: 'galaxy', name: 'Galaxy', colors: [0x3a0ca3, 0x7209b7, 0xf72585, 0x4cc9f0], price: 450 },
-      { id: 'lime', name: 'Electric Lime', colors: [0xccff33, 0x70e000], price: 300 },
-      { id: 'shadow', name: 'Shadow', colors: [0x111111, 0x3d3d3d, 0x6c757d], price: 400 },
-    ],
-    // premium avatars (CW.AVATARS index 24+), shown on your profile, in rooms and on the leaderboard
-    avatars: [
-      { id: 'av24', idx: 24, name: 'Dragon', price: 400 }, { id: 'av25', idx: 25, name: 'Eagle', price: 250 }, { id: 'av26', idx: 26, name: 'Scorpion', price: 250 },
-      { id: 'av27', idx: 27, name: 'Croc', price: 250 }, { id: 'av28', idx: 28, name: 'Gorilla', price: 300 }, { id: 'av29', idx: 29, name: 'Zebra', price: 200 },
-      { id: 'av30', idx: 30, name: 'Flamingo', price: 200 }, { id: 'av31', idx: 31, name: 'Peacock', price: 300 }, { id: 'av32', idx: 32, name: 'Whale', price: 300 },
-      { id: 'av33', idx: 33, name: 'Squid', price: 250 }, { id: 'av34', idx: 34, name: 'Ladybug', price: 200 }, { id: 'av35', idx: 35, name: 'Hedgehog', price: 250 },
-      { id: 'av36', idx: 36, name: 'Cowboy', price: 350 }, { id: 'av37', idx: 37, name: 'Ninja', price: 400 }, { id: 'av38', idx: 38, name: 'Wizard', price: 400 },
-      { id: 'av39', idx: 39, name: 'Royal', price: 600 },
-    ],
-  };
+  // the Shop's catalog lives in js/economy.js (CW.SHOP), shared with the server
 
   const CHALLENGES = [
     { type: 'wreck', text: (n) => `Wreck ${n} mechs`, n: [3, 5, 8], reward: 60 },
@@ -180,10 +129,13 @@
 
     claimable() { return this.game.profile.challenges.list.filter((c) => c.progress >= c.target && !c.claimed).length; }
 
-    addCoins(n) {
+    // coins shown at once; for logged-in players the server checks them and sends the real total back
+    addCoins(n, src, key, pp) {
       const p = this.game.profile;
       p.coins += n;
       p.stats.coinsEarned += n;
+      const a = this.game.account;
+      if (src && a && a.loggedIn) a.net.send({ t: 'earn', src, n, key, pp });
     }
 
     // ---------------- menu ----------------
@@ -203,7 +155,7 @@
     // the daily gift button: claim it, or how long until the next one
     renderDaily() {
       const p = this.game.profile;
-      const ready = p.dailyClaimed !== today();
+      const ready = p.dailyClaimed !== E.day();
       $('btnDaily').classList.toggle('ready', ready);
       $('btnDaily').innerHTML = ready ? '🎁 <b>Free gift!</b><small>Tap to claim your daily reward</small>' : `⏳ <b>Next gift in ${this.untilMidnight()}</b><small>Streak: ${p.dailyStreak || 1} day${(p.dailyStreak || 1) > 1 ? 's' : ''} · come back tomorrow</small>`;
     }
@@ -217,14 +169,17 @@
 
     claimDaily() {
       const p = this.game.profile;
-      if (p.dailyClaimed === today()) return;
-      const yesterday = new Date(Date.now() - 86400000);
-      const yd = `${yesterday.getFullYear()}-${yesterday.getMonth() + 1}-${yesterday.getDate()}`;
-      p.dailyStreak = p.dailyClaimed === yd ? (p.dailyStreak || 0) + 1 : 1;
-      p.dailyClaimed = today();
-      const amount = 50 + Math.min(6, p.dailyStreak - 1) * 25;
-      this.addCoins(amount);
+      if (p.dailyClaimed === E.day()) return;
+      // logged in: the server keeps the streak and pays (the answer comes back as a wallet message)
+      if (this.game.account.loggedIn) { this.game.account.net.send({ t: 'gift' }); return; }
+      p.dailyStreak = p.dailyClaimed === E.day(Date.now() - 86400000) ? (p.dailyStreak || 0) + 1 : 1;
+      p.dailyClaimed = E.day();
+      this.addCoins(E.giftAmount(p.dailyStreak));
       this.save();
+      this.giftToast(E.giftAmount(p.dailyStreak));
+    }
+    giftToast(amount) {
+      const p = this.game.profile;
       this.game.toast(`🎁 +${amount} coins! Daily streak: ${p.dailyStreak} day${p.dailyStreak > 1 ? 's' : ''}`);
       this.game.audio.click(1.5);
       this.renderMenu();
@@ -232,21 +187,24 @@
 
     // ---------------- shop helpers ----------------
     owns(kind, id) { return (this.game.profile.owned[kind] || []).includes(id); }
-    dealPrice(it) { return Math.max(10, Math.round((it.price * 0.7) / 10) * 10); }
-    // 3 things you don't own yet at 30% off, the same for everyone each day
-    dailyDeals() {
-      const rnd = seeded('deal' + today());
-      const pool = [];
-      for (const kind of ['paints', 'trails', 'avatars']) for (const it of CW.SHOP[kind]) if (!this.owns(kind, it.id) && it.price > 0) pool.push({ kind, it });
-      pool.sort((a, b) => (a.kind + a.it.id < b.kind + b.it.id ? -1 : 1));
-      const out = [];
-      while (out.length < 3 && pool.length) out.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]);
-      return out;
-    }
-    untilMidnight() {
-      const now = new Date(), next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-      const m = Math.max(1, Math.ceil((next - now) / 60000));
-      return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
+    dealPrice(it) { return E.dealPrice(it); }
+    // 3 things you don't own yet at 30% off, the same for everyone each day (js/economy.js)
+    dailyDeals() { return E.dailyDeals(E.day(), (kind, id) => this.owns(kind, id)); }
+    // gifts, deals and challenges renew at midnight UTC
+    untilMidnight() { return CW.timeLeft(E.nextMidnight() - Date.now()); }
+
+    // a new paint/trail/avatar: wear it right away
+    afterBuy(kind, id) {
+      const p = this.game.profile;
+      const it = CW.SHOP[kind].find((x) => x.id === id);
+      if (kind === 'trails') p.trail = id;
+      if (kind === 'avatars' && this.game.account.loggedIn) this.game.account.net.send({ t: 'profileSet', av: it.idx });
+      this.save();
+      this.game.toast(`Unlocked ${it.name}!`);
+      this.game.audio.click(1.5);
+      this.game.workshop.buildPaint();
+      if (this.panel === 'shop' && !$('panel').classList.contains('hidden')) this.renderPanel();
+      this.renderMenu();
     }
 
     // ---------------- panels ----------------
@@ -255,7 +213,7 @@
       $('panel').classList.remove('hidden');
       const titles = {
         challenges: '🎯 Daily Challenges', shop: '🛒 Shop', stats: '📊 Stats', settings: '⚙ Settings', howto: '❓ How to Play', ach: '🎖 Achievements', news: '📰 What\'s new',
-        profile: '👤 Profile', friends: '👥 Friends', road: '🛤 Trophy Road', top: '📈 Leaderboard', player: '👤 Player', ranks: '⭐ Level & Ranks', arenas: '🎮 Pick a mode and arena',
+        profile: '👤 Profile', friends: '👥 Friends', road: '🛤 Trophy Road', pass: '🎟 Cog Pass', clubs: '🛡 Clubs', top: '📈 Leaderboard', player: '👤 Player', ranks: '⭐ Level & Ranks', arenas: '🎮 Pick a mode and arena',
       };
       $('panelTitle').textContent = titles[kind];
       this.renderPanel();
@@ -269,7 +227,7 @@
       const p = this.game.profile;
       const body = $('panelBody');
       const k = this.panel;
-      if (['profile', 'friends', 'road', 'top', 'player'].includes(k)) return this.game.account.renderPanel(k, body);
+      if (['profile', 'friends', 'road', 'top', 'player', 'clubs'].includes(k)) return this.game.account.renderPanel(k, body);
       if (k === 'ranks') { body.innerHTML = this.game.ranksHtml(); return; }
       if (k === 'arenas') return this.arenaPanel(body);
       if (k === 'challenges') {
@@ -279,7 +237,7 @@
             const c = p.challenges.list.find((x) => x.text === b.dataset.ch);
             if (!c || c.claimed) return;
             c.claimed = true;
-            this.addCoins(c.reward);
+            this.addCoins(c.reward, 'challenge');
             this.save();
             this.game.toast(`+${c.reward} coins!`);
             this.game.audio.click(1.5);
@@ -302,27 +260,24 @@
           return `<div class="shop-item ${deal ? 'is-deal' : ''}">${deal ? '<i class="deal-tag">-30%</i>' : ''}${look}<b>${it.name}</b><span class="small">${label}</span>${btn}</div>`;
         };
         const left = this.untilMidnight();
+        // Cog Pass items aren't sold, but once you have them they show up here to equip
+        const sale = (kind) => CW.SHOP[kind].filter((it) => !it.pass || this.owns(kind, it.id));
         body.innerHTML = `<div class="shop-coins">🪙 <b>${p.coins}</b><span class="small">Earn coins from matches, challenges, the daily gift and the Trophy Road.</span></div>
           <h3>🔥 Daily deals <span class="small" id="dealTimer">new deals in ${left}</span></h3>
           <div class="shop-grid">${deals.length ? deals.map((d) => item(d.kind, d.it, true)).join('') : '<div class="small">You own everything in the shop. Wow!</div>'}</div>
-          <h3>🎨 Paints <span class="small">for your mechs, in the Workshop's Paint section</span></h3><div class="shop-grid">${CW.SHOP.paints.map((it) => item('paints', it)).join('')}</div>
-          <h3>✨ Dash trails</h3><div class="shop-grid">${CW.SHOP.trails.map((it) => item('trails', it)).join('')}</div>
-          <h3>🙂 Avatars <span class="small">${this.game.account.loggedIn ? 'shown on your profile, in rooms and on the leaderboard' : 'log in to wear them'}</span></h3><div class="shop-grid">${CW.SHOP.avatars.map((it) => item('avatars', it)).join('')}</div>`;
+          <h3>🎨 Paints <span class="small">for your mechs, in the Workshop's Paint section</span></h3><div class="shop-grid">${sale('paints').map((it) => item('paints', it)).join('')}</div>
+          <h3>✨ Dash trails</h3><div class="shop-grid">${sale('trails').map((it) => item('trails', it)).join('')}</div>
+          <h3>🙂 Avatars <span class="small">${this.game.account.loggedIn ? 'shown on your profile, in rooms and on the leaderboard' : 'log in to wear them'}</span></h3><div class="shop-grid">${sale('avatars').map((it) => item('avatars', it)).join('')}</div>`;
         body.querySelectorAll('.buy').forEach((b) => {
           b.onclick = () => {
             const it = CW.SHOP[b.dataset.kind].find((x) => x.id === b.dataset.id);
             const price = b.dataset.deal ? this.dealPrice(it) : it.price;
             if (p.coins < price) return this.game.toast(`Need ${price - p.coins} more coins`);
+            // logged in: the server takes the coins and sends back the new wallet (see afterBuy)
+            if (this.game.account.loggedIn) { b.disabled = true; this.game.account.net.send({ t: 'buy', kind: b.dataset.kind, id: it.id }); return; }
             p.coins -= price;
             p.owned[b.dataset.kind].push(it.id);
-            if (b.dataset.kind === 'trails') p.trail = it.id;
-            if (b.dataset.kind === 'avatars' && this.game.account.loggedIn) this.game.account.net.send({ t: 'profileSet', av: it.idx });
-            this.save();
-            this.game.toast(`Unlocked ${it.name}!`);
-            this.game.audio.click(1.5);
-            this.game.workshop.buildPaint();
-            this.renderPanel();
-            this.renderMenu();
+            this.afterBuy(b.dataset.kind, it.id);
           };
         });
         body.querySelectorAll('.equip').forEach((b) => {
@@ -333,6 +288,8 @@
             this.renderPanel();
           };
         });
+      } else if (k === 'pass') {
+        this.game.account.passPanel(body);
       } else if (k === 'stats') {
         const s = p.stats;
         const rows = [

@@ -449,6 +449,8 @@
     // ---------------- PLAY: matchmaking on one arena ----------------
     // today's featured event (same mode + arena for everyone): 2× coins, bigger trophy gains
     inFeatured() { return !!CW.FEATURED && !['tutorial', 'test'].includes(this.modeId) && !this.isPractice() && CW.FEATURED.is(this.modeId, this.world.arena.id); }
+    // this week's event (js/economy.js WEEKLY): set when the match was started from its card
+    inWeekly() { return !!this.weeklyId && !this.isPractice(); }
     featuredLeft() { const m = Math.max(1, Math.ceil((CW.FEATURED.today().endsAt - Date.now()) / 60000)); return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; }
     arenaChoice() { const a = this.settings.mmArena; return CW.ARENAS[a] ? a : 'random'; }
     modeChoice() { const m = this.settings.mmMode; return CW.MM_FORMAT[m] ? m : 'clash'; }
@@ -1743,8 +1745,12 @@
       // coins, stats, challenges
       const levelBonus = lvUp ? (this.level() - beforeLv) * 100 : 0;
       const featured = this.inFeatured();
-      const coins = (Math.round(xp / 2) + this.bonusCoins) * (featured ? CW.FEATURED.COIN_MULT : 1) + levelBonus;
-      this.meta.addCoins(coins);
+      const weekly = this.inWeekly();
+      const coins = Math.round((Math.round(xp / 2) + this.bonusCoins) * (featured ? CW.FEATURED.COIN_MULT : 1) * (weekly ? 1.5 : 1)) + levelBonus;
+      // Cog Pass points: more for doing well, a bonus in featured and weekly events
+      const passPts = Math.min(CW.ECON.PASS.match, 15 + (this.won ? 15 : 0) + Math.max(0, 10 - (p.place - 1) * 3) + (featured ? 5 : 0) + (weekly ? 10 : 0));
+      this.lastPassPts = passPts;
+      this.meta.addCoins(coins, this.isPractice() ? null : 'match', null, passPts);
       const st = this.profile.stats;
       st.matches++;
       if (this.won) st.wins++;
@@ -1782,13 +1788,14 @@
         dbl.disabled = true;
         CW.Platform.rewardedAd(this).then((ok) => {
           if (!ok) { dbl.disabled = false; return this.toast('Ad not available right now'); }
-          this.meta.addCoins(coins);
+          this.meta.addCoins(coins, 'ad');
           this.saveProfile();
           dbl.textContent = `✔ +${coins} 🪙 added`;
         });
       };
       $('hud').classList.add('hidden');
       $('results').classList.remove('hidden');
+      $('resPass').textContent = this.account.loggedIn ? (this.isPractice() ? '' : `🎟 +${passPts} Cog Pass points`) : '';
       this.account.onResults(); // Quick Match trophies
       $('resTitle').textContent = this.won ? 'VICTORY!' : 'DEFEAT';
       $('resTitle').className = this.won ? 'win' : 'lose';
@@ -1835,7 +1842,7 @@
         setTimeout(() => {
           const p = this.profile;
           const coins = T.coins + Math.floor(Math.random() * T.coins);
-          this.meta.addCoins(coins);
+          this.meta.addCoins(coins, 'chest');
           let extra = '';
           const chance = { common: 0.06, rare: 0.15, epic: 0.35 }[tier];
           if (Math.random() < chance) {

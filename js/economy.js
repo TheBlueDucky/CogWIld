@@ -1,0 +1,188 @@
+// Cogwild — the economy, the same for the game (window.CW) and the server (require), so both always agree:
+// the Shop, daily deals, the Trophy Road, the daily gift, the Cog Pass season, weekly events and Ranked.
+// For logged-in players the server owns coins and unlocks (server/accounts.js); the game shows them and asks.
+(function (root) {
+  const DAY = 86400000;
+  const hash = (s) => { let h = 2166136261; for (const ch of s) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return h >>> 0; };
+  function seeded(seedStr) {
+    let h = hash(seedStr) | 0;
+    return () => { h = Math.imul(h ^ (h >>> 15), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); return ((h ^= h >>> 16) >>> 0) / 4294967296; };
+  }
+  // days change at midnight UTC, for every player in the world at once
+  const day = (now) => new Date(now || Date.now()).toISOString().slice(0, 10);
+  const nextMidnight = (now) => { const t = new Date(now || Date.now()); return Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate() + 1); };
+
+  const SHOP = {
+    paints: [
+      { id: 'gold', name: 'Gold Rush', color: 0xffd23f, price: 300 },
+      { id: 'neon', name: 'Neon Pink', color: 0xff4fd8, price: 200 },
+      { id: 'lime', name: 'Toxic Lime', color: 0xa7ff3c, price: 200 },
+      { id: 'night', name: 'Midnight', color: 0x2b2f5c, price: 250 },
+      { id: 'lava', name: 'Lava', color: 0xff4500, price: 250 },
+      { id: 'ice', name: 'Ice', color: 0x9be7ff, price: 200 },
+      { id: 'mint', name: 'Mint', color: 0x7dffc4, price: 150 },
+      { id: 'coal', name: 'Coal', color: 0x222222, price: 150 },
+      { id: 'chrome', name: 'Chrome', color: 0xc0c6cc, price: 350 },
+      { id: 'royal', name: 'Royal Purple', color: 0x5a189a, price: 250 },
+      { id: 'camo', name: 'Camo Green', color: 0x556b2f, price: 200 },
+      { id: 'sakura', name: 'Sakura', color: 0xffb7c5, price: 250 },
+      { id: 'ruby', name: 'Ruby', color: 0xc1121f, price: 250 },
+      { id: 'ocean', name: 'Ocean', color: 0x0077b6, price: 200 },
+      { id: 'sunset', name: 'Sunset', color: 0xff7b54, price: 200 },
+      { id: 'grape', name: 'Grape', color: 0x7b2cbf, price: 200 },
+      { id: 'sand', name: 'Desert Sand', color: 0xe9c46a, price: 150 },
+      { id: 'forest', name: 'Forest', color: 0x2d6a4f, price: 150 },
+      { id: 'snow', name: 'Snow White', color: 0xf1f5ff, price: 200 },
+      { id: 'cyber', name: 'Cyber Teal', color: 0x00f5d4, price: 300 },
+      { id: 'bronze', name: 'Bronze', color: 0xb5651d, price: 300 },
+      { id: 'magenta', name: 'Hot Magenta', color: 0xff006e, price: 250 },
+      { id: 'steel', name: 'Gunmetal', color: 0x4a4e69, price: 250 },
+      { id: 'banana', name: 'Banana', color: 0xffe74c, price: 150 },
+      // Cog Pass only (never sold): `pass: true`
+      { id: 'p_aurora', name: 'Aurora', color: 0x5ef2c6, price: 400, pass: true },
+      { id: 'p_obsidian', name: 'Obsidian', color: 0x1b1033, price: 400, pass: true },
+      { id: 'p_solar', name: 'Solar Flare', color: 0xff9e00, price: 400, pass: true },
+      { id: 'p_glacier', name: 'Glacier', color: 0x8ecae6, price: 400, pass: true },
+      { id: 'p_venom', name: 'Venom', color: 0x7fff00, price: 400, pass: true },
+      { id: 'p_rose', name: 'Rose Gold', color: 0xe8a39b, price: 400, pass: true },
+      { id: 'p_cobalt', name: 'Cobalt', color: 0x0047ab, price: 400, pass: true },
+      { id: 'p_ember', name: 'Ember Red', color: 0x9d0208, price: 400, pass: true },
+    ],
+    trails: [
+      { id: 'spark', name: 'Sparks', colors: [0xffe066], price: 0 },
+      { id: 'fire', name: 'Fire', colors: [0xff6b1a, 0xffb700, 0xff3d00], price: 250 },
+      { id: 'ice', name: 'Frost', colors: [0x9be7ff, 0xffffff, 0x5cc8ff], price: 250 },
+      { id: 'toxic', name: 'Toxic', colors: [0x7cff4f, 0xb6ff00, 0x2ee86a], price: 250 },
+      { id: 'void', name: 'Void', colors: [0x7b2cff, 0x2b0a5c, 0xc77dff], price: 350 },
+      { id: 'rainbow', name: 'Rainbow', colors: [0xff595e, 0xffca3a, 0x8ac926, 0x1982c4, 0x6a4c93], price: 500 },
+      { id: 'gold', name: 'Gold Dust', colors: [0xffd23f, 0xfff3b0, 0xc9a227], price: 400 },
+      { id: 'neon', name: 'Neon', colors: [0xff4fd8, 0x4cc9f0], price: 350 },
+      { id: 'ocean', name: 'Ocean Spray', colors: [0x48cae4, 0x0096c7, 0xcaf0f8], price: 300 },
+      { id: 'candy', name: 'Candy', colors: [0xff8fab, 0xffffff, 0xff4d6d], price: 300 },
+      { id: 'ember', name: 'Embers', colors: [0xff5400, 0x2b2d42, 0xffbd00], price: 350 },
+      { id: 'galaxy', name: 'Galaxy', colors: [0x3a0ca3, 0x7209b7, 0xf72585, 0x4cc9f0], price: 450 },
+      { id: 'lime', name: 'Electric Lime', colors: [0xccff33, 0x70e000], price: 300 },
+      { id: 'shadow', name: 'Shadow', colors: [0x111111, 0x3d3d3d, 0x6c757d], price: 400 },
+      { id: 'p_plasma', name: 'Plasma', colors: [0x00f0ff, 0xb5179e, 0xffffff], price: 500, pass: true },
+      { id: 'p_lightning', name: 'Lightning', colors: [0xfff200, 0xffffff, 0x4cc9f0], price: 500, pass: true },
+      { id: 'p_sakura', name: 'Petals', colors: [0xffb7c5, 0xffe5ec, 0xff8fab], price: 500, pass: true },
+      { id: 'p_matrix', name: 'Code Rain', colors: [0x00ff41, 0x008f11, 0x003b00], price: 500, pass: true },
+      { id: 'p_inferno', name: 'Inferno', colors: [0xff0000, 0xff7b00, 0xffd000, 0x1a1a1a], price: 500, pass: true },
+    ],
+    // premium avatars (CW.AVATARS index 24+), shown on your profile, in rooms and on the leaderboard
+    avatars: [
+      { id: 'av24', idx: 24, name: 'Dragon', price: 400 }, { id: 'av25', idx: 25, name: 'Eagle', price: 250 }, { id: 'av26', idx: 26, name: 'Scorpion', price: 250 },
+      { id: 'av27', idx: 27, name: 'Croc', price: 250 }, { id: 'av28', idx: 28, name: 'Gorilla', price: 300 }, { id: 'av29', idx: 29, name: 'Zebra', price: 200 },
+      { id: 'av30', idx: 30, name: 'Flamingo', price: 200 }, { id: 'av31', idx: 31, name: 'Peacock', price: 300 }, { id: 'av32', idx: 32, name: 'Whale', price: 300 },
+      { id: 'av33', idx: 33, name: 'Squid', price: 250 }, { id: 'av34', idx: 34, name: 'Ladybug', price: 200 }, { id: 'av35', idx: 35, name: 'Hedgehog', price: 250 },
+      { id: 'av36', idx: 36, name: 'Cowboy', price: 350 }, { id: 'av37', idx: 37, name: 'Ninja', price: 400 }, { id: 'av38', idx: 38, name: 'Wizard', price: 400 },
+      { id: 'av39', idx: 39, name: 'Royal', price: 600 },
+      { id: 'av40', idx: 40, name: 'UFO', price: 500, pass: true }, { id: 'av41', idx: 41, name: 'Cyborg', price: 500, pass: true },
+      { id: 'av42', idx: 42, name: 'Volt', price: 500, pass: true }, { id: 'av43', idx: 43, name: 'Eruption', price: 500, pass: true },
+      { id: 'av44', idx: 44, name: 'Planet', price: 500, pass: true }, { id: 'av45', idx: 45, name: 'Pirate', price: 500, pass: true },
+      { id: 'av46', idx: 46, name: 'Ice Cube', price: 500, pass: true }, { id: 'av47', idx: 47, name: 'Bullseye', price: 500, pass: true },
+    ],
+  };
+  const AVATAR_COUNT = 48, FREE_AVATARS = 24;
+  const item = (kind, id) => (SHOP[kind] || []).find((x) => x.id === id) || null;
+  const dealPrice = (it) => Math.max(10, Math.round((it.price * 0.7) / 10) * 10);
+  // 3 things you don't own yet at 30% off, the same for everyone each day
+  function dailyDeals(dayStr, owns) {
+    const rnd = seeded('deal' + dayStr);
+    const pool = [];
+    for (const kind of ['paints', 'trails', 'avatars']) for (const it of SHOP[kind]) if (!it.pass && it.price > 0 && !owns(kind, it.id)) pool.push({ kind, it });
+    pool.sort((a, b) => (a.kind + a.it.id < b.kind + b.it.id ? -1 : 1));
+    const out = [];
+    while (out.length < 3 && pool.length) out.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]);
+    return out;
+  }
+
+  // Trophy Road: ~80 rewards from 10 to 10,000 trophies (your best ever counts, so losing trophies never
+  // takes them away). Coins in between, and every paint, trail and avatar from the Shop along the way.
+  const ROAD = (() => {
+    const marks = [10, 25, 50, 75, 100];
+    const add = (to, step) => { while (marks[marks.length - 1] + step <= to) marks.push(marks[marks.length - 1] + step); };
+    add(500, 25); add(1500, 50); add(3000, 100); add(6000, 250); add(10000, 500);
+    const byPrice = (list) => list.filter((it) => it.price > 0 && !it.pass).slice().sort((x, y) => x.price - y.price);
+    const items = { paint: byPrice(SHOP.paints).map((x) => x.id), trail: byPrice(SHOP.trails).map((x) => x.id), avatar: byPrice(SHOP.avatars).map((x) => x.id) };
+    const order = ['paint', 'trail', 'avatar'];
+    let k = 0;
+    return marks.map((at, i) => {
+      const coins = Math.min(1500, Math.round((80 + at * 0.15) / 10) * 10);
+      if (i % 2 === 0) return { at, coins }; // every other step: coins
+      // the others: the next unlock (paint, trail, avatar in turn), coins once they run out
+      for (let tries = 0; tries < 3; tries++) {
+        const kind = order[k++ % 3];
+        if (items[kind].length) return { at, [kind]: items[kind].shift(), coins: at % 1000 === 0 ? coins : 0 };
+      }
+      return { at, coins: coins * 2 };
+    });
+  })();
+
+  const giftAmount = (streak) => 50 + Math.min(6, Math.max(1, streak) - 1) * 25;
+  // coins the game may report per claim (logged-in players), and per day in total
+  const EARN = { match: 1000, ad: 1000, chest: 200, challenge: 250, ach: 800 };
+  const EARN_PER_DAY = 12000;
+  const MATCH_GAP = 20; // seconds between two match rewards
+
+  // ---------------- Cog Pass: a 4-week season of 30 free tiers ----------------
+  const SEASON_EPOCH = Date.UTC(2026, 9, 22), SEASON_DAYS = 28;
+  function season(now) {
+    const t = now || Date.now();
+    const n = Math.max(0, Math.floor((t - SEASON_EPOCH) / (SEASON_DAYS * DAY)));
+    const start = SEASON_EPOCH + n * SEASON_DAYS * DAY;
+    return { id: n + 1, start, end: start + SEASON_DAYS * DAY };
+  }
+  const PASS = { tiers: 30, perTier: 100, match: 50, challenge: 25, gift: 20 };
+  // each season: 2 paints, 2 trails and 2 avatars from the pass-only pool, in turn; coins on the other tiers
+  function passRewards(seasonId) {
+    const pool = { paints: SHOP.paints.filter((x) => x.pass), trails: SHOP.trails.filter((x) => x.pass), avatars: SHOP.avatars.filter((x) => x.pass) };
+    const kinds = ['paints', 'trails', 'avatars', 'paints', 'trails', 'avatars'];
+    const used = { paints: 0, trails: 0, avatars: 0 };
+    const out = [];
+    for (let t = 1; t <= PASS.tiers; t++) {
+      const r = { tier: t, at: t * PASS.perTier, coins: Math.round((50 + t * 8) / 10) * 10 };
+      if (t % 5 === 0) {
+        const kind = kinds[t / 5 - 1];
+        const list = pool[kind];
+        r[kind] = list[((seasonId - 1) * 2 + used[kind]++) % list.length].id;
+        r.coins = t === PASS.tiers ? 1000 : 0;
+      }
+      out.push(r);
+    }
+    return out;
+  }
+
+  // ---------------- weekly events: a special mode with a twist, Monday to Monday (UTC) ----------------
+  const WEEKLY = [
+    { id: 'moon', name: 'Moon Week', icon: '🌙', mode: 'clash', desc: 'Low gravity: huge jumps and long flights', mods: { grav: 0.45 } },
+    { id: 'surge', name: 'Super Surge', icon: '⚡', mode: 'koth', desc: 'Supers charge 3× faster', mods: { superRate: 3 } },
+    { id: 'glass', name: 'Glass Cannons', icon: '💥', mode: 'clash', desc: 'Everything deals double damage', mods: { dmg: 2 } },
+    { id: 'turbo', name: 'Turbo Week', icon: '🏎', mode: 'race', desc: 'Mechs are 35% faster', mods: { speed: 1.35 } },
+    { id: 'blitz', name: 'Bounty Blitz', icon: '🎯', mode: 'bounty', desc: 'Bounty Hunt with supers charging 2× faster', mods: { superRate: 2 } },
+    { id: 'gadget', name: 'Gadget Frenzy', icon: '🧰', mode: 'gold', desc: 'Gadgets recharge 3× faster', mods: { gadgetRate: 3 } },
+  ];
+  const WEEK_EPOCH = Date.UTC(2026, 9, 19); // a Monday
+  function week(now) {
+    const t = now || Date.now();
+    const n = Math.max(0, Math.floor((t - WEEK_EPOCH) / (7 * DAY)));
+    return Object.assign({ n, endsAt: WEEK_EPOCH + (n + 1) * 7 * DAY }, WEEKLY[n % WEEKLY.length]);
+  }
+
+  // ---------------- Ranked: unlocked at 600 best trophies, its own points, reset each season ----------------
+  const RANKED = {
+    unlockAt: 600,
+    modes: ['koth', 'gold', 'bounty'],
+    win: 30, loss: -18,
+    ranks: [
+      { at: 0, name: 'Bronze', icon: '🟤' }, { at: 150, name: 'Silver', icon: '⚪' }, { at: 400, name: 'Gold', icon: '🟡' },
+      { at: 750, name: 'Platinum', icon: '🔷' }, { at: 1200, name: 'Diamond', icon: '💎' }, { at: 1800, name: 'Mythic', icon: '🔮' },
+      { at: 2600, name: 'Legendary', icon: '🔥' }, { at: 3600, name: 'Masters', icon: '👑' },
+    ],
+  };
+  RANKED.rank = (rp) => RANKED.ranks.filter((x) => (rp | 0) >= x.at).pop();
+
+  const api = { SHOP, AVATAR_COUNT, FREE_AVATARS, item, dealPrice, dailyDeals, ROAD, giftAmount, EARN, EARN_PER_DAY, MATCH_GAP, day, nextMidnight, seeded, hash, season, PASS, passRewards, WEEKLY, week, RANKED };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else { root.CW.ECON = api; root.CW.SHOP = SHOP; root.CW.ROAD = ROAD; }
+})(this);

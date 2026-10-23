@@ -12,7 +12,8 @@
 
   // the first 24 avatars are free; 24+ come from the Shop and the Trophy Road
   CW.AVATARS = ['🤖', '🦆', '🐸', '🦊', '🐼', '🐯', '🐙', '🦖', '👾', '🐵', '🐧', '🦁', '🐲', '🦉', '🐺', '🐱', '🐶', '🐻', '🦄', '🐝', '🐢', '🦈', '👽', '🎃',
-    '🐉', '🦅', '🦂', '🐊', '🦍', '🦓', '🦩', '🦚', '🐳', '🦑', '🐞', '🦔', '🤠', '🥷', '🧙', '👑'];
+    '🐉', '🦅', '🦂', '🐊', '🦍', '🦓', '🦩', '🦚', '🐳', '🦑', '🐞', '🦔', '🤠', '🥷', '🧙', '👑',
+    '🛸', '🦾', '⚡', '🌋', '🪐', '🏴‍☠️', '🧊', '🎯']; // 40+: Cog Pass
   CW.FREE_AVATARS = 24;
   CW.avatar = (i) => CW.AVATARS[i] || '🧑‍✈️';
   // trophy tiers shown on profiles and the leaderboard
@@ -22,27 +23,7 @@
     { at: 4000, name: 'Mythic', icon: '🌟' }, { at: 6000, name: 'Titan', icon: '🗿' }, { at: 10000, name: 'Cogmaster', icon: '⚙' },
   ];
   CW.tier = (t) => CW.TIERS.filter((x) => (t | 0) >= x.at).pop();
-  // Trophy Road: ~80 rewards from 10 to 10,000 trophies (your best ever counts, so losing trophies never
-  // takes them away). Coins in between, and every paint, trail and avatar from the Shop along the way.
-  CW.ROAD = (() => {
-    const marks = [10, 25, 50, 75, 100];
-    const add = (to, step) => { while (marks[marks.length - 1] + step <= to) marks.push(marks[marks.length - 1] + step); };
-    add(500, 25); add(1500, 50); add(3000, 100); add(6000, 250); add(10000, 500);
-    const byPrice = (list) => list.filter((it) => it.price > 0).slice().sort((x, y) => x.price - y.price);
-    const items = { paint: byPrice(CW.SHOP.paints).map((x) => x.id), trail: byPrice(CW.SHOP.trails).map((x) => x.id), avatar: byPrice(CW.SHOP.avatars).map((x) => x.id) };
-    const order = ['paint', 'trail', 'avatar'];
-    let k = 0;
-    return marks.map((at, i) => {
-      const coins = Math.min(1500, Math.round((80 + at * 0.15) / 10) * 10);
-      if (i % 2 === 0) return { at, coins }; // every other step: coins
-      // the others: the next unlock (paint, trail, avatar in turn), coins once they run out
-      for (let tries = 0; tries < 3; tries++) {
-        const kind = order[k++ % 3];
-        if (items[kind].length) return { at, [kind]: items[kind].shift(), coins: at % 1000 === 0 ? coins : 0 };
-      }
-      return { at, coins: coins * 2 };
-    });
-  })();
+  // the Trophy Road (CW.ROAD) lives in js/economy.js, shared with the server
   const STATUS = { menu: '🟢 In the menu', lobby: '🟡 In a room', match: '🔴 In a match', solo: '🟠 Playing solo' };
   const SYNC_DELAY = 4000;
 
@@ -100,6 +81,7 @@
           else g.toast('⚠ ' + m.msg);
           break;
         case 'acctMe': this.me = m.me; this.renderChips(); this.rerender(); break;
+        case 'wallet': this.onWallet(m); break;
         case 'acctPassOk':
           this.session.token = m.token;
           keep('cogwild.session', this.session);
@@ -140,6 +122,7 @@
       this.net.name = m.me.name;
       $('acct').classList.add('hidden');
       const user = m.me.name.toLowerCase();
+      if (m.wallet && !m.wallet.fresh) this.applyWallet(m.wallet);
       const server = m.save;
       // which copy of the progress wins: the newest one
       const sameUser = this.sync.user === user;
@@ -213,6 +196,8 @@
       $('btnProfile').onclick = () => (this.loggedIn ? g.meta.openPanel('profile') : this.openLogin('Log in to get a profile, trophies and friends'));
       $('btnFriends').onclick = () => (this.loggedIn ? g.meta.openPanel('friends') : this.openLogin('Log in to add friends and make a party'));
       $('btnRoad').onclick = () => g.meta.openPanel('road');
+      $('btnPass').onclick = () => g.meta.openPanel('pass');
+      $('btnClubs').onclick = () => (this.loggedIn ? (g.meta.openPanel('clubs'), this.net.send({ t: 'clubInfo' })) : this.openLogin('Log in to join a club'));
       $('roadBar').onclick = () => (this.loggedIn ? g.meta.openPanel('road') : this.openLogin('Log in to earn trophies and unlock the Trophy Road'));
       $('btnTop').onclick = () => { g.meta.openPanel('top'); this.net.send({ t: 'top' }); };
       $('acctTabLogin').onclick = () => this.loginTab('login');
@@ -280,6 +265,9 @@
       $('badgeFriends').textContent = req || online;
       $('badgeFriends').classList.toggle('hidden', !(req || online));
       $('badgeFriends').classList.toggle('calm', !req);
+      const pass = this.passReady();
+      $('badgePass').textContent = pass;
+      $('badgePass').classList.toggle('hidden', !pass);
       const road = this.roadReady();
       $('badgeRoad').textContent = road;
       $('badgeRoad').classList.toggle('hidden', !road);
@@ -360,6 +348,73 @@
       if (!this.loggedIn && g.net.room && g.net.room.auto) $('resTrophy').innerHTML = '<span class="small">🏆 Log in to earn trophies</span>';
     }
 
+    // ======================= wallet: coins and unlocks kept by the server =======================
+    applyWallet(w) {
+      const p = this.game.profile;
+      this.wallet = w;
+      p.coins = w.coins;
+      p.owned = { paints: w.owned.paints.slice(), trails: w.owned.trails.slice(), avatars: w.owned.avatars.slice() };
+      if (!p.owned.trails.includes(p.trail)) p.trail = 'spark';
+      p.road = w.road.slice();
+      p.dailyClaimed = w.gift.day;
+      p.dailyStreak = w.gift.streak;
+      p.pass = w.pass;
+      keep('cogwild.profile', p); // not a change to back up: it came from the server
+    }
+    onWallet(m) {
+      const g = this.game;
+      this.applyWallet(m.w);
+      if (m.bought) g.meta.afterBuy(m.bought.kind, m.bought.id);
+      if (m.gift) g.meta.giftToast(m.gift);
+      if (m.road || m.pass) {
+        const what = this.rewardText(Object.assign({ coins: m.reward.coins }, ...m.reward.got.map((x) => ({ [x.kind]: x.id }))));
+        g.audio.fanfare();
+        g.toast(`🎁 ${m.road ? 'Trophy Road' : 'Cog Pass'}: ${what || 'claimed'}!`);
+        g.workshop.buildPaint();
+      }
+      if (m.src === 'match' && m.pts && g.state === 'results') $('resPass').textContent = `🎟 +${m.pts} Cog Pass points`;
+      this.renderChips();
+      if (g.state === 'menu') g.meta.renderMenu();
+      if (!$('panel').classList.contains('hidden') && ['shop', 'road', 'pass', 'profile'].includes(g.meta.panel)) g.meta.renderPanel();
+      $('pCoins').textContent = g.profile.coins;
+    }
+
+    // ======================= Cog Pass: 30 free tiers each 4-week season (js/economy.js) =======================
+    passReady() {
+      const w = this.wallet;
+      if (!this.loggedIn || !w) return 0;
+      return CW.ECON.passRewards(w.pass.s).filter((r) => r.at <= w.pass.pts && !w.pass.claimed.includes(r.tier)).length;
+    }
+    passPanel(body) {
+      const E = CW.ECON, g = this.game;
+      const ss = E.season();
+      if (!this.loggedIn || !this.wallet) {
+        body.innerHTML = `<div class="small">The Cog Pass is a free reward track that starts over every 4 weeks, with paints, trails and avatars you can't buy in the Shop. Log in to start earning pass points.</div><button class="ws-btn on" id="passLogin">👤 Log in or sign up</button>`;
+        $('passLogin').onclick = () => { g.meta.closePanel(); this.openLogin('Log in to play the Cog Pass'); };
+        return;
+      }
+      const ps = this.wallet.pass;
+      const list = E.passRewards(ps.s);
+      const tier = Math.min(E.PASS.tiers, Math.floor(ps.pts / E.PASS.perTier));
+      const into = ps.pts - tier * E.PASS.perTier;
+      const look = (r) => {
+        const it = r.paints ? ['paints', r.paints] : r.trails ? ['trails', r.trails] : r.avatars ? ['avatars', r.avatars] : null;
+        if (!it) return `🪙 ${r.coins}`;
+        const x = E.item(it[0], it[1]);
+        const pic = it[0] === 'paints' ? `<div class="swatch tex" style="background:#${x.color.toString(16).padStart(6, '0')} url(${CW.texURL('panel')}) center/160% auto;background-blend-mode:multiply"></div>`
+          : it[0] === 'trails' ? `<div class="swatch trail" style="background:linear-gradient(90deg,${x.colors.map((c) => '#' + c.toString(16).padStart(6, '0')).join(',')})"></div>` : `<span style="font-size:30px">${CW.avatar(x.idx)}</span>`;
+        return `${pic}<small>${x.name}${r.coins ? ` + 🪙${r.coins}` : ''}</small>`;
+      };
+      body.innerHTML = `<div class="pass-head"><b>🎟 Season ${ps.s}</b><span class="small">ends in ${CW.timeLeft(ss.end - Date.now())}</span>
+          <div class="ch-bar" title="${into} / ${E.PASS.perTier}"><i style="width:${tier >= E.PASS.tiers ? 100 : Math.round((into / E.PASS.perTier) * 100)}%"></i></div><b>Tier ${tier} / ${E.PASS.tiers}</b></div>
+        <div class="small">Earn pass points: up to ${E.PASS.match} per match (more for winning, featured and weekly events), ${E.PASS.challenge} per daily challenge and ${E.PASS.gift} for the daily gift. You have <b>${ps.pts}</b>.</div>
+        <div class="pass-track">${list.map((r) => {
+          const reached = ps.pts >= r.at, claimed = ps.claimed.includes(r.tier);
+          return `<div class="pass-tier ${reached ? 'reached' : ''} ${claimed ? 'claimed' : ''} ${r.tier % 5 === 0 ? 'big' : ''}"><span class="tier-n">Tier ${r.tier}</span><div class="tier-r">${look(r)}</div>${claimed ? '<span class="owned">✔</span>' : reached ? `<button class="ws-btn on" data-tier="${r.tier}">Claim!</button>` : '<span class="small">🔒</span>'}</div>`;
+        }).join('')}</div>`;
+      body.querySelectorAll('[data-tier]').forEach((b) => (b.onclick = () => { b.disabled = true; this.net.send({ t: 'passClaim', tier: +b.dataset.tier }); }));
+    }
+
     // ======================= Trophy Road =======================
     roadClaimed() { return this.game.profile.road || []; }
     roadReady() {
@@ -369,32 +424,20 @@
     }
     rewardText(r) {
       const parts = [];
-      const paint = r.paint && CW.SHOP.paints.find((x) => x.id === r.paint);
-      const trail = r.trail && CW.SHOP.trails.find((x) => x.id === r.trail);
-      const avatar = r.avatar && CW.SHOP.avatars.find((x) => x.id === r.avatar);
+      const paint = (r.paint || r.paints) && CW.SHOP.paints.find((x) => x.id === (r.paint || r.paints));
+      const trail = (r.trail || r.trails) && CW.SHOP.trails.find((x) => x.id === (r.trail || r.trails));
+      const avatar = (r.avatar || r.avatars) && CW.SHOP.avatars.find((x) => x.id === (r.avatar || r.avatars));
       if (paint) parts.push(`🎨 ${paint.name} paint`);
       if (trail) parts.push(`✨ ${trail.name} trail`);
       if (avatar) parts.push(`${CW.avatar(avatar.idx)} ${avatar.name} avatar`);
       if (r.coins) parts.push(`🪙 ${r.coins}`);
       return parts.join(' + ');
     }
+    // the server checks your best trophies and pays (things you already own pay their price in coins)
     claimRoad(at) {
-      const g = this.game, p = g.profile;
       const r = CW.ROAD.find((x) => x.at === at);
       if (!r || !this.me || this.me.best < at || this.roadClaimed().includes(at)) return;
-      let coins = r.coins || 0;
-      // already own the paint/trail? you get its price in coins instead
-      if (r.paint) { if (p.owned.paints.includes(r.paint)) coins += CW.SHOP.paints.find((x) => x.id === r.paint).price; else p.owned.paints.push(r.paint); }
-      if (r.trail) { if (p.owned.trails.includes(r.trail)) coins += CW.SHOP.trails.find((x) => x.id === r.trail).price; else p.owned.trails.push(r.trail); }
-      if (r.avatar) { if (p.owned.avatars.includes(r.avatar)) coins += CW.SHOP.avatars.find((x) => x.id === r.avatar).price; else p.owned.avatars.push(r.avatar); }
-      if (coins) g.meta.addCoins(coins);
-      p.road = this.roadClaimed().concat(at);
-      g.saveProfile();
-      g.workshop.buildPaint();
-      g.audio.fanfare();
-      g.toast(`🎁 Trophy Road: ${this.rewardText(r)}!`);
-      this.renderChips();
-      g.meta.renderPanel();
+      this.net.send({ t: 'roadClaim', at });
     }
 
     // ======================= panels (shown in the shared #panel) =======================
