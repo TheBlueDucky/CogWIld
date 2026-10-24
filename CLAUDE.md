@@ -5,7 +5,7 @@ You build a mech from parts in the Workshop, then fight online (bots fill empty 
 It runs in the browser (three.js r128, no build step), as a Windows app (Electron) and an Android app (Capacitor),
 and on game portals (itch.io, CrazyGames, Poki). The online server is zero-dependency Node.js.
 
-**Live:** https://cogwild.duckdns.org (download page `/download`) · **Current version:** v1.7.3 · **Online protocol:** `cogwild-net-9`
+**Live:** https://cogwild.duckdns.org (download page `/download`) · **Current version:** v1.7.4 · **Online protocol:** `cogwild-net-9`
 The user is not a programmer: explain things in plain words, test everything yourself, and show screenshots as proof.
 
 ## How the user wants things done
@@ -56,6 +56,7 @@ The user is not a programmer: explain things in plain words, test everything you
 | `js/supers.js`, `js/gadgets.js` | supers (X) and gadgets (G, 3 uses) |
 | `js/touch.js` | phone controls (right-thumb arc, up/down by the stick, Exit needs a hold) |
 | `server/server.js` | HTTP + WebSocket server, rooms, matchmaking (`quick`, kinds weekly/ranked), result checks, mech checks, spectating, security headers/CSP |
+| `server/filter.js` | chat filter: bad words (English + Hebrew, also disguised) -> ****, links/emails/phone numbers/social handles -> [hidden]; used for typed chat and club descriptions, refuses usernames and club names |
 | `server/pics.js` | own profile + club pictures: square JPEGs ≤64 KB in DATA_DIR/pics, served at `/pic/u/<name>.jpg`, `/pic/c/<id>.jpg` (`pv` = version) |
 | `server/talk.js` | typed chat (DMs in `db.dms`, club chat in `db.clubChat`, both deleted after 7 days; party lines in memory; DMs between friends or club-mates), Quick chat only (`u.cm`), block (`u.blocked`), reports (`db.reports`), voice peers + signaling, TURN logins |
 | `auth.html`, `js/auth-done.js` | the page Google sends players back to (`/auth/google/done`); posts the token to `/auth/google/finish` |

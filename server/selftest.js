@@ -183,6 +183,20 @@ async function main() {
   await wait(600);
   A.send({ t: 'dmSend', to: 'Bob', x: 'x'.repeat(500) });
   check((await b.next('dm')).msg.x.length === 200, 'messages are cut at 200 characters');
+  // the chat filter: bad words starred out (also disguised), contact details hidden, normal words untouched
+  for (const [said, shown, what] of [
+    ['you are a fuck', 'you are a ****', 'a bad word is starred out'],
+    ['f u c k this', '**** this', 'a spaced-out bad word is starred out'],
+    ['sh1t happens', '**** happens', 'a disguised bad word is starred out'],
+    ['add me on discord: bob#1234 or call 054-123-4567', 'add me on [hidden] or call [hidden]', 'contact details are hidden'],
+    ['go to www.example.com', 'go to [hidden]', 'links are hidden'],
+    ['nice class, pass the grass', 'nice class, pass the grass', 'normal words stay as they are'],
+  ]) {
+    await wait(600);
+    A.send({ t: 'dmSend', to: 'Bob', x: said });
+    check((await b.next('dm')).msg.x === shown, `chat filter: ${what}`);
+  }
+  await wait(10500); // the anti-spam limit is 8 messages per 10 seconds
   await wait(600);
   A.send({ t: 'partySay', x: 'party time' });
   check((await b.next('partyMsg')).msg.x === 'party time', 'party chat reaches the party');
@@ -517,6 +531,8 @@ async function main() {
   const nb = cB.got.some((m) => m.t === 'acctOk');
   cB.cursor = cB.got.length;
   if (!nb) { cB.send({ t: 'acctLogin', name: 'Alice_1', pass: 'newpass456' }); await cB.next('acctOk'); }
+  cA.send({ t: 'clubCreate', name: 'Fuck Squad', badge: 3 });
+  check(/different club name/.test((await cA.next('acctErr')).msg), 'a club name with a bad word is refused');
   cA.send({ t: 'clubCreate', name: '<b>', badge: 3 });
   check(/Club names/.test((await cA.next('acctErr')).msg), 'bad club names are refused');
   cA.send({ t: 'clubCreate', name: 'Gear Heads', badge: 3, desc: 'We build', open: true });
@@ -539,6 +555,9 @@ async function main() {
   cA.send({ t: 'dmSend', to: cBname, x: 'hello club-mate' });
   check((await cB.next('dm')).msg.x === 'hello club-mate', 'club-mates can message each other');
   // pictures: square JPEGs only, shown to others, club picture by the owner only
+  cA.send({ t: 'picSet', kind: 'u', data: fakeJpeg(512, 512) });
+  check(/256/.test((await cA.next('acctErr')).msg), 'a picture bigger than 256×256 is refused');
+  await wait(5100);
   cA.send({ t: 'picSet', kind: 'u', data: fakeJpeg(256, 200) });
   check(/square/.test((await cA.next('acctErr')).msg), 'a picture that isn\'t square is refused');
   await wait(5100);

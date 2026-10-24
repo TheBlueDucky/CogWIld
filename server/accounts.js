@@ -9,6 +9,7 @@ const FEATURED = require('../js/featured.js');
 const E = require('../js/economy.js');
 const mailer = require('./mailer');
 const google = require('./google');
+const filter = require('./filter'); // bad words (names are refused, descriptions get ****)
 
 const DATA_DIR = process.env.DATA_DIR || path.resolve(__dirname, '..', 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
@@ -358,7 +359,7 @@ class Accounts {
     if (!email) return this.err(c, 'Log in with your email first');
     const name = String(m.name || '').trim(), pass = String(m.pass || '');
     if (!NAME_RE.test(name)) return this.err(c, 'Usernames are 3-16 letters, numbers or _');
-    if (BLOCKED.some((b) => key(name).includes(b))) return this.err(c, 'Please pick a different username');
+    if (BLOCKED.some((b) => key(name).includes(b)) || filter.isBad(name)) return this.err(c, 'Please pick a different username');
     if (!c.newGoogle) {
       if (pass.length < 6 || pass.length > 72) return this.err(c, 'Passwords need 6 to 72 characters');
       if (pass.toLowerCase() === key(name) || pass.toLowerCase() === email) return this.err(c, "Your password can't be your username or email");
@@ -387,7 +388,7 @@ class Accounts {
     if (this.byEmail.has(email)) return this.err(c, 'That email already has an account. Log in instead.');
     if (pass.length < 6 || pass.length > 72) return this.err(c, 'Passwords need 6 to 72 characters');
     if (!NAME_RE.test(name)) return this.err(c, 'Usernames are 3-16 letters, numbers or _');
-    if (BLOCKED.some((b) => key(name).includes(b))) return this.err(c, 'Please pick a different username');
+    if (BLOCKED.some((b) => key(name).includes(b)) || filter.isBad(name)) return this.err(c, 'Please pick a different username');
     if (key(name) === email.split('@')[0]) return this.err(c, "Pick a username that isn't your email");
     if (pass.toLowerCase() === key(name) || pass.toLowerCase() === email) return this.err(c, "Your password can't be your username or email");
     if (this.user(name)) return this.err(c, 'That username is taken');
@@ -417,7 +418,7 @@ class Accounts {
     if (this.slowDown(c)) return;
     const name = String(m.name || '').trim(), pass = String(m.pass || '');
     if (!NAME_RE.test(name)) return this.err(c, 'Usernames are 3-16 letters, numbers or _');
-    if (BLOCKED.some((b) => key(name).includes(b))) return this.err(c, 'Please pick a different username');
+    if (BLOCKED.some((b) => key(name).includes(b)) || filter.isBad(name)) return this.err(c, 'Please pick a different username');
     if (pass.length < 6 || pass.length > 72) return this.err(c, 'Passwords need 6 to 72 characters');
     if (pass.toLowerCase() === key(name)) return this.err(c, "Your password can't be your username");
     if (this.user(name)) return this.err(c, 'That username is taken');
@@ -786,7 +787,7 @@ class Accounts {
   clubFields(m) {
     return {
       badge: Math.max(0, Math.min(CLUB_BADGES - 1, m.badge | 0)),
-      desc: String(m.desc || '').replace(/[<>&"'`\\]/g, '').replace(/\s+/g, ' ').trim().slice(0, 80),
+      desc: filter.clean(String(m.desc || '').replace(/[<>&"'`\\]/g, '').replace(/\s+/g, ' ').trim().slice(0, 80)),
       open: m.open !== false,
       minTro: Math.max(0, Math.min(10000, Math.round((m.minTro | 0) / 50) * 50)),
     };
@@ -797,7 +798,7 @@ class Accounts {
     if (this.clubOf(u)) return this.err(c, 'Leave your club first');
     const name = String(m.name || '').replace(/\s+/g, ' ').trim();
     if (!CLUB_RE.test(name)) return this.err(c, 'Club names are 3-20 letters, numbers, spaces, _ or -');
-    if (BLOCKED.some((b) => name.toLowerCase().replace(/[ _-]/g, '').includes(b))) return this.err(c, 'Please pick a different club name');
+    if (BLOCKED.some((b) => name.toLowerCase().replace(/[ _-]/g, '').includes(b)) || filter.isBad(name)) return this.err(c, 'Please pick a different club name');
     if (Object.values(this.db.clubs).some((cl) => cl.name.toLowerCase() === name.toLowerCase())) return this.err(c, 'That club name is taken');
     const id = crypto.randomBytes(5).toString('hex');
     const club = Object.assign({ id, name, owner: c.user, members: [c.user], created: Date.now() }, this.clubFields(m));

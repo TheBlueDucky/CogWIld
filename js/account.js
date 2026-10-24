@@ -494,6 +494,8 @@
       const lines = (this.party.log || []).filter((l) => !talk.isBlocked(l.f)).slice(-4);
       box.innerHTML = lines.map((l) => `<div class="${l.f === me ? 'me' : ''}"><b>${esc(l.f === me ? 'You' : l.f)}:</b> ${esc(talk.text(l))}</div>`).join('') || '<div class="small">No party messages yet</div>';
       box.scrollTop = box.scrollHeight;
+      // on a PC the party card shows the messages, so they count as read (phones only show a line: open the chat)
+      if (!this.game.touch.on && this.game.state === 'menu') talk.markSeen('party');
     }
     // a little card in the corner, optionally with buttons [{ label, fn }]
     note(html, buttons, ms) {
@@ -795,6 +797,7 @@
           <div class="menu-btns" style="justify-content:flex-start"><button class="ws-btn" id="clLeave">🚪 Leave club</button></div>`;
         const box = $('clubChat');
         box.scrollTop = box.scrollHeight;
+        talk.markSeen('club'); // the newest club messages are on screen
         $('clChat').onclick = () => this.game.talk.open('club');
         on('[data-dm]', (b) => this.game.talk.openDm(b.dataset.dm));
         if (owner) {
@@ -953,7 +956,7 @@
       };
       const tabs = `<div class="menu-btns" style="justify-content:flex-start"><button class="ws-btn ${this.lbTab === 'global' ? 'on' : ''}" data-tab="global">🌍 World</button><button class="ws-btn ${this.lbTab === 'friends' ? 'on' : ''}" data-tab="friends">👥 Friends</button><button class="ws-btn ${this.lbTab === 'clubs' ? 'on' : ''}" data-tab="clubs">🛡 Clubs</button><button class="ws-btn ${this.lbTab === 'ranked' ? 'on' : ''}" data-tab="ranked">🏅 Ranked</button></div>`;
       if (this.lbTab === 'friends') body.innerHTML = tabs + (this.me ? friendsBoard() : '<div class="small">Log in to see your friends here.</div>');
-      else if (this.lbTab === 'clubs') body.innerHTML = tabs + ((this.clubs || []).map((cl, i) => `<div class="fr-row lb-row"><span class="lb-rank">${['🥇', '🥈', '🥉'][i] || '#' + (i + 1)}</span><span class="av">${CW.CLUB_BADGES[cl.badge] || '🛡'}</span><b class="fr-name">${esc(cl.name)}</b><span class="small">👥 ${cl.members}</span><b class="lb-tro">🏆 ${cl.tro}</b></div>`).join('') || '<div class="small">No clubs yet.</div>');
+      else if (this.lbTab === 'clubs') body.innerHTML = tabs + ((this.clubs || []).map((cl, i) => `<div class="fr-row lb-row"><span class="lb-rank">${['🥇', '🥈', '🥉'][i] || '#' + (i + 1)}</span><span class="av">${CW.clubFace(cl)}</span><b class="fr-name">${esc(cl.name)}</b><span class="small">👥 ${cl.members}</span><b class="lb-tro">🏆 ${cl.tro}</b></div>`).join('') || '<div class="small">No clubs yet.</div>');
       else if (this.lbTab === 'ranked') { const r = this.topRanked; body.innerHTML = tabs + (!r ? '<div class="small">Loading…</div>' : `<div class="small">Season ${CW.ECON.season().id}: ${r.total} ranked players. Ranked unlocks at 🏆 ${CW.ECON.RANKED.unlockAt}.</div>` + (r.list.map((p, i) => this.lbRow(p, i + 1, true)).join('') || '<div class="small">Nobody has played Ranked this season yet.</div>')); }
       else if (!t) body.innerHTML = tabs + '<div class="small">Loading…</div>';
       else body.innerHTML = tabs + `<div class="small">${t.total} players. ${t.me ? `You are <b>#${t.me.rank}</b>.` : 'Log in to get on the board!'}</div>` + t.list.map((p, i) => this.lbRow(p, i + 1)).join('') + (t.me && t.me.rank > 50 ? '<div class="small">…</div>' + this.lbRow(t.me.card, t.me.rank) : '');

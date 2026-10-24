@@ -65,7 +65,7 @@ app.whenReady().then(async () => {
   await js(A, `${G}.talk.open('party'); document.getElementById('chatInput').value = 'Anyone up for Gold Rush? 🪙'; document.getElementById('chatForm').requestSubmit(); true`);
   await wait(800);
   check(await js(B, `(${G}.account.party.log || []).some((l) => l.x === 'Anyone up for Gold Rush? 🪙')`), 'party chat: a typed message reaches the party');
-  check(await js(B, `!document.getElementById('badgeChat').classList.contains('hidden')`), 'the 💬 button shows an unread badge');
+  check(await js(B, `/Gold Rush/.test(document.getElementById('pcLog').textContent) && document.getElementById('badgeChat').classList.contains('hidden')`), 'on PC the party card shows it, so it counts as read (no unread badge)');
   await shot(B, 'talk-badge');
   await js(B, `${G}.talk.open('party'); true`);
   await wait(300);
@@ -180,6 +180,17 @@ app.whenReady().then(async () => {
   check(await js(B, `(() => { const i = document.querySelector('#panelBody img.pfp'); return !!i && i.complete && i.naturalWidth === 256 && getComputedStyle(i).borderRadius === '50%'; })()`), 'friends see the picture as a circle (256×256, square)');
   await shot(B, 'talk-friends-picture');
   await js(B, `${G}.meta.closePanel(); true`);
+  // a club picture shows on the clubs leaderboard too
+  await js(B, `${G}.net.send({ t: 'clubCreate', name: 'Pic Club ${tag}', badge: 2, open: true }); true`);
+  await wait(1200);
+  await js(B, `(() => { const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d'); g.fillStyle = '#5ce1ff'; g.fillRect(0, 0, 256, 256); g.fillStyle = '#121a33'; g.font = 'bold 150px sans-serif'; g.fillText('C', 80, 185); ${G}.net.send({ t: 'picSet', kind: 'c', data: c.toDataURL('image/jpeg', 0.85).split(',')[1] }); })(); true`);
+  await wait(1500);
+  await js(B, `${G}.meta.openPanel('top'); ${G}.account.lbTab = 'clubs'; ${G}.net.send({ t: 'clubList' }); true`);
+  await wait(1500);
+  check(await js(B, `(() => { const i = document.querySelector('#panelBody .lb-row img.pfp'); return !!i && i.complete && i.naturalWidth === 256; })()`), 'the club picture shows on the clubs leaderboard');
+  await shot(B, 'talk-club-leaderboard');
+  await js(B, `${G}.net.send({ t: 'clubLeave' }); ${G}.meta.closePanel(); true`);
+  await wait(500);
   // Settings > Voice chat
   await js(B, `${G}.meta.setTab = 'voice'; ${G}.meta.openPanel('settings'); true`);
   await wait(900);
@@ -359,6 +370,23 @@ app.whenReady().then(async () => {
   await js(A, `${G}.showMenu(); true`);
   await js(B, `${G}.showMenu(); true`);
   await wait(1500);
+  // read stays read: club chat seen, then the game restarts, and nothing shows as unread
+  await js(B, `${G}.net.send({ t: 'clubCreate', name: 'Seen Club ${tag}', badge: 1, open: true }); true`);
+  await wait(1200);
+  const clubId = await js(B, `${G}.account.club && ${G}.account.club.id`);
+  await js(A, `${G}.net.send({ t: 'clubJoin', id: '${clubId}' }); true`);
+  await wait(1200);
+  await js(A, `${G}.net.send({ t: 'clubSay', x: 'read me once' }); true`);
+  await wait(1000);
+  check(await js(B, `${G}.talk.unreadIn('club') === 1`), 'a new club message counts as unread');
+  await js(B, `${G}.talk.open('club'); true`);
+  await wait(400);
+  await js(B, `${G}.talk.close(); location.reload(); true`);
+  await wait(6000);
+  check(await js(B, `${G}.account.loggedIn && !!${G}.account.club && ${G}.talk.unreadIn('club') === 0 && document.getElementById('badgeChat').classList.contains('hidden')`), 'after restarting, messages already read stay read');
+  await js(A, `${G}.net.send({ t: 'clubLeave' }); true`);
+  await js(B, `${G}.net.send({ t: 'clubLeave' }); true`);
+  await wait(800);
   // leaving the party: no one to talk to, so the microphone is let go
   await js(B, `${G}.net.send({ t: 'partyLeave' }); true`);
   await wait(2500);

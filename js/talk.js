@@ -19,7 +19,7 @@
       this.blocked = [];
       this.unread = {}; // friend name -> messages not read yet
       this.dms = {}; // friend name -> lines
-      this.seen = { party: 0, club: 0, game: 0 }; // lines already looked at
+      this.seenAt = {}; // party/club: time of the newest line you've seen (kept on this device per account, so read stays read)
       this.tab = null;
       this.thread = null; // the friend whose messages are open
       this.who = null; // the name tapped (profile / block / report row)
@@ -233,11 +233,28 @@
       if (tab === 'friends') return Object.entries(this.unread).filter(([n]) => !this.isBlocked(n)).reduce((s, [, v]) => s + (v | 0), 0);
       const list = this.lines(tab);
       const mine = this.acct.me && this.acct.me.name;
-      return list.slice(this.seen[tab] || 0).filter((l) => l.f && l.f !== mine).length;
+      const since = this.seenTime(tab);
+      return list.filter((l) => l.f && l.f !== mine && (l.at || 0) > since).length;
     }
     badges() {
       const n = ['party', 'club', 'friends'].reduce((s, t) => s + (this.isOpen && this.tab === t ? 0 : this.unreadIn(t)), 0);
       for (const id of ['badgeChat', 'hudChatBadge']) { const b = $(id); if (b) { b.textContent = n > 99 ? '99+' : n; b.classList.toggle('hidden', !n); } }
+    }
+    // read stays read after a restart: the newest seen line's time, per account and channel, on this device
+    seenKey() { return 'cogwild.chatSeen.' + ((this.acct.me && this.acct.me.name.toLowerCase()) || 'guest'); }
+    seenTime(tab) {
+      if (this.seenUser !== this.seenKey()) {
+        this.seenUser = this.seenKey();
+        try { this.seenAt = JSON.parse(localStorage.getItem(this.seenUser) || '{}') || {}; } catch (e) { this.seenAt = {}; }
+      }
+      return this.seenAt[tab] || 0;
+    }
+    markSeen(tab) {
+      const newest = this.lines(tab).reduce((m, l) => Math.max(m, l.at || 0), 0);
+      if (newest <= this.seenTime(tab)) return;
+      this.seenAt[tab] = newest;
+      try { localStorage.setItem(this.seenKey(), JSON.stringify(this.seenAt)); } catch (e) { /* private window */ }
+      this.badges();
     }
     lines(tab) {
       if (tab === 'party') return (this.acct.party && this.acct.party.log) || [];
@@ -294,7 +311,7 @@
         // ready-made lines only for "Quick chat only" players: everyone else types
         if (!this.freeOk) quick = QUICK().map((t, i) => `<button class="chat-q" data-q="${i}">${t}</button>`);
         canType = this.freeOk && !(tab === 'friends' && this.isBlocked(this.thread));
-        if (tab === 'party' || tab === 'club') this.seen[tab] = this.lines(tab).length;
+        if (tab === 'party' || tab === 'club') this.markSeen(tab);
         if (tab === 'friends' && this.unread[this.thread]) { delete this.unread[this.thread]; this.net.send({ t: 'dmRead', name: this.thread }); }
       }
       // a tapped name: profile, block, report

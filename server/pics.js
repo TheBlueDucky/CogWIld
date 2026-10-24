@@ -1,7 +1,7 @@
 // Cogwild pictures: players' own profile pictures and club pictures.
 //
-// The game crops the picture square on the player's device and sends a small JPEG (256×256 at most); it is shown as
-// a circle. The server only keeps square JPEGs up to 64 KB, saved as files in DATA_DIR/pics, and serves them at
+// The game crops the picture square on the player's device and resizes it to 256×256 (a small JPEG); it's shown as
+// a circle. The server only keeps square JPEGs of 256×256 or smaller and up to 64 KB, saved as files in DATA_DIR/pics, and serves them at
 // /pic/u/<player>.jpg and /pic/c/<club id>.jpg (the ?v= number changes with each new picture, so browsers may cache).
 // Nobody else can pick your picture: it isn't one of the shared avatars. "Quick chat only" accounts can't upload.
 'use strict';
@@ -9,7 +9,7 @@ const fs = require('fs');
 const path = require('path');
 
 const MAX_BYTES = 64 * 1024;
-const MAX_SIDE = 512;
+const MAX_SIDE = 256; // the game resizes pictures to 256×256 before sending, so each is only ~10-30 KB
 const key = (name) => String(name || '').toLowerCase();
 
 // width and height of a JPEG (from its SOF marker), or null when it isn't a whole JPEG
@@ -70,7 +70,7 @@ class Pics {
       const buf = Buffer.from(b64, 'base64');
       const size = jpegSize(buf);
       if (!size || buf.length > MAX_BYTES) return this.a.err(c, "That picture couldn't be used. Try another one.");
-      if (size.w !== size.h || size.w > MAX_SIDE || size.w < 32) return this.a.err(c, 'Pictures must be square (1:1)');
+      if (size.w !== size.h || size.w > MAX_SIDE || size.w < 32) return this.a.err(c, 'Pictures must be square (1:1) and at most 256×256');
       const tmp = this.file(kind, id) + '.tmp';
       fs.writeFileSync(tmp, buf);
       fs.renameSync(tmp, this.file(kind, id));

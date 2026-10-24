@@ -13,6 +13,7 @@
 'use strict';
 const crypto = require('crypto');
 const E = require('../js/economy.js');
+const filter = require('./filter'); // bad words -> ****, links / emails / phone numbers -> [hidden]
 
 const MAX_TEXT = 200;
 const DM_KEEP = 60; // messages kept per pair of players
@@ -95,7 +96,7 @@ class Talk {
       msg = { f: u.name, a: u.av | 0, pv: u.pv | 0, q, at: now };
     } else {
       if (this.quick(u)) { this.err(c, 'Quick chat only is on (Settings > Chat)'); return null; }
-      const x = cleanText(m.x);
+      const x = filter.clean(cleanText(m.x));
       if (!x) return null;
       msg = { f: u.name, a: u.av | 0, pv: u.pv | 0, x, at: now };
     }
