@@ -1294,9 +1294,20 @@
       const m = c.mech;
       m.occupied = false;
       m.input.fire = false;
-      const right = new V3(Math.cos(m.yaw), 0, -Math.sin(m.yaw));
-      const pos = m.pos.clone().addScaledVector(right, m.radius + 1);
-      pos.y = Math.max(this.world.groundAt(pos.x, pos.z), m.pos.y - m.baseOff);
+      // step out next to the mech, on ground at about the mech's own height: never up onto a cliff beside it
+      // (right, left, behind, in front, then a bit farther; if all are cliffs or water, on top of the mech)
+      const feet = m.pos.y - m.baseOff;
+      const right = new V3(Math.cos(m.yaw), 0, -Math.sin(m.yaw)), back = new V3(Math.sin(m.yaw), 0, Math.cos(m.yaw));
+      let pos = null;
+      for (const extra of [1, 2.5]) {
+        for (const d of [right, right.clone().negate(), back, back.clone().negate()]) {
+          const p = m.pos.clone().addScaledVector(d, m.radius + extra);
+          const gy = this.world.groundAt(p.x, p.z, feet + 1);
+          if (Math.abs(gy - feet) < 1.4 && gy > CW.WATER_Y - 0.6) { p.y = Math.max(gy, feet); pos = p; break; }
+        }
+        if (pos) break;
+      }
+      if (!pos) { pos = m.pos.clone(); pos.y = m.pos.y + m.radius; }
       c.pilot = new CW.Pilot(this, c, pos, c.pilotHp);
       c.pilot.yaw = this.cam.yaw;
       this.pilots.push(c.pilot);
@@ -2060,7 +2071,30 @@
       return p;
     }
 
+    // while a flying mech is in the air: how to go up and down, right in the middle of the screen
+    // (the first take-off also says it big, once)
+    updateFlyHint() {
+      const p = this.player, m = p && p.mech;
+      const on = !!(this.state === 'match' && !this.spectator && m && m.alive && m.occupied && (m.rotors > 0 || m.isPlane) && m.medium === 'air' && m.pos.y - m.baseOff > 2);
+      let el = $('flyHint');
+      if (!el) { el = document.createElement('div'); el.id = 'flyHint'; $('hud').appendChild(el); }
+      el.classList.toggle('hidden', !on);
+      if (!on) return;
+      const keys = this.settings.keys || {};
+      const up = CW.keyName(keys.up || 'Space'), down = CW.keyName(keys.down || 'KeyC');
+      const goingDown = this.keys.KeyC || this.keys.KeyQ || this.keys.ControlLeft || this.keys.ControlRight;
+      const html = this.touch.on ? `✈ <b>⬆</b> climb · <b class="${goingDown ? 'on' : ''}">⬇</b> fly down <small>(buttons by the stick)</small>`
+        : `✈ Hold <kbd class="${this.keys.Space ? 'on' : ''}">${up}</kbd> to climb · <kbd class="${goingDown ? 'on' : ''}">${down}</kbd> to fly down`;
+      if (el.innerHTML !== html) el.innerHTML = html;
+      if (!this.settings.flyTold) {
+        this.settings.flyTold = true;
+        this.saveProfile();
+        this.bigMsg('✈ You are flying!', this.touch.on ? '⬆ climbs, ⬇ flies down (next to the stick)' : `Hold ${up} to climb, ${down} to fly down`, 3);
+      }
+    }
+
     updateHud() {
+      this.updateFlyHint();
       const p = this.player;
       // online badge (ping), refreshed a few times a second
       this._netHudT = (this._netHudT || 0) - 1;
@@ -2110,7 +2144,7 @@
           ${(() => { const gd = CW.GADGETS[this.gadgets.type(p)], n = this.gadgets.left(p), cd = p.gadgetCd || 0; return `<div class="st-row gadget-row ${n > 0 && cd <= 0 ? 'ready' : ''}"><span>${gd.icon} Gadget</span><div class="pips">${'●'.repeat(n)}${'○'.repeat(Math.max(0, 3 - n))}</div><em>${n <= 0 ? 'used up' : cd > 0 ? cd.toFixed(1) + 's' : this.touch.on ? 'TAP 🧰' : 'G'}</em></div>`; })()}
           ${m.empT > 0 ? '<div class="buffs"><span class="buff emp">⚡ JAMMED by EMP</span></div>' : ''}
           <div class="st-foot"><span>${Math.round(Math.hypot(m.vel.x, m.vel.z) * 3.6)} km/h</span><span>Alt ${Math.round(m.pos.y - m.baseOff)}</span><span class="${m.pr < 1 ? 'bad' : ''}">⚡ ${Math.round(m.pr * 100)}%</span><span>Parts ${m.parts.filter((q) => q.alive).length}/${m.totalParts}</span>${dom}</div>`;
-        $('hint').textContent = 'W/S drive · A/D turn · Mouse look & aim · Click fire · Shift DASH · X / right-click SUPER · G GADGET · Space up/jump · C down · V camera · E exit · Enter chat · Esc menu' + (this.modeId === 'test' ? ' · T back to Workshop' : '');
+        $('hint').textContent = 'W/S drive · A/D steer · Mouse aim · Click fire · Shift DASH · X / right-click SUPER · G GADGET · Space up/jump · C fly down · V camera · E exit · T chat · Esc menu' + (this.modeId === 'test' ? ' · T back to Workshop' : '');
       } else if (p.pilot && p.pilot.alive) {
         const pl = p.pilot;
         const ownAlive = p.mech && p.mech.alive;
@@ -2328,6 +2362,9 @@
     }
 
     // Your current mech on a spinning pedestal by the lake, shown behind the main menu
+    // the lobby mech again (after a new finish)
+    refreshShowcase() { if (this.state === 'menu' && this.showcase) this.buildShowcase(); }
+
     buildShowcase() {
       if (this.showcase) this.scene.remove(this.showcase);
       if (!this.showcaseSpot) {
@@ -2347,7 +2384,7 @@
       const color = this.currentBp.color || this.playerColor;
       let minY = 0;
       for (const p of parts) {
-        const o = CW.buildPartMesh(p.t, color);
+        const o = CW.buildPartMesh(p.t, color, this.profile.finish);
         o.position.set(p.x, p.y, p.z);
         g.add(o);
         minY = Math.min(minY, p.y + 0.5 - Math.max(0.5, CW.PARTS[p.t].radius || 0)); // big wheels reach lower
@@ -2392,7 +2429,7 @@
           const g = new THREE.Group();
           let minY = 0;
           for (const p of CW.ensureCamera(w.bp.parts).parts) {
-            const o = CW.buildPartMesh(p.t, w.bp.color || 0x3a86ff);
+            const o = CW.buildPartMesh(p.t, w.bp.color || 0x3a86ff, w.bp.fin);
             o.position.set(p.x, p.y, p.z);
             g.add(o);
             minY = Math.min(minY, p.y + 0.5 - Math.max(0.5, CW.PARTS[p.t].radius || 0)); // big wheels reach lower
@@ -2509,6 +2546,7 @@
       this.last = now;
       try {
         this.watchPerformance(dt);
+        if (CW.rainbowMats.length) CW.tickFinishes(now / 1000); // the Rainbow Shift finish
         this.tick(dt);
       } catch (e) {
         this.crash(e);

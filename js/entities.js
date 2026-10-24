@@ -20,9 +20,10 @@
       this.name = bp.name;
       this.group = new THREE.Group();
       this.group.rotation.order = 'YXZ';
+      this.fin = bp.fin || (opts.combatant && opts.combatant.isPlayer && game.profile ? game.profile.finish : '') || '';
       this.parts = CW.connected(CW.ensureCamera(bp.parts).parts).map((p) => {
         const def = CW.PARTS[p.t];
-        const obj = CW.buildPartMesh(p.t, this.color);
+        const obj = CW.buildPartMesh(p.t, this.color, this.fin);
         obj.position.set(p.x, p.y, p.z);
         this.group.add(obj);
         return { t: p.t, x: p.x, y: p.y, z: p.z, hp: def.hp, maxHp: def.hp, obj, alive: true, cd: Math.random() * 0.4, wp: new V3() };
@@ -68,7 +69,7 @@
       this.remote = game.net.isRemote(this.combatant);
       const sm = new THREE.Mesh(
         sharedGeo('Sphere(1, 20, 14)', () => new THREE.SphereGeometry(1, 20, 14)),
-        new THREE.MeshBasicMaterial({ color: 0x7ee8ff, transparent: true, opacity: 0, depthWrite: false })
+        new THREE.MeshBasicMaterial({ color: 0x3fb8ff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending })
       );
       this.shieldMesh = sm;
       this.group.add(sm);
@@ -135,7 +136,7 @@
       if (!grounded && !inWater) F += this.rotors * 45;
       F += this.thrust * (inWater ? 0.35 : 1);
       F *= pr * (this.turbo > 0 ? 1.4 : 1) * (this.empT > 0 ? 0.45 : 1) * (mods.speed || 1); // an EMP slows engines
-      const acc = (F * inp.throttle) / this.mass;
+      const acc = (F * inp.throttle) / this.stats.moveMass; // heavy mechs don't crawl (CW.moveMass)
       this.vel.x += fx * acc * dt;
       this.vel.z += fz * acc * dt;
 
@@ -340,15 +341,17 @@
       if (this.overcharge > 0) this.overcharge -= dt;
       if (this.turbo > 0) { this.turbo -= dt; this.dashCd = Math.min(this.dashCd, 0.5); }
       if (this.domeT > 0) this.domeT -= dt; // a Shield Dome super keeps its protection while you shoot
-      // hit flash: swap every part to a white material for a blink, then put the paint back
-      if (this.flashT > 0 || this.flashOn) {
-        this.flashT -= dt;
-        const on = this.flashT > 0;
-        if (on !== this.flashOn) {
-          this.flashOn = on;
-          const white = CW.matBasic(0xffffff);
-          this.group.traverse((o) => { if (o.isMesh) { if (on) { o.userData.mat0 = o.material; o.material = white; } else if (o.userData.mat0) o.material = o.userData.mat0; } });
+      // hit flash: only the part that was hit lights up for a blink, then gets its paint back
+      if (this.anyFlash) {
+        let still = false;
+        for (const p of this.parts) {
+          if (!p.flashT && !p.flashOn) continue;
+          p.flashT = Math.max(0, (p.flashT || 0) - dt);
+          const on = p.flashT > 0 && p.alive;
+          if (on !== !!p.flashOn) this.flashPart(p, on);
+          if (p.flashOn) still = true;
         }
+        this.anyFlash = still;
       }
       if (this.empT > 0) { this.empT -= dt; if (Math.random() < dt * 14) this.game.fx.burst(this.pos.clone().setY(this.pos.y + 1), { n: 2, color: this.game.fx.colorKey(0x7df9ff), speed: 5, life: 0.25, size: 0.18 }); }
 
@@ -365,10 +368,10 @@
       if (this.shieldDelay > 0) this.shieldDelay -= dt;
       else this.shield = Math.min(this.shieldMax, this.shield + 9 * dt);
       this.shieldFlash = Math.max(0, this.shieldFlash - dt * 2);
-      this.shieldMesh.material.opacity = this.shieldFlash * 0.45;
+      this.shieldMesh.material.opacity = this.shieldFlash * 0.22;
       if (this.protect > 0) {
         this.protect -= dt;
-        this.shieldMesh.material.opacity = Math.max(this.shieldMesh.material.opacity, 0.16 + Math.sin(this.game.time * 10) * 0.08);
+        this.shieldMesh.material.opacity = Math.max(this.shieldMesh.material.opacity, 0.1 + Math.sin(this.game.time * 10) * 0.05);
       }
 
       // --- animate parts ---
@@ -437,6 +440,12 @@
       // saw blades grind any enemy part they touch
       if (this.stats.saws > 0 && this.occupied) this.grind(dt);
       if (inp.fire && aim) this.fireWeapons(aim);
+    }
+
+    flashPart(p, on) {
+      p.flashOn = on;
+      const hot = CW.matBasic(0xffd8b0);
+      p.obj.traverse((o) => { if (o.isMesh && (!on || !o.material.transparent || o.userData.mat0)) { if (on) { if (!o.userData.mat0) o.userData.mat0 = o.material; o.material = hot; } else if (o.userData.mat0) { o.material = o.userData.mat0; o.userData.mat0 = null; } } });
     }
 
     grind(dt) {
@@ -527,7 +536,7 @@
       if (CW.sameTeam(who, this.combatant)) return;
       const net = this.game.net;
       // you see every hit land: the mech flashes white for a moment
-      if (dmg > 0 && !(this.protect > 0)) this.flashT = 0.09;
+      if (dmg > 0 && !(this.protect > 0)) { part.flashT = 0.08; this.anyFlash = true; }
       if (!net.applying && this.game.mods && this.game.mods.dmg) dmg *= this.game.mods.dmg; // weekly event: Glass Cannons
       if (this.combatant && this.combatant.isPlayer && dmg >= 6 && !(this.protect > 0)) this.game.buzz(dmg >= 30 ? 35 : 15, 0.15);
       // the game that decides a hit also fills the shooter's super meter
@@ -566,6 +575,7 @@
     }
 
     breakPart(part, who) {
+      if (part.flashOn) this.flashPart(part, false);
       part.alive = false;
       this.game.fx.debris(part.obj, this.vel, this.pos, true);
       this.game.fx.chunks(part.wp, 3, this.color, 0.5);
@@ -582,34 +592,44 @@
       this.recompute();
     }
 
-    repair(amount) {
+    repair(amount, many) {
       const dmg = this.parts.filter((p) => p.alive && p.hp < p.maxHp).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp);
       if (!dmg.length) return false;
-      const each = amount / Math.min(3, dmg.length);
-      for (let i = 0; i < Math.min(3, dmg.length); i++) dmg[i].hp = Math.min(dmg[i].maxHp, dmg[i].hp + each);
+      const k = Math.min(many || 3, dmg.length);
+      const each = amount / k;
+      for (let i = 0; i < k; i++) dmg[i].hp = Math.min(dmg[i].maxHp, dmg[i].hp + each);
       return true;
     }
 
     // Pilot repair (hold R next to your mech): fix damaged parts first, then rebuild blown-off parts one by one.
     // Returns what happened this frame: 'fix', 'rebuild', 'done' (fully repaired) or 'wait'.
+    // Big mechs repair just as quickly as small ones: damage heals at ~1/4 of the whole mech's HP per second, and
+    // blown-off parts come back so that even a 40-part rebuild takes about 4 seconds.
     repairWork(dt) {
-      if (this.repair(40 * dt)) return 'fix';
+      const total = this.parts.reduce((a, p) => a + p.maxHp, 0);
+      const fixed = this.repair(Math.max(60, total * 0.25) * dt, 12); // damage heals while lost parts come back
       const missing = this.parts.filter((p) => !p.alive);
-      if (!missing.length) return 'done';
+      if (!missing.length) return fixed ? 'fix' : 'done';
       this.rebuildT = (this.rebuildT || 0) + dt;
-      if (this.rebuildT < 0.8) return 'wait';
-      this.rebuildT = 0;
-      // only parts that touch something still attached can be bolted back on
-      const alive = this.parts.filter((p) => p.alive);
-      const touches = (p) => alive.some((q) => Math.abs(q.x - p.x) + Math.abs(q.y - p.y) + Math.abs(q.z - p.z) === 1);
-      const next = missing.find(touches);
-      if (!next) return 'done';
-      this.rebuildPart(next);
-      return 'rebuild';
+      const every = Math.min(0.5, 4 / Math.max(1, this.parts.length));
+      if (this.rebuildT < every) return fixed ? 'fix' : 'wait';
+      // only parts that touch something still attached can be bolted back on (several per frame when it's quick)
+      let done = 0;
+      while (this.rebuildT >= every && done < 8) {
+        this.rebuildT -= every;
+        const alive = this.parts.filter((p) => p.alive);
+        const touches = (p) => alive.some((q) => Math.abs(q.x - p.x) + Math.abs(q.y - p.y) + Math.abs(q.z - p.z) === 1);
+        const next = this.parts.find((p) => !p.alive && touches(p));
+        if (!next) break;
+        this.rebuildPart(next, done > 0);
+        done++;
+      }
+      this.rebuildT = Math.min(this.rebuildT, every);
+      return done ? 'rebuild' : fixed ? 'fix' : 'done';
     }
 
     rebuildPart(p, quiet) {
-      const obj = CW.buildPartMesh(p.t, this.color);
+      const obj = CW.buildPartMesh(p.t, this.color, this.fin);
       obj.position.set(p.x, p.y, p.z);
       this.group.add(obj);
       p.obj = obj;
@@ -632,14 +652,16 @@
     destroy(who) {
       if (!this.alive) return;
       this.alive = false;
-      if (this.flashOn) this.group.traverse((o) => { if (o.isMesh && o.userData.mat0) o.material = o.userData.mat0; });
+      for (const p of this.parts) if (p.flashOn) this.flashPart(p, false);
       // it falls apart first (every part flies off, some burning), then the big explosion
       const at = this.pos.clone(), fx = this.game.fx;
       let i = 0;
       for (const p of this.parts) if (p.alive) { p.alive = false; fx.debris(p.obj, this.vel, at, i++ % 3 === 0, 1.6); }
       fx.explosion(at, 1.1);
       fx.chunks(at, 8, this.combatant.color);
+      const style = who && who.isPlayer && this.combatant !== who && this.game.profile ? this.game.profile.wreckFx : '';
       fx.later(0.28, () => {
+        if (style) fx.wreckFx(style, at, who.color || 0x5ce1ff);
         fx.explosion(at, 2.6);
         fx.chunks(at, 10, this.combatant.color);
         fx.shockwave(at);
@@ -707,8 +729,19 @@
       }
       if (inp.jump && (this.grounded || inWater)) this.vel.y = inWater ? 6 : 8.5;
       const lim = CW.ARENA_HALF - 1;
-      this.pos.x = clamp(this.pos.x + this.vel.x * dt, -lim, lim);
-      this.pos.z = clamp(this.pos.z + this.vel.z * dt, -lim, lim);
+      const nx = clamp(this.pos.x + this.vel.x * dt, -lim, lim), nz = clamp(this.pos.z + this.vel.z * dt, -lim, lim);
+      // cliffs are walls on foot too: ground that rises much faster than you walk (or above your knees) stops you,
+      // instead of lifting you up the mountain in a moment
+      // (the ground is checked half a meter ahead, whatever your speed, so you can't creep up a wall in tiny steps)
+      const step = Math.hypot(nx - this.pos.x, nz - this.pos.z);
+      const here = Math.max(this.pos.y, world.groundAt(this.pos.x, this.pos.z, this.pos.y + 0.8));
+      let wall = world.groundAt(nx, nz, this.pos.y + 0.8) - here > 0.6;
+      if (!wall && step > 1e-4) {
+        const ax = this.pos.x + ((nx - this.pos.x) / step) * 0.5, az = this.pos.z + ((nz - this.pos.z) / step) * 0.5;
+        wall = world.groundAt(ax, az, this.pos.y + 0.8) - here > 0.5; // steeper than 45°
+      }
+      if (wall) { this.vel.x = 0; this.vel.z = 0; }
+      else { this.pos.x = nx; this.pos.z = nz; }
       this.pos.y += this.vel.y * dt;
       let g = world.groundAt(this.pos.x, this.pos.z, this.pos.y + 0.8);
       this.onMech = null;
@@ -718,7 +751,7 @@
         for (const p of m.parts) {
           if (!p.alive || Math.abs(p.wp.x - this.pos.x) > 0.7 || Math.abs(p.wp.z - this.pos.z) > 0.7) continue;
           const top = p.wp.y + 0.5;
-          if (top > g && top < this.pos.y + 0.9) { g = top; this.onMech = m; }
+          if (top > g && top < this.pos.y + 0.55) { g = top; this.onMech = m; } // a step up, not a climb up the whole mech (jump onto it)
         }
       }
       this.grounded = false;
@@ -802,13 +835,20 @@
       this.projectiles = [];
       this.particles = [];
       this.debrisList = [];
-      this.pGeo = new THREE.IcosahedronGeometry(1, 0);
+      // particles are soft round glows (sprites with a fuzzy edge) instead of solid balls: fire, sparks and colored
+      // bursts glow (added light), smoke and spray are soft puffs
+      const cv = document.createElement('canvas');
+      cv.width = cv.height = 64;
+      const cx = cv.getContext('2d'), gr = cx.createRadialGradient(32, 32, 0, 32, 32, 32);
+      gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,.75)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      cx.fillStyle = gr; cx.fillRect(0, 0, 64, 64);
+      this.softTex = new THREE.CanvasTexture(cv);
+      const glow = (color, opacity = 1) => new THREE.SpriteMaterial({ map: this.softTex, color, transparent: true, opacity, depthWrite: false, blending: THREE.AdditiveBlending });
+      const puff = (color, opacity) => new THREE.SpriteMaterial({ map: this.softTex, color, transparent: true, opacity, depthWrite: false });
+      this.glow = glow;
       this.pMats = {
-        fire: new THREE.MeshBasicMaterial({ color: 0xffa53a }),
-        flash: new THREE.MeshBasicMaterial({ color: 0xffc061, transparent: true, opacity: 0.85, depthWrite: false }), // warm fire, not a white ball
-        smoke: new THREE.MeshLambertMaterial({ color: 0x8a8a8a, transparent: true, opacity: 0.7, depthWrite: false }),
-        spark: new THREE.MeshBasicMaterial({ color: 0xffe066 }),
-        water: new THREE.MeshLambertMaterial({ color: 0xe6f7ff, transparent: true, opacity: 0.85 }),
+        fire: glow(0xff8a2a), flash: glow(0xffb347, 0.9), spark: glow(0xffd36b),
+        smoke: puff(0x5f5f63, 0.5), water: puff(0xe6f7ff, 0.75),
       };
       this.projGeo = {
         shell: new THREE.BoxGeometry(0.06, 0.06, 1.5), // a thin tracer, not a ball
@@ -832,7 +872,8 @@
       for (const d of this.debrisList) this.game.scene.remove(d.obj);
       if (this.beams) for (const b of this.beams) this.game.scene.remove(b.mesh);
       if (this.rings) for (const r of this.rings) this.game.scene.remove(r.mesh);
-      this.projectiles = []; this.particles = []; this.debrisList = []; this.rings = []; this.timers = []; if (this.beams) this.beams = [];
+      if (this.anims) for (const a of this.anims) this.game.scene.remove(a.mesh);
+      this.projectiles = []; this.particles = []; this.debrisList = []; this.rings = []; this.timers = []; this.anims = []; if (this.beams) this.beams = [];
     }
 
     projectile(o) {
@@ -845,7 +886,7 @@
 
     colorKey(hexColor) {
       const k = 'c' + hexColor;
-      if (!this.pMats[k]) this.pMats[k] = new THREE.MeshBasicMaterial({ color: hexColor });
+      if (!this.pMats[k]) this.pMats[k] = this.glow(hexColor);
       return k;
     }
 
@@ -912,9 +953,9 @@
       const n = o.n || 6;
       for (let i = 0; i < n; i++) {
         if (this.particles.length > 500) { const old = this.particles.shift(); this.game.scene.remove(old.mesh); }
-        const mesh = new THREE.Mesh(this.pGeo, this.pMats[o.color || 'fire']);
+        const mesh = new THREE.Sprite(this.pMats[o.color || 'fire']);
         mesh.position.copy(pos);
-        const s = (o.size || 0.4) * (0.6 + Math.random() * 0.8);
+        const s = (o.size || 0.4) * (0.6 + Math.random() * 0.8) * 2.4; // a sprite's size is its width; the soft edge needs room
         mesh.scale.setScalar(s);
         const v = new V3(Math.random() - 0.5, Math.random() - 0.3, Math.random() - 0.5).normalize().multiplyScalar((o.speed || 6) * (0.4 + Math.random() * 0.8));
         if (o.up) v.y += o.up;
@@ -974,12 +1015,79 @@
 
     // run something a moment later (the big explosion after a wreck falls apart)
     later(t, fn) { (this.timers = this.timers || []).push({ t, fn }); }
+    // something that changes every frame for a while: fn(k) with k going 0 → 1, then the mesh is removed
+    anim(mesh, dur, fn) { this.game.scene.add(mesh); (this.anims = this.anims || []).push({ mesh, t: 0, dur, fn }); }
+
+    // the Shop's wreck effects (only the player who wrecked the mech sees theirs)
+    wreckFx(kind, at, color) {
+      const R = Math.random, V = (x, y, z) => new V3(at.x + x, at.y + y, at.z + z);
+      const pal = [0xff4d6d, 0xffd23f, 0x5ce1ff, 0x8ac926, 0xb5179e, 0xff8c42];
+      if (kind === 'confetti') {
+        for (let i = 0; i < 6; i++) this.burst(V(0, 1, 0), { n: 14, color: this.colorKey(pal[i]), speed: 13, up: 9, life: 1.8, size: 0.13, grav: 9 });
+        this.chunks(at, 10, pal[Math.floor(R() * pal.length)], 0.4);
+      } else if (kind === 'pixel') {
+        for (let i = 0; i < 26; i++) {
+          const m = new THREE.Mesh(this.cubeGeo || (this.cubeGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4)), CW.matBasic(i % 3 ? color : 0x5ce1ff));
+          m.position.copy(at); m.position.y += 1;
+          const v = new V3(R() - 0.5, R() * 0.8 + 0.2, R() - 0.5).normalize().multiplyScalar(6 + R() * 8);
+          this.anim(m, 1.1 + R() * 0.5, (k) => { m.position.addScaledVector(v, 0.016); v.y -= 0.25; m.rotation.x += 0.2; m.rotation.y += 0.15; m.scale.setScalar(1 - k); });
+        }
+        this.burst(at, { n: 20, color: this.colorKey(0x5ce1ff), speed: 10, life: 0.5, size: 0.15 });
+      } else if (kind === 'fireworks') {
+        for (let i = 0; i < 5; i++) this.later(0.12 + i * 0.16, () => {
+          const p = V((R() - 0.5) * 8, 7 + R() * 6, (R() - 0.5) * 8);
+          this.burst(p, { n: 34, color: this.colorKey(pal[i % pal.length]), speed: 11, life: 1.1, size: 0.16, grav: 5 });
+          this.burst(p, { n: 1, color: 'flash', speed: 0, life: 0.15, size: 1.2 });
+          this.game.audio.tone(900 + R() * 600, 0.12, 'triangle', 0.05, 0.4);
+        });
+      } else if (kind === 'lightning') {
+        const mat = new THREE.MeshBasicMaterial({ color: 0xbfefff, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false });
+        for (let b = 0; b < 2; b++) {
+          let a = V((R() - 0.5) * 6, 32, (R() - 0.5) * 6);
+          for (let i = 0; i < 9; i++) {
+            const bt = i === 8 ? at.clone() : new V3(at.x + (R() - 0.5) * 5 * (1 - i / 9), a.y - 3.5 - R() * 1.5, at.z + (R() - 0.5) * 5 * (1 - i / 9));
+            const seg = new THREE.Mesh(this.boltGeo || (this.boltGeo = new THREE.CylinderGeometry(0.12, 0.12, 1, 5).rotateX(Math.PI / 2).translate(0, 0, 0.5)), mat);
+            seg.position.copy(a); seg.lookAt(bt); seg.scale.set(1, 1, a.distanceTo(bt));
+            this.anim(seg, 0.35, (k) => { mat.opacity = k < 0.5 ? 1 : 2 - k * 2; });
+            a = bt;
+          }
+        }
+        this.burst(at, { n: 30, color: this.colorKey(0x8fd8ff), speed: 14, life: 0.5, size: 0.12, grav: 10 });
+        this.burst(at, { n: 1, color: this.colorKey(0xbfefff), speed: 0, life: 0.2, size: 3 });
+        this.shockwave(at);
+        this.game.audio.noise(0.5, 0.5, 4000);
+      } else if (kind === 'blackhole') {
+        const hole = new THREE.Mesh(this.holeGeo || (this.holeGeo = new THREE.SphereGeometry(1, 20, 14)), new THREE.MeshBasicMaterial({ color: 0x07020f }));
+        hole.position.copy(at); hole.position.y += 1.5;
+        this.anim(hole, 1.2, (k) => hole.scale.setScalar(k < 0.7 ? 0.2 + k * 3.5 : (1 - k) * 9));
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(2.2, 0.18, 8, 40), new THREE.MeshBasicMaterial({ color: 0xb06cff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+        ring.position.copy(hole.position); ring.rotation.x = Math.PI / 2;
+        this.anim(ring, 1.2, (k) => { ring.rotation.z += 0.15; ring.scale.setScalar(1.6 - k * 1.3); ring.material.opacity = 1 - k; });
+        for (let i = 0; i < 4; i++) this.later(i * 0.2, () => {
+          for (let j = 0; j < 10; j++) {
+            const a = R() * 6.3, r = 6 + R() * 3, p = new V3(hole.position.x + Math.cos(a) * r, hole.position.y + (R() - 0.5) * 3, hole.position.z + Math.sin(a) * r);
+            this.burst(p, { n: 1, color: this.colorKey(0xb06cff), speed: 0, life: 0.6, size: 0.2 });
+            const last = this.particles[this.particles.length - 1];
+            if (last) last.vel.copy(hole.position).sub(p).multiplyScalar(1.6); // pulled in
+          }
+        });
+        this.later(1.15, () => this.burst(hole.position, { n: 30, color: this.colorKey(0xb06cff), speed: 16, life: 0.6, size: 0.18 }));
+      }
+    }
 
     update(dt) {
       const game = this.game;
       const world = game.world;
       if (this.timers && this.timers.length) {
         for (const tm of this.timers.slice()) if ((tm.t -= dt) <= 0) { this.timers.splice(this.timers.indexOf(tm), 1); tm.fn(); }
+      }
+      if (this.anims && this.anims.length) {
+        for (let i = this.anims.length - 1; i >= 0; i--) {
+          const a = this.anims[i];
+          a.t += dt;
+          a.fn(Math.min(1, a.t / a.dur));
+          if (a.t >= a.dur) { game.scene.remove(a.mesh); this.anims.splice(i, 1); }
+        }
       }
       if (this.rings) for (let i = this.rings.length - 1; i >= 0; i--) {
         const r = this.rings[i];

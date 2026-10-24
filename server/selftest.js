@@ -395,6 +395,11 @@ async function main() {
   gu.send({ t: 'buy', kind: 'trails', id: 'fire' });
   const gb = await gu.next('wallet');
   check(gb.bought && gb.w.coins === 700 - gb.bought.price, 'guests buy at the server price');
+  // the v1.8.2 shop kinds: a mech finish and a wreck effect (both too expensive here) are refused without coins
+  gu.send({ t: 'buy', kind: 'finishes', id: 'gold' });
+  check(/more coins/.test((await gu.next('acctErr')).msg), 'a mech finish costs coins (refused when short)');
+  gu.send({ t: 'buy', kind: 'wrecks', id: 'nope' });
+  check(/isn't for sale/.test((await gu.next('acctErr')).msg), 'an unknown wreck effect is not for sale');
   gu.ws.close();
   const gu2 = await player();
   gu2.send({ t: 'guest', token: gok.token, profile: { coins: 999999 } });
@@ -603,7 +608,7 @@ async function main() {
   const wr = (await wk.next('room')).room;
   check(wr.settings.event === E.week().id && wr.settings.mode === E.week().mode, `the weekly event queue plays ${E.week().name}`);
   wk.send({ t: 'quick', kind: 'ranked' });
-  check(/Ranked unlocks/.test((await wk.next('err')).msg), 'Ranked needs 600 best trophies');
+  check(/Ranked unlocks/.test((await wk.next('err')).msg), 'Ranked needs 100 best trophies');
   wk.ws.close();
   const rk = await player();
   rk.send({ t: 'acctLogin', name: 'Alice_1', pass: 'newpass456' });

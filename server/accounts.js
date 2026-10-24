@@ -877,6 +877,7 @@ class Accounts {
       if (had) this.importGuest(u.w, u.save.data.profile, 50000, 200000);
     }
     const w = u.w;
+    for (const k of ['finishes', 'wrecks']) if (!Array.isArray(w.owned[k])) w.owned[k] = []; // added in v1.8.2
     if (w.xp === undefined) w.xp = Math.min(200000, Math.max(0, Math.floor(+(u.save && u.save.data && u.save.data.profile && u.save.data.profile.xp) || 0)));
     if (!w.ch) w.ch = { day: '', got: [] };
     const s = E.season().id;

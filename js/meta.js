@@ -13,9 +13,10 @@
     el.style.backgroundBlendMode = 'multiply';
   };
   const swatchStyle = (c, tex) => `background:${hex(c)} url(${CW.texURL(tex || 'panel')}) center/160% auto;background-blend-mode:multiply`;
-  const SHOP_LABEL = { paints: 'Paint', trails: 'Dash trail', avatars: 'Avatar' };
+  const SHOP_LABEL = { paints: 'Paint', trails: 'Dash trail', avatars: 'Avatar', finishes: 'Mech finish', wrecks: 'Wreck effect' };
   // keys that can be turned off: voice chat (push-to-talk, mute, deafen) and opening the chat
   const OPT_KEYS = { vcPtt: 'KeyB', vcMute: 'KeyM', vcDeaf: 'KeyN', chatKey: 'KeyT' };
+  const SUPPORT_EMAIL = 'theblueduckymc@gmail.com'; // BlueDucky Games' public contact (also in privacy.html)
 
   // the Shop's catalog lives in js/economy.js (CW.SHOP), shared with the server
 
@@ -44,7 +45,7 @@
   CW.KEY_ACTIONS = [
     { id: 'forward', label: 'Drive forward / walk', def: 'KeyW' }, { id: 'back', label: 'Reverse / walk back', def: 'KeyS' },
     { id: 'left', label: 'Turn left / step left', def: 'KeyA' }, { id: 'right', label: 'Turn right / step right', def: 'KeyD' },
-    { id: 'up', label: 'Up / jump', def: 'Space' }, { id: 'down', label: 'Down / dive', def: 'KeyC' }, { id: 'dash', label: 'Dash', def: 'ShiftLeft' }, { id: 'super', label: 'Super (also right-click)', def: 'KeyX' }, { id: 'gadget', label: 'Gadget', def: 'KeyG' },
+    { id: 'up', label: 'Fly up / jump', def: 'Space' }, { id: 'down', label: 'Fly down / dive (also Q, Ctrl)', def: 'KeyC' }, { id: 'dash', label: 'Dash', def: 'ShiftLeft' }, { id: 'super', label: 'Super (also right-click)', def: 'KeyX' }, { id: 'gadget', label: 'Gadget', def: 'KeyG' },
     { id: 'exit', label: 'Exit / enter mech', def: 'KeyE' }, { id: 'repair', label: 'Repair (hold, on foot)', def: 'KeyR' }, { id: 'unstuck', label: 'Unstuck', def: 'KeyF' },
     { id: 'camera', label: 'Switch camera', def: 'KeyV' }, { id: 'scores', label: 'Scoreboard', def: 'Tab' }, { id: 'clip', label: 'Save clip', def: 'F8' },
   ];
@@ -59,7 +60,8 @@
       this.game = game;
       const p = game.profile;
       p.coins = p.coins || 0;
-      p.owned = Object.assign({ paints: [], trails: ['spark'], avatars: [] }, p.owned || {});
+      p.owned = Object.assign({ paints: [], trails: ['spark'], avatars: [], finishes: [], wrecks: [] }, p.owned || {});
+      p.owned.finishes = p.owned.finishes || []; p.owned.wrecks = p.owned.wrecks || [];
       p.owned.avatars = p.owned.avatars || [];
       p.trail = p.trail || 'spark';
       p.stats = Object.assign({ matches: 0, wins: 0, wrecks: 0, elims: 0, deaths: 0, dashes: 0, parts: 0, rams: 0, airTime: 0, waterTime: 0, bestStreak: 0, coinsEarned: 0, rush: 0, clash: 0 }, p.stats || {});
@@ -162,6 +164,27 @@
       this.renderMenu();
     }
 
+    // ---------------- support / contact us (Settings › Support and the top of Help) ----------------
+    supportHtml() {
+      return `<div class="support-card"><div class="sup-ico">✉</div><div class="sup-txt"><b>Need help? Contact us</b>
+        <span>Found a bug, lost progress, a problem with a player or a question? Email BlueDucky Games at <b class="sup-mail">${SUPPORT_EMAIL}</b>. We read every message.</span>
+        <span class="small">Tip: tell us your username, your device and what happened. To report a player in a match, tap their name in the chat.</span></div>
+        <div class="sup-btns"><button class="ws-btn on" data-support="mail">✉ Email us</button><button class="ws-btn" data-support="copy">📋 Copy email</button></div></div>`;
+    }
+    bindSupport(root) {
+      root.querySelectorAll('[data-support]').forEach((b) => (b.onclick = () => {
+        if (b.dataset.support === 'copy') {
+          const done = () => this.game.toast('📋 Email copied: ' + SUPPORT_EMAIL);
+          try { navigator.clipboard.writeText(SUPPORT_EMAIL).then(done, () => this.game.toast(SUPPORT_EMAIL)); } catch (e) { this.game.toast(SUPPORT_EMAIL); }
+          return;
+        }
+        const acct = this.game.account, who = acct && acct.loggedIn ? acct.me.name : 'guest';
+        const device = CW.PORTAL ? 'website (' + CW.PORTAL + ')' : window.CogwildNative ? 'Android app' : /Electron/.test(navigator.userAgent) ? 'desktop app' : 'browser';
+        const body = `Username: ${who}\nGame version: ${CW.VERSION} (${device})\n\nWhat happened:\n`;
+        CW.openExternal(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Cogwild support ' + CW.VERSION)}&body=${encodeURIComponent(body)}`);
+      }));
+    }
+
     // ---------------- shop helpers ----------------
     owns(kind, id) { return (this.game.profile.owned[kind] || []).includes(id); }
     dealPrice(it) { return E.dealPrice(it); }
@@ -174,6 +197,8 @@
     shopLook(kind, it) {
       return kind === 'paints' ? `<div class="swatch tex" style="${swatchStyle(it.color)}"></div>`
         : kind === 'trails' ? `<div class="swatch trail" style="background:${it.colors.length > 1 ? `linear-gradient(90deg,${it.colors.map(hex).join(',')})` : hex(it.colors[0])}"><i></i><i></i><i></i></div>`
+          : kind === 'finishes' ? `<div class="swatch fin fin-${it.id}"><i>${it.icon}</i></div>`
+            : kind === 'wrecks' ? `<div class="swatch wfx wfx-${it.id}"><i>${it.icon}</i></div>`
           : `<div class="swatch av">${CW.avatar(it.idx)}</div>`;
     }
     // "Buy it?" pop-up before any coins are spent
@@ -206,6 +231,8 @@
       const p = this.game.profile;
       const it = CW.SHOP[kind].find((x) => x.id === id);
       if (kind === 'trails') p.trail = id;
+      if (kind === 'finishes') { p.finish = id; this.game.refreshShowcase && this.game.refreshShowcase(); }
+      if (kind === 'wrecks') p.wreckFx = id;
       if (kind === 'avatars' && this.game.account.loggedIn) this.game.account.net.send({ t: 'profileSet', av: it.idx });
       this.save();
       this.game.toast(`Unlocked ${it.name}!`);
@@ -278,9 +305,11 @@
         const item = (kind, it, deal) => {
           const own = this.owns(kind, it.id);
           const price = deal ? this.dealPrice(it) : it.price;
-          const eq = (kind === 'trails' && p.trail === it.id) || (kind === 'avatars' && this.game.account.me && this.game.account.me.av === it.idx);
-          const act = eq || (own && kind === 'paints') ? '' : own ? 'equip' : 'buy';
-          const tag = eq ? '<span class="owned">★ Equipped</span>'
+          const eq = (kind === 'trails' && p.trail === it.id) || (kind === 'avatars' && this.game.account.me && this.game.account.me.av === it.idx)
+            || (kind === 'finishes' && p.finish === it.id) || (kind === 'wrecks' && p.wreckFx === it.id);
+          // finishes and wreck effects can be taken off again (click the equipped one)
+          const act = eq && (kind === 'finishes' || kind === 'wrecks') ? 'equip' : eq || (own && kind === 'paints') ? '' : own ? 'equip' : 'buy';
+          const tag = eq ? `<span class="owned">★ Equipped${kind === 'finishes' || kind === 'wrecks' ? ' · click to take off' : ''}</span>`
             : own ? (kind === 'paints' ? '<span class="owned">✔ Owned</span>' : '<span class="price equip">Equip</span>')
               : `<span class="price">${deal ? `<s>${it.price}</s> ` : ''}${price} 🪙</span>`;
           const data = act ? ` data-act="${act}" data-kind="${kind}" data-id="${it.id}" data-deal="${deal ? 1 : ''}" role="button" tabindex="0"` : '';
@@ -294,6 +323,8 @@
           <div class="shop-gift ${giftReady ? 'ready' : ''}"><span class="g-ico">🎁</span><div><b>Daily gift</b><br><span>${giftReady ? `Free coins! Come back every day for a bigger gift.` : `Next gift in ${left} · streak ${streak} day${streak > 1 ? 's' : ''}`}</span></div>${giftReady ? '<button class="ws-btn on" id="shopGift">Claim</button>' : ''}</div>
           <h3>🔥 Daily deals <span class="small" id="dealTimer">new deals in ${left}</span></h3>
           <div class="shop-grid">${deals.length ? deals.map((d) => item(d.kind, d.it, true)).join('') : '<div class="small">You own everything in the shop. Wow!</div>'}</div>
+          <h3>🌟 Mech finishes <span class="small">change how your mech's paint looks: chrome, gold, glowing neon…</span></h3><div class="shop-grid">${sale('finishes').map((it) => item('finishes', it)).join('')}</div>
+          <h3>💥 Wreck effects <span class="small">what you see when you wreck an enemy</span></h3><div class="shop-grid">${sale('wrecks').map((it) => item('wrecks', it)).join('')}</div>
           <h3>🎨 Paints <span class="small">for your mechs, in the Workshop's Paint section</span></h3><div class="shop-grid">${sale('paints').map((it) => item('paints', it)).join('')}</div>
           <h3>✨ Dash trails</h3><div class="shop-grid">${sale('trails').map((it) => item('trails', it)).join('')}</div>
           <h3>🙂 Avatars <span class="small">${this.game.account.loggedIn ? 'shown on your profile, in rooms and on the leaderboard' : 'log in to wear them'}</span></h3><div class="shop-grid">${sale('avatars').map((it) => item('avatars', it)).join('')}</div>`;
@@ -303,6 +334,8 @@
           const go = () => {
             if (b.dataset.act === 'buy') return this.confirmBuy(b.dataset.kind, it, !!b.dataset.deal);
             if (b.dataset.kind === 'trails') { p.trail = it.id; this.save(); }
+            if (b.dataset.kind === 'finishes') { p.finish = p.finish === it.id ? '' : it.id; this.save(); this.game.refreshShowcase && this.game.refreshShowcase(); this.game.toast(p.finish ? `🌟 ${it.name} on your mech` : 'Finish taken off'); }
+            if (b.dataset.kind === 'wrecks') { p.wreckFx = p.wreckFx === it.id ? '' : it.id; this.save(); this.game.toast(p.wreckFx ? `💥 Your wrecks: ${it.name}` : 'Wreck effect taken off'); }
             if (b.dataset.kind === 'avatars') { if (!this.game.account.loggedIn) return this.game.account.openLogin('Log in to wear avatars'); this.game.account.net.send({ t: 'profileSet', av: it.idx }); }
             this.renderPanel();
           };
@@ -330,7 +363,7 @@
           const k = this.optKey(id);
           return `<div class="set-row key-row"><span>${label}</span><span class="key-pair"><button class="ws-btn key-btn" data-vkey="${id}">${k === 'none' ? 'No key' : CW.keyName(k)}</button><button class="ws-btn key-off ${k === 'none' ? 'hidden' : ''}" data-vkeyoff="${id}" aria-label="No key">✕</button></span></div>`;
         };
-        const tabs = [['account', '👤', 'Account'], ['display', '🖥', 'Display'], ['controls', '🎮', 'Controls'], ['keys', '⌨', 'Keys'], ['touch', '📱', 'Touch screen'], ['sound', '🔊', 'Sound'], ['voice', '🎤', 'Voice chat'], ['chat', '💬', 'Chat'], ['online', '🌐', 'Online'], ['save', '💾', 'Save data']];
+        const tabs = [['account', '👤', 'Account'], ['display', '🖥', 'Display'], ['controls', '🎮', 'Controls'], ['keys', '⌨', 'Keys'], ['touch', '📱', 'Touch screen'], ['sound', '🔊', 'Sound'], ['voice', '🎤', 'Voice chat'], ['chat', '💬', 'Chat'], ['online', '🌐', 'Online'], ['save', '💾', 'Save data'], ['support', '✉', 'Support']];
         body.innerHTML = `<div class="set-wrap"><nav class="set-tabs">${tabs.map(([id, ico, name]) => `<button class="set-tab" data-settab="${id}"><i>${ico}</i><span>${name}</span></button>`).join('')}</nav><div class="set-main">
           <section class="set-sec" data-sec="account"><h3>👤 Account</h3>
           <div class="set-row"><span>${acct && acct.loggedIn ? `Logged in as <b>${CW.esc(acct.me.name)}</b> · progress backed up to the cloud` : 'Playing as a guest (progress saved on this device only)'}</span><button class="ws-btn on" id="setAcct">${acct && acct.loggedIn ? 'Profile' : 'Log in / Sign up'}</button></div>
@@ -388,7 +421,9 @@
             <button class="ws-btn" id="setExport">💾 Back up save</button>
             <button class="ws-btn" id="setImport">📥 Restore save</button>
             <button class="ws-btn" id="setReset">Reset all progress…</button>
-          </div></section></div></div>`;
+          </div></section><section class="set-sec" data-sec="support"><h3>✉ Support</h3>${this.supportHtml()}
+          <div class="small" style="margin-top:8px">Cogwild ${CW.VERSION} · <a href="privacy.html" target="_blank" rel="noopener">Privacy</a> · <a href="terms.html" target="_blank" rel="noopener">Terms</a></div></section></div></div>`;
+        this.bindSupport(body);
         // one category at a time (the last one you looked at)
         const showTab = (id) => {
           this.setTab = id;
@@ -510,6 +545,7 @@
         body.innerHTML = `<div class="small">${n} / ${CW.ACHIEVEMENTS.length} unlocked. Each one pays coins.</div><div class="ach-grid">${CW.ACHIEVEMENTS.map((a) => `<div class="ach ${got[a.id] ? 'got' : ''}"><b>${got[a.id] ? '🏆' : '🔒'} ${a.name}</b><span class="small">${a.desc}</span>${got[a.id] ? '' : prog(a)}<div class="small">+${a.reward} 🪙</div></div>`).join('')}</div>`;
       } else if (k === 'news') {
         body.innerHTML = `<ul class="news">
+          <li><b>v1.8.2</b>: 🛒 New in the Shop: <b>mech finishes</b> (Carbon Fiber, Stealth Matte, Mirror Chrome, Neon Glow, Gold Plated, Rainbow Shift) and <b>wreck effects</b> (Confetti, Pixel Burst, Fireworks, Thunderstrike, Black Hole). 🏅 Ranked opens at 100 trophies. 🔧 Repairing is much faster: even a huge mech is rebuilt in about 4 seconds. ✈ While flying the screen shows how to climb (Space) and fly down (C). 🏋 Heavy mechs are much less slow. 🌲 New trees (pines, leafy trees, palms, cacti, burnt trees) and craggy rocks; soft glowing sparks and smoke instead of solid balls; only the part you hit flashes. 💬 T opens and closes the chat. ✉ Settings › Support and Help: contact us. Fixed: getting out next to a cliff or walking under a bridge could put you on top of it, and pilots could run up steep mountains and their own mech.</li>
           <li><b>v1.8.1</b>: 🖼 The Workshop part list shows a small 3D picture of every part. Name tags and health bars now sit exactly on their mech at any distance (they drifted on big screens).</li>
           <li><b>v1.8.0</b>: 🏎 Mechs drive like cars: A/D steer (front wheels turn, small taps = small corrections), S brakes, and letting go of A/D keeps your aim exactly where it is. 🔩 750 Bolts to build with. New <b>Body</b> parts (Car Body, Flat Panel, Nose, Cabin, Fender, Spoiler, Headlights, Exhaust), real-looking wheels and monster-truck <b>Big Wheels</b>. New example mechs: Monster Truck and Street Racer. Small tracer bullets with a real gunshot sound, parts that break off and fly, wrecks that fall apart and then explode. A calmer Workshop and smoother menus.</li>
           <li><b>v1.7.5</b>: 🎓 A clearer tutorial: a small see-through card with the keys to press (they light up), and a big arrow pointing at what to do next: the Target, the gem, your mech, or the button to tap on a phone.</li>
@@ -542,7 +578,7 @@
           <li>🛡 <b>Clubs</b>: start or join a club of up to 30 players, add up your trophies together and cheer each other on the club wall.</li>
           <li>🧰 <b>Gadgets</b>: Repair Kit, Proximity Mine, Jump Jets or Smoke Screen, 3 uses a match (G / 🧰). Pick yours in the PLAY panel.</li>
           <li>🎯 New mode <b>Bounty Hunt</b> and new arena <b>🏗 Scrap Yard</b>.</li>
-          <li>🗓 <b>Weekly events</b> with a twist (low gravity, double damage, fast supers…) and +50% coins. 🏅 <b>Ranked</b> unlocks at 600 trophies: 3v3 for ranked points each season.</li>
+          <li>🗓 <b>Weekly events</b> with a twist (low gravity, double damage, fast supers…) and +50% coins. 🏅 <b>Ranked</b> unlocks at 600 trophies (100 since v1.8.2): 3v3 for ranked points each season.</li>
           <li>⚖ Fair play: coins and unlocks are now kept safe on the server for logged-in players, match results are checked, a random player hosts, and if the host quits, someone else takes over and the match goes on.</li>
           <li><b>v1.2.1</b>: 🛡 Safety and stability update: stronger protection for accounts and the server, and if the host quits a PLAY match, everyone else is put straight into a new search instead of getting stuck.</li>
           <li><b>v1.2</b>: ⭐ <b>Supers!</b> Deal damage to charge your super, then press X / right-click / ⭐: Shield Dome, Turbo Ram, Missile Barrage or EMP Shockwave, depending on what your mech is built from (the Workshop shows which).</li>
@@ -583,10 +619,10 @@
           <li><b>v0.3</b>: Rush Build & Workshop Clash modes, 1v1 / 3v3 / 2v2v2v2 / 8 FFA, Test Drive, undo/redo, paint.</li>
           <li><b>Coming later</b>: real online multiplayer with friends.</li></ul>`;
       } else if (k === 'howto') {
-        body.innerHTML = `
+        body.innerHTML = `${this.supportHtml()}
           <div class="howto">
           <div><h3>🎯 Goal</h3><p>Build a mech, fight, and be the last pilot (or team) standing. A wrecked mech ejects its pilot: you can still fight on foot!</p></div>
-          <div><h3>🎮 Mech controls</h3><p><b>W/S</b> drive · <b>A/D</b> turn · <b>Mouse</b> look & aim · <b>Click</b> fire<br><b>Shift</b> DASH (with A/D on Legs = sidestep) · <b>Space</b> up / jump (Legs) · <b>C</b> or <b>Ctrl</b> down<br><b>E</b> exit mech · <b>V</b> switch camera · <b>F</b> unstuck · <b>Tab</b> scores · <b>Esc</b> pause</p></div>
+          <div><h3>🎮 Mech controls</h3><p><b>W</b> drive · <b>S</b> brake / reverse · <b>A/D</b> steer · <b>Mouse</b> aim · <b>Click</b> fire<br><b>Shift</b> DASH (with A/D on Legs = sidestep) · Flying: hold <b>Space</b> to climb, <b>C</b> (or Q / Ctrl) to fly down · <b>Space</b> = jump on Legs<br><b>E</b> exit mech · <b>V</b> switch camera · <b>F</b> unstuck · <b>Tab</b> scores · <b>Esc</b> pause</p></div>
           <div><h3>🎮 Controller</h3><p><b>Left stick</b> drive · <b>Right stick</b> look · <b>RT</b> fire · <b>A</b> up/jump · <b>B / LT</b> down · <b>X</b> dash · <b>Y</b> exit/enter · <b>LB</b> repair · <b>RB</b> camera · <b>View</b> scoreboard · <b>Start</b> pause · <b>D-pad ↑</b> save clip. In menus: D-pad + A, B = back.</p></div>
           <div><h3>🎬 Clips</h3><p>Press <b>F8</b> during a match to save the last 10–20 seconds as a video in your Downloads. Perfect for TikTok / Shorts!</p></div>
           <div><h3>🔧 Repairing</h3><p>Press <b>E</b> to hop out, stand next to your mech and <b>hold R</b>. Damaged parts are fixed first, then blown-off parts are rebuilt one by one. Press <b>E</b> to climb back in. Careful: you're exposed while on foot! Repair Kits and Repair Drones also heal.</p></div>
@@ -599,10 +635,11 @@
           <div><h3>🧰 Chests & lava</h3><p>Drive into a <b>chest</b> to open it (coins, XP, power-ups). Gold beams = supply drops. On Volcano Rift, <b>lava burns</b> whatever touches it, so use the bridges or fly.</p></div>
           <div><h3>🛡 Survival</h3><p>Endless waves of bots. Your mech is rebuilt between waves. Beat your best wave!</p></div>
           <div><h3>🧰 Supers & gadgets</h3><p>Deal damage to fill your <b>super</b> (X / right-click / ⭐). Your <b>gadget</b> (G / 🧰) has 3 uses a match with a short cooldown: pick it in the PLAY panel.</p></div>
-          <div><h3>🎟 Cog Pass, clubs, Ranked</h3><p>Every match earns <b>Cog Pass</b> points for free rewards. Join a <b>club</b> to team up. At 600 trophies <b>Ranked</b> opens: 3v3 for ranked points that reset each season.</p></div>
+          <div><h3>🎟 Cog Pass, clubs, Ranked</h3><p>Every match earns <b>Cog Pass</b> points for free rewards. Join a <b>club</b> to team up. At ${E.RANKED.unlockAt} trophies <b>Ranked</b> opens: 3v3 for ranked points that reset each season.</p></div>
           <div><h3>💰 Progress</h3><p>Matches give XP and coins. Daily challenges and the daily reward give more. Spend coins in the Shop on paints and dash trails.</p></div>
           <div><h3>⚡ Sudden death</h3><p>After 4 minutes all cores overheat, so no match lasts forever.</p></div>
           </div>`;
+        this.bindSupport(body);
       }
     }
 
@@ -653,7 +690,7 @@
       }));
       $('weekPick').onclick = () => { this.settings.mmEvent = 'weekly'; this.save(); g.renderArenaCard(); this.closePanel(); g.audio.click(1.3); };
       $('rankedPick').onclick = () => {
-        if (!canRanked) return g.toast(g.account.loggedIn ? `🏅 Ranked unlocks at ${E.RANKED.unlockAt} trophies` : 'Log in and reach 600 trophies to play Ranked');
+        if (!canRanked) return g.toast(g.account.loggedIn ? `🏅 Ranked unlocks at ${E.RANKED.unlockAt} trophies` : `Log in and reach ${E.RANKED.unlockAt} trophies to play Ranked`);
         this.settings.mmEvent = 'ranked'; this.save(); g.renderArenaCard(); this.closePanel(); g.audio.click(1.3);
       };
       body.querySelectorAll('[data-mode]').forEach((b) => (b.onclick = () => {

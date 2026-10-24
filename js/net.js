@@ -322,7 +322,9 @@
     myBp() {
       const list = this.mechChoices();
       const pick = list[this.bpIndex] && list[this.bpIndex].ok ? list[this.bpIndex] : list.find((e) => e.ok);
-      return CW.cloneBp(pick ? pick.bp : CW.PRESETS[0]);
+      const bp = CW.cloneBp(pick ? pick.bp : CW.PRESETS[0]);
+      if (this.game.profile.finish) bp.fin = this.game.profile.finish; // others see your finish
+      return bp;
     }
     sendReady() {
       const bp = this.myBp();

@@ -571,8 +571,10 @@
       const p = this.game.profile;
       this.wallet = w;
       p.coins = w.coins;
-      p.owned = { paints: w.owned.paints.slice(), trails: w.owned.trails.slice(), avatars: w.owned.avatars.slice() };
+      p.owned = { paints: w.owned.paints.slice(), trails: w.owned.trails.slice(), avatars: w.owned.avatars.slice(), finishes: (w.owned.finishes || []).slice(), wrecks: (w.owned.wrecks || []).slice() };
       if (!p.owned.trails.includes(p.trail)) p.trail = 'spark';
+      if (p.finish && !p.owned.finishes.includes(p.finish)) p.finish = '';
+      if (p.wreckFx && !p.owned.wrecks.includes(p.wreckFx)) p.wreckFx = '';
       p.road = w.road.slice();
       p.dailyClaimed = w.gift.day;
       p.dailyStreak = w.gift.streak;

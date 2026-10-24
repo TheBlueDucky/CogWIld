@@ -227,7 +227,7 @@
       height: canyonHeight, color: canyonColor,
       bridges: [{ x: CW.canyonX(-35), z: -35, axis: 'x' }, { x: CW.canyonX(75), z: 75, axis: 'x' }],
       waterCenter: CW.LAKE, crystals: { x: 115, z: -115 }, grass: true, snow: false,
-      trees: { leaf: 0x2d9c55, leaf2: 0x3fbf6a, trunk: 0x8b5a2b, rock: 0x9e9e9e },
+      trees: { shape: 'pine', shape2: 'oak', leaf: 0x2d8c4e, leaf2: 0x3fae5f, trunk: 0x7a4f2a, rock: 0x9e9e9e },
     },
     isles: {
       id: 'isles', name: 'Frost Isles', icon: '🏔', desc: 'Snowy islands linked by bridges across an icy sea.',
@@ -242,7 +242,7 @@
       bridges: [{ x: 72, z: 0, axis: 'x' }, { x: -72, z: 0, axis: 'x' }, { x: 0, z: 72, axis: 'z' }, { x: 0, z: -72, axis: 'z' }],
       waterCenter: { x: 72, z: 40 }, crystals: { x: 0, z: 0 }, grass: false, particles: 'embers', lava: true, liquid: 'lava',
       tint: { sky: 0xff6a3a, fog: 0x5a2a1a, top: 0x2a1414 },
-      trees: { leaf: 0x2b2b2b, leaf2: 0x3a3a3a, trunk: 0x1f1a17, rock: 0x3a3534 },
+      trees: { shape: 'dead', leaf: 0x2b2b2b, leaf2: 0x3a3a3a, trunk: 0x2a221d, rock: 0x3a3534, count: 120 },
     },
     desert: {
       id: 'desert', noBoats: true, name: 'Desert Mesa', icon: '🏜', desc: 'Dunes and tall mesas (each has one ramp up), plus a small oasis.',
@@ -577,9 +577,14 @@
     groundAt(x, z, refY) {
       let h = CW.terrainHeight(x, z);
       for (const b of this.bridges) {
-        if (b.y <= h || (refY !== undefined && refY < b.y - 2.2)) continue;
+        if (b.y <= h) continue;
         const along = b.axis === 'x' ? x : z, cross = b.axis === 'x' ? z : x;
-        if (along > b.a0 && along < b.a1 && Math.abs(cross - b.c) < b.w) h = b.y;
+        if (!(along > b.a0 && along < b.a1 && Math.abs(cross - b.c) < b.w)) continue;
+        // something under or beside the deck only lands on it when it's within a step of it (no popping up from
+        // beneath the bridge); near the ends, where you drive onto it, a bigger step is fine
+        const nearEnd = along < b.a0 + 5 || along > b.a1 - 5;
+        if (refY !== undefined && refY < b.y - (nearEnd ? 2.2 : 0.9)) continue;
+        h = b.y;
       }
       return h;
     }
@@ -709,20 +714,113 @@
       const rnd = () => hash(seed++, 77);
       this.trees = [];
       this.rocks = [];
-      // each arena picks a plant shape: three pieces, each with a geometry and a height offset
-      const SHAPES = {
-        pine: () => [[new THREE.CylinderGeometry(0.3, 0.45, 2.2, 6), 1.1], [new THREE.ConeGeometry(1.8, 4.5, 7), 4.2], [new THREE.ConeGeometry(1.3, 3.2, 7), 6.3]],
-        cactus: () => [[new THREE.CylinderGeometry(0.45, 0.55, 5, 8), 2.5], [new THREE.CylinderGeometry(0.28, 0.28, 2, 8).translate(1, 0, 0), 3.4], [new THREE.CylinderGeometry(0.26, 0.26, 1.6, 8).translate(-0.95, 0, 0), 2.6]],
-        palm: () => [[new THREE.CylinderGeometry(0.28, 0.45, 7, 7), 3.5], [new THREE.ConeGeometry(3.4, 1.4, 8), 7.3], [new THREE.SphereGeometry(0.5, 8, 6), 6.6]],
-        mushroom: () => [[new THREE.CylinderGeometry(0.45, 0.7, 3.4, 8), 1.7], [new THREE.SphereGeometry(2.4, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), 3.2], [new THREE.SphereGeometry(0.9, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), 5.5]],
+      // ---- plants: each arena has its plant shapes (canyon mixes pines and leafy trees). A shape is three pieces
+      // (trunk, leaves, more leaves), each one geometry drawn for all trees at once; uneven surfaces, darker
+      // undersides and a slightly different color per tree make them look natural ----
+      const g3 = THREE;
+      // nudge every corner a little (the same corner always moves the same way, so pieces stay closed)
+      const rough = (geo, amt, k = 1.7) => {
+        const pos = geo.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+          const n = (a, b, c) => hash(Math.round(a * 97 + 13), Math.round(b * 89 + c * 61)) - 0.5;
+          pos.setXYZ(i, x + n(x, y, z) * amt, y + n(y, z, x) * amt * 0.6, z + n(z, x, y) * amt);
+        }
+        return geo;
       };
-      const shape = SHAPES[this.arena.trees.shape || 'pine']();
-      const maxTrees = this.arena.trees.count === undefined ? 320 : this.arena.trees.count;
-      const trunks = new THREE.InstancedMesh(shape[0][0], CW.mat(this.arena.trees.trunk), Math.max(1, maxTrees));
-      const leaves = new THREE.InstancedMesh(shape[1][0], CW.mat(this.arena.trees.leaf), Math.max(1, maxTrees));
-      const leaves2 = new THREE.InstancedMesh(shape[2][0], CW.mat(this.arena.trees.leaf2), Math.max(1, maxTrees));
-      const offs = shape.map((x) => x[1]);
-      const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
+      // many pieces → one geometry with shading baked in (vertex colors: dark at the bottom of each piece, lighter on top)
+      const merge = (pieces) => {
+        const pos = [], col = [];
+        for (const [geo0, lo, hi] of pieces) {
+          const geo = geo0.index ? geo0.toNonIndexed() : geo0;
+          geo.computeBoundingBox();
+          const b = geo.boundingBox, p = geo.attributes.position;
+          for (let i = 0; i < p.count; i++) {
+            const y = p.getY(i), t = (y - b.min.y) / Math.max(0.001, b.max.y - b.min.y);
+            const c = lo + (hi - lo) * t;
+            pos.push(p.getX(i), y, p.getZ(i)); col.push(c, c, c);
+          }
+        }
+        const out = new g3.BufferGeometry();
+        out.setAttribute('position', new g3.Float32BufferAttribute(pos, 3));
+        out.setAttribute('color', new g3.Float32BufferAttribute(col, 3));
+        out.computeVertexNormals(); // pieces don't share corners: crisp facets
+        return out;
+      };
+      const cone = (r, h, y, seg = 9) => rough(new g3.ConeGeometry(r, h, seg, 2).translate(0, y, 0), r * 0.22);
+      const blob = (r, x, y, z) => rough(new g3.IcosahedronGeometry(r, 1).translate(x, y, z), r * 0.28);
+      const stick = (r0, r1, h, x, y, z, rx = 0, rz = 0) => new g3.CylinderGeometry(r1, r0, h, 7).translate(0, h / 2, 0).rotateX(rx).rotateZ(rz).translate(x, y, z);
+      const SHAPES = {
+        pine: () => [
+          merge([[rough(new g3.CylinderGeometry(0.2, 0.42, 3.4, 7).translate(0, 1.7, 0), 0.06), 0.6, 1]]),
+          merge([[cone(2.2, 2.6, 2.9), 0.62, 1], [cone(1.35, 2.0, 5.5), 0.62, 1]]),
+          merge([[cone(1.8, 2.3, 4.2), 0.62, 1], [cone(0.9, 1.6, 6.7), 0.66, 1]]),
+        ],
+        oak: () => [
+          merge([[rough(new g3.CylinderGeometry(0.3, 0.55, 3.6, 8).translate(0, 1.8, 0), 0.08), 0.6, 1], [stick(0.22, 0.12, 2.2, 0.2, 2.6, 0, 0, -0.8), 0.6, 1], [stick(0.2, 0.1, 2, -0.2, 2.9, 0, 0.5, 0.7), 0.6, 1]]),
+          merge([[blob(1.9, 0, 4.6, 0), 0.65, 1], [blob(1.5, 1.6, 4.1, 0.4), 0.65, 1], [blob(1.4, -1.5, 4.3, -0.5), 0.65, 1], [blob(1.3, 0.3, 4.0, 1.6), 0.65, 1], [blob(1.3, -0.2, 4.2, -1.6), 0.65, 1]]),
+          merge([[blob(1.2, 0.5, 5.9, 0.3), 0.75, 1.05], [blob(1.0, -0.8, 5.6, 0.6), 0.75, 1.05], [blob(0.9, 0.2, 5.5, -0.9), 0.75, 1.05]]),
+        ],
+        palm: () => {
+          // one smooth trunk that curves to the side, with darker rings
+          const tg = new g3.CylinderGeometry(0.22, 0.36, 7, 9, 14).translate(0, 3.5, 0).toNonIndexed();
+          const tp = tg.attributes.position;
+          for (let i = 0; i < tp.count; i++) tp.setX(i, tp.getX(i) + 0.024 * tp.getY(i) * tp.getY(i));
+          const trunk = merge([[tg, 0.75, 1]]);
+          const tc = trunk.attributes.color, tpp = trunk.attributes.position;
+          for (let i = 0; i < tc.count; i++) { const band = Math.floor(tpp.getY(i) / 0.5) % 2 ? 0.78 : 1; tc.setXYZ(i, tc.getX(i) * band, tc.getY(i) * band, tc.getZ(i) * band); }
+          // fronds: each a V-shaped leaf in 5 pieces that droops more toward its tip
+          const fronds = [], top = new g3.Vector3(1.18, 7.05, 0);
+          for (let i = 0; i < 9; i++) {
+            const a = (i / 9) * Math.PI * 2 + (i % 2) * 0.2;
+            let y = 0, z = 0, droop = -0.3 + (i % 3) * 0.12; // starts a little upward, then bends down
+            for (let j = 0; j < 5; j++) {
+              const len = 0.85, w = 0.62 - j * 0.1;
+              for (const side of [-1, 1]) {
+                const half = new g3.BoxGeometry(w * 0.5, 0.04, len).translate(side * w * 0.25, 0, len / 2).rotateZ(side * 0.35);
+                half.rotateX(droop).translate(0, y, z).rotateY(a).translate(top.x, top.y, top.z);
+                fronds.push([half, 0.72, 1]);
+              }
+              y -= Math.sin(droop) * len; z += Math.cos(droop) * len;
+              droop += 0.3;
+            }
+          }
+          return [trunk, merge(fronds), merge([[blob(0.28, 1.07, 6.75, 0.25), 0.7, 1], [blob(0.28, 1.37, 6.8, -0.2), 0.7, 1], [blob(0.27, 1.12, 6.7, -0.35), 0.7, 1]])];
+        },
+        cactus: () => [
+          merge([[rough(new g3.CylinderGeometry(0.5, 0.56, 5.2, 10).translate(0, 2.6, 0), 0.05), 0.75, 1], [new g3.SphereGeometry(0.5, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2).translate(0, 5.2, 0), 0.9, 1]]),
+          merge([[stick(0.3, 0.3, 1.0, 0.2, 2.5, 0, 0, -Math.PI / 2), 0.75, 1], [stick(0.3, 0.3, 1.8, 1.15, 2.4, 0), 0.75, 1], [new g3.SphereGeometry(0.3, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2).translate(1.15, 4.2, 0), 0.9, 1],
+            [stick(0.27, 0.27, 0.9, -0.2, 1.9, 0, 0, Math.PI / 2), 0.75, 1], [stick(0.27, 0.27, 1.4, -1.05, 1.8, 0), 0.75, 1], [new g3.SphereGeometry(0.27, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2).translate(-1.05, 3.2, 0), 0.9, 1]]),
+          merge([[blob(0.16, 0, 5.75, 0), 1, 1], [blob(0.13, 0.25, 5.6, 0.15), 1, 1], [blob(0.13, 1.15, 4.5, 0), 1, 1]]),
+        ],
+        mushroom: () => [
+          merge([[rough(new g3.CylinderGeometry(0.45, 0.75, 3.4, 10).translate(0, 1.7, 0), 0.08), 0.7, 1]]),
+          merge([[rough(new g3.SphereGeometry(2.4, 18, 8, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.75, 1).translate(0, 3.2, 0), 0.18), 0.6, 1]]),
+          merge([[blob(0.35, 1.0, 4.6, 0.5), 1, 1], [blob(0.28, -0.9, 4.5, -0.6), 1, 1], [blob(0.3, 0.2, 4.95, -1.0), 1, 1], [blob(0.25, -0.4, 4.85, 1.2), 1, 1], [blob(0.3, 1.5, 3.9, -0.8), 1, 1]]),
+        ],
+        // burnt trees (the volcano): bare branches, glowing embers at the tips
+        dead: () => [
+          merge([[rough(new g3.CylinderGeometry(0.18, 0.42, 4.2, 7).translate(0, 2.1, 0), 0.1), 0.6, 1]]),
+          merge([[stick(0.16, 0.06, 2.0, 0.1, 2.6, 0, 0.2, -0.9), 0.6, 1], [stick(0.15, 0.05, 1.8, -0.1, 3.0, 0, -0.3, 0.8), 0.6, 1], [stick(0.12, 0.04, 1.5, 0, 3.6, 0.1, 0.9, 0.1), 0.6, 1], [stick(0.1, 0.04, 1.3, 0, 3.9, -0.1, -0.8, -0.2), 0.6, 1]]),
+          merge([[blob(0.12, 1.6, 3.7, 0.3), 1, 1], [blob(0.1, -1.4, 4.1, -0.5), 1, 1], [blob(0.1, 0.1, 4.9, 1.2), 1, 1]]),
+        ],
+      };
+      const T = this.arena.trees;
+      const maxTrees = T.count === undefined ? 320 : T.count;
+      const species = [T.shape || 'pine'].concat(T.shape2 ? [T.shape2] : []);
+      const leafMat = (c, extra) => CW.mat(c, Object.assign({ vertexColors: true, roughness: 0.9, metalness: 0 }, extra || {}));
+      const sets = species.map((sp) => {
+        const sh = SHAPES[sp]();
+        const n = Math.max(1, Math.ceil(maxTrees / species.length));
+        const glowTips = sp === 'dead' ? { emissive: 0xff5a1a } : sp === 'cactus' ? {} : null;
+        const ims = [
+          new g3.InstancedMesh(sh[0], leafMat(T.trunk), n),
+          new g3.InstancedMesh(sh[1], leafMat(sp === 'dead' ? T.trunk : T.leaf), n),
+          new g3.InstancedMesh(sh[2], leafMat(sp === 'dead' ? 0xff7a1a : sp === 'cactus' ? 0xff8fab : sp === 'palm' ? 0x6b4423 : T.leaf2, glowTips || {}), n),
+        ];
+        return { ims, n: 0, max: n };
+      });
+      const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), tint = new THREE.Color();
       let n = 0;
       for (let tries = 0; tries < 4000 && n < maxTrees; tries++) {
         const x = (rnd() - 0.5) * 330, z = (rnd() - 0.5) * 330;
@@ -731,36 +829,80 @@
         const slope = Math.abs(CW.terrainHeight(x + 1.5, z) - CW.terrainHeight(x - 1.5, z)) + Math.abs(CW.terrainHeight(x, z + 1.5) - CW.terrainHeight(x, z - 1.5));
         if (slope > 1.4) continue;
         if (this.onBridge(x, z, 4.5)) continue;
-        if (vnoise(x * 0.025, z * 0.025) < (this.arena.trees.density === undefined ? 0.45 : this.arena.trees.density)) continue;
+        if (vnoise(x * 0.025, z * 0.025) < (T.density === undefined ? 0.45 : T.density)) continue;
+        const set = sets.length > 1 && vnoise(x * 0.04 + 50, z * 0.04) > 0.5 ? sets[1] : sets[0];
+        if (set.n >= set.max) continue;
         const sc = 0.8 + rnd() * 0.7;
         q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rnd() * 6);
-        s.set(sc, sc, sc);
+        s.set(sc * (0.9 + rnd() * 0.2), sc, sc * (0.9 + rnd() * 0.2));
+        p.set(x, h - 0.15, z);
+        m.compose(p, q, s);
         const mats = [];
-        p.set(x, h + offs[0] * sc, z); m.compose(p, q, s); trunks.setMatrixAt(n, m); mats.push(m.clone());
-        p.set(x, h + offs[1] * sc, z); m.compose(p, q, s); leaves.setMatrixAt(n, m); mats.push(m.clone());
-        p.set(x, h + offs[2] * sc, z); m.compose(p, q, s); leaves2.setMatrixAt(n, m); mats.push(m.clone());
-        this.trees.push({ x, z, r: 2 * sc, mats, hidden: false });
+        const shade = 0.82 + rnd() * 0.3, hue = (rnd() - 0.5) * 0.04;
+        set.ims.forEach((im, k) => {
+          im.setMatrixAt(set.n, m);
+          tint.setRGB(1, 1, 1);
+          if (k > 0) tint.offsetHSL(hue, 0, 0).multiplyScalar(shade);
+          else tint.multiplyScalar(0.85 + rnd() * 0.25);
+          im.setColorAt(set.n, tint);
+          mats.push(m.clone());
+        });
+        this.trees.push({ x, z, r: 2 * sc, mats, ims: set.ims, idx: set.n, hidden: false });
+        set.n++;
         n++;
       }
-      this.treeMeshes = [trunks, leaves, leaves2];
-      for (const im of this.treeMeshes) { im.count = n; im.castShadow = true; im.receiveShadow = true; this.scene.add(im); }
+      this.treeMeshes = [];
+      for (const set of sets) for (const im of set.ims) {
+        im.count = set.n; im.castShadow = true; im.receiveShadow = true;
+        if (im.instanceColor) im.instanceColor.needsUpdate = true;
+        this.treeMeshes.push(im);
+        this.scene.add(im);
+      }
 
-      // rocks
-      const rocks = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1.2, 0), CW.mat(this.arena.trees.rock, { roughness: 1, metalness: 0 }), 90);
-      let r = 0;
-      for (let tries = 0; tries < 2000 && r < 90; tries++) {
+      // ---- rocks: three craggy shapes, lighter on top, with little stones scattered around the big ones ----
+      const rockGeo = (k) => {
+        const ico = new g3.IcosahedronGeometry(1.2, 1), geo = ico.index ? ico.toNonIndexed() : ico;
+        const pos = geo.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+          const f = 1 + (hash(Math.round(x * 50 + k * 7), Math.round(y * 40 + z * 31)) - 0.5) * 0.55;
+          pos.setXYZ(i, x * f * (k === 2 ? 1.25 : 1), Math.max(-0.5, y * f * (k === 1 ? 0.6 : 0.8)), z * f);
+        }
+        return merge([[geo, 0.55, 1.05]]);
+      };
+      const rockMat = CW.mat(T.rock, { vertexColors: true, roughness: 1, metalness: 0 });
+      const rockIms = [0, 1, 2].map((k) => new g3.InstancedMesh(rockGeo(k), rockMat, 60));
+      const rockN = [0, 0, 0];
+      const place = (k, x, y, z, sc, sq) => {
+        if (rockN[k] >= 60) return;
+        q.setFromEuler(new THREE.Euler((rnd() - 0.5) * 0.6, rnd() * 6.3, (rnd() - 0.5) * 0.6));
+        s.set(sc, sc * sq, sc);
+        p.set(x, y, z); m.compose(p, q, s);
+        rockIms[k].setMatrixAt(rockN[k], m);
+        tint.setRGB(1, 1, 1).multiplyScalar(0.8 + rnd() * 0.35);
+        rockIms[k].setColorAt(rockN[k], tint);
+        this.rocks.push({ x, y, z, r: sc * 1.3, mat: m.clone(), im: rockIms[k], idx: rockN[k], hidden: false });
+        rockN[k]++;
+      };
+      for (let tries = 0; tries < 2000 && this.rocks.length < 150; tries++) {
         const x = (rnd() - 0.5) * 340, z = (rnd() - 0.5) * 340;
         const h = CW.terrainHeight(x, z);
         if (h < -6 || h > 40) continue;
-        const sc = 0.6 + rnd() * 1.8;
-        q.setFromEuler(new THREE.Euler(rnd() * 3, rnd() * 3, rnd() * 3));
-        s.set(sc, sc * 0.7, sc);
-        p.set(x, h + 0.2, z); m.compose(p, q, s); rocks.setMatrixAt(r++, m);
-        this.rocks.push({ x, y: h + 0.2, z, r: sc * 1.3, mat: m.clone(), hidden: false });
+        const sc = 0.6 + rnd() * 1.8, k = Math.floor(rnd() * 3);
+        place(k, x, h + 0.1, z, sc, 0.75 + rnd() * 0.3);
+        // a few small stones around the bigger rocks
+        if (sc > 1.2) for (let j = 0; j < 3; j++) {
+          const a = rnd() * 6.3, d = sc * 1.4 + rnd() * 1.5, sx = x + Math.cos(a) * d, sz = z + Math.sin(a) * d;
+          place(Math.floor(rnd() * 3), sx, CW.terrainHeight(sx, sz) - 0.05, sz, 0.2 + rnd() * 0.3, 0.7);
+        }
       }
-      rocks.count = r; rocks.castShadow = true; rocks.receiveShadow = true;
-      this.rockMesh = rocks;
-      this.scene.add(rocks);
+      for (let k = 0; k < 3; k++) {
+        const im = rockIms[k];
+        im.count = rockN[k]; im.castShadow = true; im.receiveShadow = true;
+        if (im.instanceColor) im.instanceColor.needsUpdate = true;
+        this.scene.add(im);
+      }
+      this.rockMeshes = rockIms;
 
       // glowing crystals on the mountain (discovery flavor)
       const crystalGeo = new THREE.OctahedronGeometry(1, 0);
@@ -897,11 +1039,10 @@
         }
         if (hide !== t.hidden) {
           t.hidden = hide;
-          this.treeMeshes.forEach((im, k) => im.setMatrixAt(i, hide ? zero : t.mats[k]));
+          t.ims.forEach((im, k) => { im.setMatrixAt(t.idx, hide ? zero : t.mats[k]); im.instanceMatrix.needsUpdate = true; });
           dirty = true;
         }
       }
-      if (dirty) for (const im of this.treeMeshes) im.instanceMatrix.needsUpdate = true;
       // rocks: hide when the camera is inside one or it sits between camera and target
       let rDirty = false;
       for (let i = 0; i < this.rocks.length; i++) {
@@ -915,9 +1056,8 @@
             hide = px * px + pz * pz < (rk.r + 0.8) * (rk.r + 0.8) && rk.y + rk.r > Math.min(cam.y, pivot.y) - 1;
           }
         }
-        if (hide !== rk.hidden) { rk.hidden = hide; this.rockMesh.setMatrixAt(i, hide ? zero : rk.mat); rDirty = true; }
+        if (hide !== rk.hidden) { rk.hidden = hide; rk.im.setMatrixAt(rk.idx, hide ? zero : rk.mat); rk.im.instanceMatrix.needsUpdate = true; rDirty = true; }
       }
-      if (rDirty) this.rockMesh.instanceMatrix.needsUpdate = true;
     }
 
     update(dt, cam) {

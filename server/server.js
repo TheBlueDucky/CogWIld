@@ -449,7 +449,7 @@ function handle(c, data) {
     case 'ready':
       if (!room || room.state !== 'lobby') break;
       c.ready = !!m.ready;
-      c.bp = m.bp && Array.isArray(m.bp.parts) && m.bp.parts.length <= E.MAX_PARTS ? { name: clean(m.bp.name, 24), color: m.bp.color & 0xffffff, parts: cleanParts(m.bp.parts) } : null;
+      c.bp = m.bp && Array.isArray(m.bp.parts) && m.bp.parts.length <= E.MAX_PARTS ? { name: clean(m.bp.name, 24), color: m.bp.color & 0xffffff, parts: cleanParts(m.bp.parts), fin: E.item('finishes', String(m.bp.fin || '')) ? String(m.bp.fin) : undefined } : null;
       // the mech must fit this player's level (from the server's XP) and the budget
       if (c.bp) {
         const why = E.mechProblem(c.bp.parts, accounts.level(c), E.BUDGET);

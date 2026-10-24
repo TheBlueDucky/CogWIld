@@ -2,7 +2,7 @@
 (function () {
   const CW = (window.CW = window.CW || {});
 
-  CW.VERSION = 'v1.8.1';
+  CW.VERSION = 'v1.8.2';
   // escape text before it goes into innerHTML (mech/player names can come from pasted save codes)
   // "3h 12m" / "5d 4h" / "12m" until something ends
   CW.timeLeft = (ms) => { const m = Math.max(1, Math.ceil(ms / 60000)); return m >= 2880 ? `${Math.floor(m / 1440)}d ${Math.floor((m % 1440) / 60)}h` : m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; };
@@ -35,6 +35,9 @@
   CW.DRAG = { land: 1.55, water: 1.2, air: 0.55 }; // lower = faster top speed
   CW.GRID = { minX: -4, maxX: 4, minY: -2, maxY: 4, minZ: -4, maxZ: 4 };
   CW.WING_LIFT = 0.7;
+  // how heavy a mech feels when speeding up and at top speed: weight above a normal mech's (20) counts less, so big
+  // builds stay fun to drive (lifting off still needs the real weight)
+  CW.moveMass = (m) => (m <= 20 ? m : 20 * Math.pow(m / 20, 0.55));
   CW.ROTOR_LIFT = 10;
 
   CW.RANKS = [
@@ -317,7 +320,26 @@
   CW.mat = M;
   CW.matBasic = MB;
 
-  CW.buildPartMesh = function (t, team) {
+  // finishes from the Shop: the parts painted in your color get another material (rainbow ones change color every frame)
+  CW.rainbowMats = [];
+  CW.finishMat = function (team, fin, extra) {
+    const side = extra && extra.side ? { side: extra.side } : {};
+    const f = {
+      // chrome: silver with a hint of your paint
+      chrome: [new THREE.Color(team).lerp(new THREE.Color(0xffffff), 0.6).getHex(), { metalness: 1, roughness: 0.08 }], gold: [0xffc23a, { metalness: 1, roughness: 0.26 }],
+      neon: [team, { emissive: team, emissiveIntensity: 0.65, metalness: 0.2, roughness: 0.35 }], carbon: [CW.shade(team, -0.12), { metalness: 0.35, roughness: 0.32 }, 'carbon'],
+      stealth: [0x262a33, { metalness: 0.05, roughness: 0.97 }, 'panel'], rainbow: [0xff4d6d, { metalness: 0.5, roughness: 0.22, emissive: 0x220011 }],
+    }[fin];
+    if (!f) return null;
+    const m = CW.mat(f[0], Object.assign({}, f[1], side), f[2]);
+    if (fin === 'rainbow' && !CW.rainbowMats.includes(m)) CW.rainbowMats.push(m);
+    return m;
+  };
+  CW.tickFinishes = function (t) {
+    for (let i = 0; i < CW.rainbowMats.length; i++) { CW.rainbowMats[i].color.setHSL((t * 0.12 + i * 0.13) % 1, 0.85, 0.52); CW.rainbowMats[i].emissive.setHSL((t * 0.12 + i * 0.13) % 1, 0.9, 0.08); }
+  };
+
+  CW.buildPartMesh = function (t, team, fin) {
     const g = new THREE.Group();
     const ud = g.userData;
     // inside part models every material gets a metal finish unless a part picks another:
@@ -325,7 +347,11 @@
     const finish = { cannon: 'gunmetal', rocket: 'gunmetal', laser: 'gunmetal', railgun: 'gunmetal', flamer: 'gunmetal', saw: 'gunmetal', jet: 'gunmetal', booster: 'gunmetal', engine: 'gunmetal', spikes: 'gunmetal', wing: 'carbon', prop: 'carbon', rotor: 'carbon', armor: 'plate', bigwheel: 'gunmetal',
       body: 'none', plate: 'none', nose: 'none', cabin: 'none', fender: 'none', spoiler: 'none', lights: 'none', exhaust: 'none' }[t] || 'panel';
     // 'none' = smooth: shiny car paint, glass and chrome
-    const M = (color, extra, tex) => { tex = tex || finish; return tex === 'none' ? CW.mat(color, extra) : CW.mat(color, extra, tex); };
+    const M = (color, extra, tex) => {
+      if (fin && color === team) { const fm = CW.finishMat(team, fin, extra); if (fm) return fm; }
+      tex = tex || finish;
+      return tex === 'none' ? CW.mat(color, extra) : CW.mat(color, extra, tex);
+    };
     const paint = (color) => M(color, { metalness: 0.35, roughness: 0.3 });
     const chrome = () => M(0xe3e7ee, { metalness: 0.95, roughness: 0.18 }, 'none');
     switch (t) {
@@ -730,15 +756,16 @@
     s.dashPower = 21 + s.boosters * 7;
     s.pr = s.use > 0 ? Math.min(1, s.supply / s.use) : 1;
     s.dps *= 0.4 + 0.6 * s.pr;
-    s.landSpeed = ((s.drive + s.thrust) * s.pr) / (s.mass * CW.DRAG.land);
+    s.moveMass = CW.moveMass(s.mass);
+    s.landSpeed = ((s.drive + s.thrust) * s.pr) / (s.moveMass * CW.DRAG.land);
     s.floats = s.buoy + 0.35 * s.mass >= s.mass;
-    s.waterSpeed = ((s.swim + s.drive * 0.08 + s.thrust * 0.35) * s.pr) / (s.mass * CW.DRAG.water);
+    s.waterSpeed = ((s.swim + s.drive * 0.08 + s.thrust * 0.35) * s.pr) / (s.moveMass * CW.DRAG.water);
     s.hoverLift = s.rotors * CW.ROTOR_LIFT * s.pr;
     s.hovers = s.rotors > 0 && s.hoverLift >= s.mass;
     s.takeoff = s.wings > 0 ? 8 + Math.max(0, s.mass - s.hoverLift) / (s.wings * CW.WING_LIFT) : Infinity;
     s.planeFlies = s.wings > 0 && s.thrust > 0 && Math.max(s.landSpeed, s.floats ? s.waterSpeed : 0) >= s.takeoff;
     s.canFly = s.hovers || s.planeFlies;
-    s.airSpeed = ((s.rotors * 45 + s.thrust) * s.pr) / (s.mass * CW.DRAG.air);
+    s.airSpeed = ((s.rotors * 45 + s.thrust) * s.pr) / (s.moveMass * CW.DRAG.air);
     return s;
   };
 
@@ -855,6 +882,7 @@
   CW.cloneBp = (bp) => {
     const out = { name: bp.name, parts: bp.parts.map((p) => ({ t: p.t, x: p.x, y: p.y, z: p.z })) };
     if (bp.color) out.color = bp.color;
+    if (bp.fin) out.fin = bp.fin;
     return out;
   };
 

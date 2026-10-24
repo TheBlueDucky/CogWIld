@@ -50,8 +50,10 @@
         const t = e.target;
         if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
         if (e.code === 'KeyT' && this.game.state === 'match' && this.game.modeId === 'test') return; // T = back to the Workshop there
-        if (e.repeat || this.isOpen || !['menu', 'match', 'results'].includes(this.game.state) || !$('acct').classList.contains('hidden')) return;
+        if (e.repeat || !['menu', 'match', 'results'].includes(this.game.state) || !$('acct').classList.contains('hidden')) return;
         e.preventDefault();
+        // the chat key opens the chat, and closes it again when you're not typing in it (Enter only opens it)
+        if (this.isOpen) { if (e.code === key) this.close(); return; }
         this.open();
       });
       // phones: typing in the menu turns the phone upright (easier to type), Done turns it back

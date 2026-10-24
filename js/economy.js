@@ -69,6 +69,23 @@
       { id: 'p_matrix', name: 'Code Rain', colors: [0x00ff41, 0x008f11, 0x003b00], price: 500, pass: true },
       { id: 'p_inferno', name: 'Inferno', colors: [0xff0000, 0xff7b00, 0xffd000, 0x1a1a1a], price: 500, pass: true },
     ],
+    // finishes: how your whole mech's paint looks in matches, the Workshop and the lobby (js/parts.js CW.finishMat)
+    finishes: [
+      { id: 'carbon', name: 'Carbon Fiber', icon: '🏁', desc: 'Woven racing carbon in your paint color', price: 500 },
+      { id: 'stealth', name: 'Stealth Matte', icon: '🥷', desc: 'Flat dark armor that swallows the light', price: 500 },
+      { id: 'chrome', name: 'Mirror Chrome', icon: '🪞', desc: 'Polished chrome that reflects the arena', price: 700 },
+      { id: 'neon', name: 'Neon Glow', icon: '💡', desc: 'Your paint glows, even at night', price: 800 },
+      { id: 'gold', name: 'Gold Plated', icon: '👑', desc: 'Solid shining gold, whatever your paint', price: 1000 },
+      { id: 'rainbow', name: 'Rainbow Shift', icon: '🌈', desc: 'Colors that flow through the whole rainbow', price: 1400 },
+    ],
+    // wreck effects: what you see when you wreck an enemy mech (js/entities.js Fx.wreckFx)
+    wrecks: [
+      { id: 'confetti', name: 'Confetti Pop', icon: '🎊', desc: 'Wrecks burst into confetti', price: 400 },
+      { id: 'pixel', name: 'Pixel Burst', icon: '👾', desc: 'Wrecks shatter into glowing pixels', price: 500 },
+      { id: 'fireworks', name: 'Fireworks', icon: '🎆', desc: 'A fireworks show over every wreck', price: 700 },
+      { id: 'lightning', name: 'Thunderstrike', icon: '⚡', desc: 'Lightning strikes the wreck from the sky', price: 800 },
+      { id: 'blackhole', name: 'Black Hole', icon: '🕳', desc: 'The wreck is sucked into a black hole', price: 1100 },
+    ],
     // premium avatars (CW.AVATARS index 24+), shown on your profile, in rooms and on the leaderboard
     avatars: [
       { id: 'av24', idx: 24, name: 'Dragon', price: 400 }, { id: 'av25', idx: 25, name: 'Eagle', price: 250 }, { id: 'av26', idx: 26, name: 'Scorpion', price: 250 },
@@ -90,7 +107,7 @@
   function dailyDeals(dayStr, owns) {
     const rnd = seeded('deal' + dayStr);
     const pool = [];
-    for (const kind of ['paints', 'trails', 'avatars']) for (const it of SHOP[kind]) if (!it.pass && it.price > 0 && !owns(kind, it.id)) pool.push({ kind, it });
+    for (const kind of ['paints', 'trails', 'avatars', 'finishes', 'wrecks']) for (const it of SHOP[kind]) if (!it.pass && it.price > 0 && !owns(kind, it.id)) pool.push({ kind, it });
     pool.sort((a, b) => (a.kind + a.it.id < b.kind + b.it.id ? -1 : 1));
     const out = [];
     while (out.length < 3 && pool.length) out.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]);
@@ -169,9 +186,9 @@
     return Object.assign({ n, endsAt: WEEK_EPOCH + (n + 1) * 7 * DAY }, WEEKLY[n % WEEKLY.length]);
   }
 
-  // ---------------- Ranked: unlocked at 600 best trophies, its own points, reset each season ----------------
+  // ---------------- Ranked: unlocked at 100 best trophies, its own points, reset each season ----------------
   const RANKED = {
-    unlockAt: 600,
+    unlockAt: 100,
     modes: ['koth', 'gold', 'bounty'],
     win: 30, loss: -18,
     ranks: [

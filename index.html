@@ -1277,6 +1277,34 @@
   #tutRing { position: absolute; z-index: 7; border-radius: 50%; border: 3px solid var(--hl); pointer-events: none; animation: tutRing 1.1s ease-out infinite; }
   @keyframes tutRing { 0% { transform: scale(.85); opacity: 1; } 100% { transform: scale(1.25); opacity: 0; } }
 
+  /* Shop: mech finishes and wreck effects */
+  .swatch.fin, .swatch.wfx { position: relative; display: grid; place-items: center; height: 64px; border-radius: 10px; overflow: hidden; }
+  .swatch.fin i, .swatch.wfx i { font-style: normal; font-size: 30px; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .6)); }
+  .fin-chrome { background: linear-gradient(135deg, #fdfdfd 0%, #8f9aa8 28%, #f2f5f9 50%, #5d6673 74%, #dfe4ea 100%); }
+  .fin-gold { background: linear-gradient(135deg, #fff4b8 0%, #e2ad25 32%, #fff0a0 52%, #a8760a 78%, #ffe27a 100%); }
+  .fin-neon { background: #0b1024; box-shadow: inset 0 0 0 2px #5ce1ff, inset 0 0 18px rgba(92, 225, 255, .8); }
+  .fin-carbon { background: repeating-conic-gradient(#2b2f37 0 25%, #4b515c 0 50%) 0 0 / 10px 10px; }
+  .fin-stealth { background: linear-gradient(180deg, #2c3039, #14161b); }
+  .fin-rainbow { background: linear-gradient(90deg, #ff4d6d, #ffb703, #8ac926, #1982c4, #9b5de5, #ff4d6d); background-size: 200% 100%; animation: finFlow 3s linear infinite; }
+  @keyframes finFlow { to { background-position: 200% 0; } }
+  .swatch.wfx { background: radial-gradient(circle at 50% 55%, var(--wc, #ffb347) 0%, rgba(0, 0, 0, 0) 62%), #0d1226; }
+  .wfx-confetti { --wc: #ff6fb5; } .wfx-pixel { --wc: #5ce1ff; } .wfx-fireworks { --wc: #ffd23f; } .wfx-lightning { --wc: #8fd8ff; } .wfx-blackhole { --wc: #9b5de5; }
+  /* support / contact us (Settings › Support, top of Help) */
+  .support-card { display: flex; gap: 12px; align-items: center; padding: 10px 12px; margin: 4px 0 10px; border-radius: var(--rad); background: rgba(92, 225, 255, .07); border: 1px solid rgba(92, 225, 255, .3); }
+  .support-card .sup-ico { font-size: 30px; flex: none; }
+  .support-card .sup-txt { flex: 1; display: flex; flex-direction: column; gap: 3px; font-size: 14px; }
+  .support-card .sup-txt b:first-child { color: var(--hl); font-size: 16px; }
+  .support-card .sup-mail { color: #fff; user-select: text; -webkit-user-select: text; }
+  .support-card .sup-btns { display: flex; flex-direction: column; gap: 6px; flex: none; }
+  .compact .support-card { flex-wrap: wrap; } .compact .support-card .sup-btns { flex-direction: row; }
+  /* flying: how to go up and down (js/game.js updateFlyHint) */
+  #flyHint { position: absolute; left: 50%; bottom: 58px; transform: translateX(-50%); padding: 5px 14px; border-radius: var(--rad); white-space: nowrap;
+    background: rgba(12, 18, 40, .55); border: 1px solid rgba(92, 225, 255, .4); color: #fff; font-weight: 800; font-size: 15px; text-shadow: 0 1px 3px rgba(0, 0, 0, .8); pointer-events: none; }
+  #flyHint kbd, #flyHint b { display: inline-block; min-width: 26px; padding: 1px 7px; margin: 0 2px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, .5); border-bottom-width: 3px;
+    background: rgba(255, 255, 255, .12); font: inherit; text-align: center; }
+  #flyHint kbd.on, #flyHint b.on { background: var(--hl); color: #06233a; text-shadow: none; }
+  #flyHint small { font-weight: 600; opacity: .8; }
+  .touch-ui #flyHint { bottom: auto; top: 70px; font-size: 13px; }
   /* ---- v1.8 Workshop: quiet, flat controls that don't pop out; the mech is the star ---- */
   #workshopUI .ws-top, #workshopUI .ws-left, #workshopUI .ws-right, #workshopUI .ws-bottom {
     background: rgba(13, 19, 40, .62) !important; border: 1px solid rgba(255, 255, 255, .08) !important; box-shadow: none !important;
@@ -1782,29 +1810,29 @@
 </div>
 
 <!-- three.js: from the CDN, or the local copy in js/vendor/ when offline (desktop build / no internet) -->
-<script src="js/vendor/three.min.js?v=28"></script>
-<script src="js/economy.js?v=28"></script>
-<script src="js/parts.js?v=28"></script>
-<script src="js/platform.js?v=28"></script>
-<script src="js/featured.js?v=28"></script>
-<script src="js/world.js?v=28"></script>
-<script src="js/entities.js?v=28"></script>
-<script src="js/meta.js?v=28"></script>
-<script src="js/extras.js?v=28"></script>
-<script src="js/modes.js?v=28"></script>
-<script src="js/tutorial.js?v=28"></script>
-<script src="js/clips.js?v=28"></script>
-<script src="js/gamepad.js?v=28"></script>
-<script src="js/workshop.js?v=28"></script>
-<script src="js/config.js?v=28"></script>
-<script src="js/net.js?v=28"></script>
-<script src="js/account.js?v=28"></script>
-<script src="js/touch.js?v=28"></script>
-<script src="js/supers.js?v=28"></script>
-<script src="js/gadgets.js?v=28"></script>
-<script src="js/pics.js?v=28"></script>
-<script src="js/talk.js?v=28"></script>
-<script src="js/voice.js?v=28"></script>
-<script src="js/game.js?v=28"></script>
+<script src="js/vendor/three.min.js?v=29"></script>
+<script src="js/economy.js?v=29"></script>
+<script src="js/parts.js?v=29"></script>
+<script src="js/platform.js?v=29"></script>
+<script src="js/featured.js?v=29"></script>
+<script src="js/world.js?v=29"></script>
+<script src="js/entities.js?v=29"></script>
+<script src="js/meta.js?v=29"></script>
+<script src="js/extras.js?v=29"></script>
+<script src="js/modes.js?v=29"></script>
+<script src="js/tutorial.js?v=29"></script>
+<script src="js/clips.js?v=29"></script>
+<script src="js/gamepad.js?v=29"></script>
+<script src="js/workshop.js?v=29"></script>
+<script src="js/config.js?v=29"></script>
+<script src="js/net.js?v=29"></script>
+<script src="js/account.js?v=29"></script>
+<script src="js/touch.js?v=29"></script>
+<script src="js/supers.js?v=29"></script>
+<script src="js/gadgets.js?v=29"></script>
+<script src="js/pics.js?v=29"></script>
+<script src="js/talk.js?v=29"></script>
+<script src="js/voice.js?v=29"></script>
+<script src="js/game.js?v=29"></script>
 </body>
 </html>

@@ -434,7 +434,7 @@
       const counts = {};
       for (const p of this.bp.parts) {
         counts[p.t] = (counts[p.t] || 0) + 1;
-        const obj = CW.buildPartMesh(p.t, this.bp.color);
+        const obj = CW.buildPartMesh(p.t, this.bp.color, this.game.profile.finish);
         obj.position.set(p.x, p.y, p.z);
         this.mechGroup.add(obj);
         const pick = new THREE.Mesh(this.pickGeo, this.pickMat);

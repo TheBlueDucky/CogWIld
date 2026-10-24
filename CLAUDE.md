@@ -5,7 +5,7 @@ You build a mech from parts in the Workshop, then fight online (bots fill empty 
 It runs in the browser (three.js r128, no build step), as a Windows app (Electron) and an Android app (Capacitor),
 and on game portals (itch.io, CrazyGames, Poki). The online server is zero-dependency Node.js.
 
-**Live:** https://cogwild.duckdns.org (download page `/download`) · **Current version:** v1.8.1 · **Online protocol:** `cogwild-net-10`
+**Live:** https://cogwild.duckdns.org (download page `/download`) · **Current version:** v1.8.2 · **Online protocol:** `cogwild-net-10`
 The user is not a programmer: explain things in plain words, test everything yourself, and show screenshots as proof.
 
 ## How the user wants things done
@@ -40,6 +40,12 @@ The user is not a programmer: explain things in plain words, test everything you
   Effects they asked for: thin tracer bullets with a gunshot sound (not big white balls), no muzzle flash right in front of
   your own camera, broken parts fly off smoking, a wreck falls apart and explodes 0.28 s later (`fx.later`). Menus, screens,
   PLAY and the countdown animate (CSS block "v1.8 animations"); the Workshop is calm and flat (block "v1.8 Workshop").
+- **v1.8.2 additions they asked for:** Shop kinds `finishes` (`profile.finish`, sent online as `bp.fin`, applied by
+  `CW.buildPartMesh(t, team, fin)` → `CW.finishMat` to every part painted in the team color; Rainbow animates via
+  `CW.tickFinishes`) and `wrecks` (`profile.wreckFx`, `Fx.wreckFx`, only the shooter sees it). Repairs (hold R) rebuild a
+  whole mech in ~4 s whatever its size. A flying mech in the air shows "Hold Space to climb · C to fly down" (`#flyHint`).
+  Support: Settings › Support and the top of Help (email theblueduckymc@gmail.com, `meta.supportHtml`). Particles are soft
+  sprites (additive glow; smoke/spray normal), the hit flash lights only the part that was hit.
 - Lobby layout: left = Shop, Workshop, Challenges, Achievements, Help; right = Friends, Clubs, Leaderboard, Trophy
   Road, News; top-left chip = Profile (stats live in Profile); bottom-left = party card, Cog Pass bar, one challenge;
   bottom-right = featured chip, mode/arena card, PLAY.
@@ -100,7 +106,7 @@ The user is not a programmer: explain things in plain words, test everything you
   chat is off on CrazyGames/Poki and voice is off on every portal (their frames block the mic). The game asks "Use voice chat?" on first start, after each update and per account.
 - **Social:** friends, parties of 4 (party mechs shown on the lobby stage), clubs (30, club wall), watch a friend's match.
 - **Modes/content:** 8 modes (Rush Build, Workshop Clash, KOTH, Gold Rush, Bounty Hunt, Combat Race, Survival, Boss),
-  8 arenas, supers, gadgets, daily featured event, weekly events with modifiers, Ranked (600+ best trophies),
+  8 arenas, supers, gadgets, daily featured event, weekly events with modifiers, Ranked (100+ best trophies),
   Cog Pass (30 tiers per 4-week season), Trophy Road, 6 daily challenges, achievements.
 
 ## Server (Oracle Cloud)
@@ -141,6 +147,9 @@ apps would break with the new server; they then get an "update" prompt.
 - `tar` on Windows paths needs `--force-local`.
 - Never zip with `Compress-Archive` (Windows PowerShell 5.1): it stores `js\economy.js` with backslashes, and Linux hosts (itch.io,
   portals) unpack that as one odd file name, so the game sticks on "Building the arena…". build-itch.ps1 uses .NET ZipFile with `/`.
+- Bridges: `world.groundAt(x, z, refY)` counts a deck only within 0.9 of `refY` (2.2 near the ends): otherwise anything
+  under a bridge popped up onto it. Pilots treat ground rising > 0.5 m within 0.5 m ahead as a wall (no creeping up cliffs),
+  and step onto mech parts only up to 0.55 m (jump onto them). Getting out picks a spot at the mech's own height.
 - The HUD and menus are CSS-zoomed (`--z`, `game.uiZoom`): anything placed on them from a 3D point (name tags, damage numbers) must use window pixels / `uiZoom`.
 - CSP is strict (`script-src 'self'`): no inline scripts or `onclick=` in pages.
 - Two Electron windows in one test: create both before destroying either (a fresh window after a destroyed one can fail to load).
