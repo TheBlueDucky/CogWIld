@@ -50,7 +50,9 @@ The game, server, website, apps and store texts are ready. What's left below nee
 - [ ] **Steam**: Steam Direct fee **$100**, tax/bank forms, store page early (wishlists take months), capsule images (use the screenshots + logo). Upload the `desktop\dist\win-unpacked` folder with SteamPipe.
 - [ ] **Microsoft Store** (free for individual developers; the Store signs the app, no certificate needed). Everything on the game's
   side is ready: the package, the store texts, screenshots, art and the answers to every form are in **STORE_PAGE.md ›
-  Microsoft Store (Partner Center) fields**. What's left needs a Microsoft developer account:
+  Microsoft Store (Partner Center) fields**. **Done on 24 Oct 2026:** account (publisher display name **TheBlueDucky**), name
+  reserved, identity `TheBlueDucky.CogWild` / `CN=37C29AB8-4532-45F8-82CD-29213CC00CBC`, Store ID **9P58PTK2Z93L**, saved in
+  `desktop\package.json` so `build-apps.ps1 -Only store` makes the real package. Next: step 5 (the submission).
   1. **The account.** Sign up at https://storedeveloper.microsoft.com → "Individual developer". Microsoft checks the identity of
      the person who signs up with a government ID, and the account holder must be an adult. If you're under 18, a parent can open
      it in their name and set the **publisher display name** to **BlueDucky Games** (players only see that name).

@@ -27,6 +27,7 @@
   };
   // the Microsoft Store copy of the desktop app (desktop/main.js adds ?store=1)
   CW.STORE = new URLSearchParams(location.search).get('store') === '1';
+  CW.STORE_ID = '9P58PTK2Z93L'; // Cogwild in the Microsoft Store (Partner Center › Product identity)
   CW.esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   CW.SAVE_VERSION = 2;
   CW.WATER_Y = 0;

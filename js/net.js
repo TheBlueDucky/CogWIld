@@ -136,7 +136,7 @@
             const msg = '⬆ A new version of Cogwild is out! Online play needs the update.';
             this.setStatus(msg);
             // the Microsoft Store copy updates through the Store (its rules), the others from the download page
-            const upd = CW.STORE ? { label: 'Update in the Microsoft Store', main: true, fn: () => CW.openExternal('ms-windows-store://downloadsandupdates') }
+            const upd = CW.STORE ? { label: 'Update in the Microsoft Store', main: true, fn: () => CW.openExternal('ms-windows-store://pdp/?ProductId=' + CW.STORE_ID) }
               : { label: 'Download update', main: true, fn: () => CW.openExternal(CW.PUBLIC_URL + 'download.html') };
             g.account.note(msg, [upd, { label: 'Later' }], 60000);
             break;

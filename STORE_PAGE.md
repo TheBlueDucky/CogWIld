@@ -57,6 +57,7 @@ Free to play. No ads from us, no pay-to-win. Quick chat only in matches (no typi
 - **Screenshots** (1366x768 or bigger, up to 10): all 8 in `dist\store\screenshots\`, captions below
 - **Store logos / art**: 1:1 box art `box-art-1080x1080.png`, 2:3 poster `poster-720x1080.png`, 16:9 hero `hero-1920x1080.png`,
   app tile icon `store-logo-300x300.png` (all in `dist\store\listing\`)
+- **Publisher (Partner Center)**: TheBlueDucky · Store ID 9P58PTK2Z93L · package `TheBlueDucky.CogWild`
 - **Copyright**: © 2026 BlueDucky Games · **Website**: https://cogwild.duckdns.org · **Support contact**: theblueduckymc@gmail.com
 - **Privacy policy URL**: https://cogwild.duckdns.org/privacy.html (Partner Center asks for one: the game has accounts, chat and voice)
 - **System requirements**: Minimum: Windows 10 version 1809 (x64), 4 GB RAM, a graphics card with DirectX 11 / WebGL, keyboard + mouse

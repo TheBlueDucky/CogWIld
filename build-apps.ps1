@@ -5,9 +5,8 @@
 #   ... -Only windows,android                 (just some of them: windows, store, unix (Linux + Mac), android)
 #   ... -Upload -Ip 84.13.68.152 -Key C:\path\to\ssh-key.key   (also puts what was built on the server's download page)
 #   ... -StoreId <Package/Identity/Name> -StorePublisher <CN=...> [-StorePublisherName "<Publisher display name>"]
-#        (the Microsoft Store values from Partner Center > the app > Product management > Product identity; without them the
-#        .appx has placeholders and the Store refuses it. The display name defaults to "BlueDucky Games" and must match the
-#        account's publisher display name exactly)
+#        (only to override the Microsoft Store identity saved in desktop\package.json: TheBlueDucky.CogWild /
+#        CN=37C29AB8-... / TheBlueDucky, from Partner Center > the app > Product management > Product identity)
 # Before a new release, raise the version in desktop\package.json, android\android\app\build.gradle
 # (versionCode + versionName) and the file names in download.html.
 param([switch]$Upload, [string]$Ip = '', [string]$Key = '', [string]$User = 'ubuntu', [string]$StoreId = '', [string]$StorePublisher = '', [string]$StorePublisherName = '',
@@ -46,7 +45,7 @@ if ($Only -contains 'store') {
   npx electron-builder @storeArgs
   if ($LASTEXITCODE) { throw 'Microsoft Store build failed' }
   Copy-Item "dist\Cogwild-$ver-store.appx" $storeOut -Force
-  if (-not $StoreId -or -not $StorePublisher) { Write-Host '   (placeholder Store identity: rebuild with -StoreId and -StorePublisher before uploading it to Partner Center)' }
+  # the identity reserved in Partner Center (TheBlueDucky.CogWild, Store ID 9P58PTK2Z93L) is the default in desktop\package.json
 }
 
 if ($Only -contains 'unix') {

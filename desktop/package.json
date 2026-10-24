@@ -53,9 +53,9 @@
       "synopsis": "Build any mech, then rule the land, water and sky."
     },
     "appx": {
-      "identityName": "BlueDuckyGames.Cogwild",
-      "publisher": "CN=00000000-0000-0000-0000-000000000000",
-      "publisherDisplayName": "BlueDucky Games",
+      "identityName": "TheBlueDucky.CogWild",
+      "publisher": "CN=37C29AB8-4532-45F8-82CD-29213CC00CBC",
+      "publisherDisplayName": "TheBlueDucky",
       "displayName": "Cogwild",
       "applicationId": "Cogwild",
       "backgroundColor": "#121a33",

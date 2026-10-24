@@ -164,7 +164,7 @@ apps would break with the new server; they then get an "update" prompt.
 - Confirm the Oracle alert email subscription.
 - Store launch: Google Play closed test (12 testers × 14 days), itch.io/CrazyGames/Poki submissions (zips in `dist/`).
 - Possibly a chat word filter later (they asked to wait).
-- Microsoft Store: everything on our side is ready (package, texts, screenshots, art, form answers in STORE_PAGE.md). Needs a Partner Center account (adult with ID; a parent can own it), then Product identity Name + Publisher + PublisherDisplayName → `build-apps.ps1 -Only store -StoreId -StorePublisher -StorePublisherName` (LAUNCH.md §3). The Store copy (`process.windowsStore` → `?store=1` → `CW.STORE`) sends updates to the Store.
+- Microsoft Store: account + name done (publisher display name TheBlueDucky, identity TheBlueDucky.CogWild, CN=37C29AB8-4532-45F8-82CD-29213CC00CBC, Store ID 9P58PTK2Z93L, saved in desktop/package.json). Left: the user submits (upload `dist/store/Cogwild-<v>-store.appx`, listing from STORE_PAGE.md, art in `dist/store/listing`). Each new submission needs a higher version. The Store copy (`process.windowsStore` → `?store=1` → `CW.STORE`) sends updates to its Store page (`CW.STORE_ID`).
 - The Mac builds were never tried on a real Mac (built on Windows); Linux arm64 was smoke-tested in Docker on DuckysSrv.
 - New parts must also go into `js/economy.js` PARTS (cost, type, level, HP, DPS) or the server refuses mechs with them; adding part types needs a NET_VERSION bump (old games crash on unknown parts).
 - Optional: delete the empty "CogWild" Google Cloud project on the personal Google account (made by mistake, no billing).
