@@ -22,7 +22,8 @@
     ${resourceLanguages}
   </Resources>
   <Dependencies>
-    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="${minVersion}" MaxVersionTested="${maxVersionTested}" />
+    <!-- Windows 10 1809+ (what Electron needs), tested on Windows 11 24H2 (electron-builder 24 has no option for these) -->
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
   </Dependencies>
   <Capabilities>
     <Capability Name="internetClient"/>
