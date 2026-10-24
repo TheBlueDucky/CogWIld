@@ -96,9 +96,10 @@ The user is not a programmer: explain things in plain words, test everything you
   Cog Pass (30 tiers per 4-week season), Trophy Road, 6 daily challenges, achievements.
 
 ## Server (Oracle Cloud)
-- VM **DuckysSrv**, us-ashburn-1, IP **150.136.43.207** (ephemeral: reserving one changes the address; the user hasn't
-  decided), Ubuntu, also runs their Minecraft servers. SSH: `ubuntu@150.136.43.207` with
-  `C:\Users\tomer\OneDrive\Desktop\OracleServer\ssh-key-2026-10-21.key`. OCI CLI: `~/bin/oci` (pass `--region us-ashburn-1`).
+- VM **DuckysSrv**, **il-jerusalem-1** (home region: Always Free A1 + the free 200 GB boot volume; moved from paid
+  Ashburn on 24 Oct 2026), **reserved** IP **84.13.68.152** (never changes), Ubuntu, also runs their Minecraft servers.
+  SSH: `ubuntu@84.13.68.152` with `C:\Users\tomer\OneDrive\Desktop\OracleServer\ssh-key-2026-10-21.key`.
+  OCI CLI: `~/bin/oci` (home region is the default). Don't create disks/servers outside il-jerusalem-1: other regions bill storage.
 - Service `cogwild` (127.0.0.1:8765) behind nginx + Let's Encrypt for `cogwild.duckdns.org`. Data: `/opt/cogwild/data/db.json`
   (daily copies in `data/backups`), downloads in `/opt/cogwild/downloads`. Optional settings in `/etc/cogwild.env`.
 - Upkeep: cron `/etc/cron.d/cogwild` runs the watchdog every 2 min and the off-server backup nightly (bucket
@@ -108,15 +109,15 @@ The user is not a programmer: explain things in plain words, test everything you
 ```bash
 K="/c/Users/tomer/OneDrive/Desktop/OracleServer/ssh-key-2026-10-21.key"; PACK=/tmp/cogwild-upload.tgz
 tar --force-local -czf "$PACK" index.html auth.html favicon.svg js fonts img server deploy privacy.html terms.html credits.html download.html manifest.webmanifest sw.js
-scp -q -i "$K" "$PACK" ubuntu@150.136.43.207:/tmp/cogwild.tgz
-ssh -i "$K" ubuntu@150.136.43.207 "sudo cp /opt/cogwild/data/db.json /opt/cogwild/data/backups/db-before-X.json; rm -rf ~/cogwild-src && mkdir -p ~/cogwild-src && tar -xzf /tmp/cogwild.tgz -C ~/cogwild-src && sed -i 's/\r$//' ~/cogwild-src/deploy/*.sh && sudo bash ~/cogwild-src/deploy/setup.sh cogwild.duckdns.org"
+scp -q -i "$K" "$PACK" ubuntu@84.13.68.152:/tmp/cogwild.tgz
+ssh -i "$K" ubuntu@84.13.68.152 "sudo cp /opt/cogwild/data/db.json /opt/cogwild/data/backups/db-before-X.json; rm -rf ~/cogwild-src && mkdir -p ~/cogwild-src && tar -xzf /tmp/cogwild.tgz -C ~/cogwild-src && sed -i 's/\r$//' ~/cogwild-src/deploy/*.sh && sudo bash ~/cogwild-src/deploy/setup.sh cogwild.duckdns.org"
 ```
 (`deploy\upload.ps1` does the same but stops early in PowerShell because nginx prints to stderr.)
 Then: `node --experimental-websocket tests/live-smoke.js`.
 
 ### Apps
 ```powershell
-& C:\Users\tomer\cogwild\build-apps.ps1 -Upload -Ip 150.136.43.207 -Key "C:\Users\tomer\OneDrive\Desktop\OracleServer\ssh-key-2026-10-21.key"
+& C:\Users\tomer\cogwild\build-apps.ps1 -Upload -Ip 84.13.68.152 -Key "C:\Users\tomer\OneDrive\Desktop\OracleServer\ssh-key-2026-10-21.key"
 & C:\Users\tomer\cogwild\build-itch.ps1 -Portal all
 ```
 Delete the previous version's files in `dist/downloads` first. Check the live downloads' sizes match afterwards.
@@ -140,7 +141,7 @@ apps would break with the new server; they then get an "update" prompt.
 ## Waiting on the user
 - Email sending: run `deploy\set-login.ps1` (Gmail app password or other SMTP; optional Google OAuth client ID).
   Steps are in `LAUNCH.md` > "Turn on email login".
-- Decide whether to reserve the server IP (changes the address: update DuckDNS + tell Minecraft players).
+- DuckDNS: point `cogwild` at 84.13.68.152 (until then the old Ashburn server forwards players); then OK deleting the Ashburn server.
 - Optional cleanup of old downloads on the server (1.0–1.6.3).
 - Confirm the Oracle alert email subscription.
 - Store launch: Google Play closed test (12 testers × 14 days), itch.io/CrazyGames/Poki submissions (zips in `dist/`).

@@ -3,7 +3,7 @@
 # Microsoft Store (.appx, signed by the Store when it's published).
 #   powershell -ExecutionPolicy Bypass -File build-apps.ps1
 #   ... -Only windows,android                 (just some of them: windows, store, unix (Linux + Mac), android)
-#   ... -Upload -Ip 150.136.43.207 -Key C:\path\to\ssh-key.key   (also puts what was built on the server's download page)
+#   ... -Upload -Ip 84.13.68.152 -Key C:\path\to\ssh-key.key   (also puts what was built on the server's download page)
 #   ... -StoreId <Package/Identity/Name> -StorePublisher <CN=...>   (the Microsoft Store values from Partner Center >
 #        the app > Product management > Product identity; without them the .appx has placeholders and the Store refuses it)
 # Before a new release, raise the version in desktop\package.json, android\android\app\build.gradle

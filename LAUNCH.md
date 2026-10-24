@@ -99,7 +99,7 @@ Until this is set up the game keeps working as before (guests + username/passwor
    (it ends in `.apps.googleusercontent.com`; it isn't secret).
 4. Give the Client ID to Claude, or run:
 
-       powershell -ExecutionPolicy Bypass -File deploy\set-google.ps1 -Ip 150.136.43.207 -Key C:\path\to\ssh-key.key -ClientId <the Client ID>
+       powershell -ExecutionPolicy Bypass -File deploy\set-google.ps1 -Ip 84.13.68.152 -Key C:\path\to\ssh-key.key -ClientId <the Client ID>
 
 Email codes (forgotten passwords of older accounts) are optional: `deploy\set-login.ps1` turns them on (it asks for
 an SMTP mail account; Gmail needs an *App password*). Game portals (itch.io, CrazyGames, Poki) never force a login.

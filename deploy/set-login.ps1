@@ -1,7 +1,7 @@
 # Turns on email login (and optionally "Sign in with Google") on the server.
 # Run it yourself; it asks for the settings and writes them to /etc/cogwild.env on the server (readable by root only).
 #
-#   powershell -ExecutionPolicy Bypass -File deploy\set-login.ps1 -Ip 150.136.43.207 -Key C:\path\to\ssh-key.key
+#   powershell -ExecutionPolicy Bypass -File deploy\set-login.ps1 -Ip 84.13.68.152 -Key C:\path\to\ssh-key.key
 #
 # Email (pick one):
 #   Gmail:   turn on 2-Step Verification, then make an App password (myaccount.google.com > Security > App passwords).

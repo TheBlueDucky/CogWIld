@@ -1,6 +1,6 @@
 # Turns on "Sign up / Log in with Google" on the server (the game opens the player's own browser for it).
 #
-#   powershell -ExecutionPolicy Bypass -File deploy\set-google.ps1 -Ip 150.136.43.207 -Key C:\path\to\ssh-key.key -ClientId 1234-abc.apps.googleusercontent.com
+#   powershell -ExecutionPolicy Bypass -File deploy\set-google.ps1 -Ip 84.13.68.152 -Key C:\path\to\ssh-key.key -ClientId 1234-abc.apps.googleusercontent.com
 #
 # The client ID comes from Google Cloud Console (see LAUNCH.md > "Turn on Google sign-in"). It is not a secret
 # (Google shows it in the sign-in address), so it can be passed on the command line. Other settings stay as they are.
