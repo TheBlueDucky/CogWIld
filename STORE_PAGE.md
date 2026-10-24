@@ -26,7 +26,7 @@ Cogwild is a mech-building battle game. Snap together wheels, monster-truck tire
 🏎 **Drives like a racing game**: steer, brake and drift while you aim with the mouse.
 ⭐ **Level up** from Mono to Hybrid to Omni and mix land, water and air in one mech.
 ▶ **One button to play**: pick an arena, press PLAY and you're matched with players there. After 30 seconds bots fill the empty seats, so you never wait long. Private rooms with invite links for friends.
-🏆 **Trophies**: win matches, climb from Bronze to Legend and unlock 20 Trophy Road rewards.
+🏆 **Trophies and Ranked**: win matches, unlock over 70 Trophy Road rewards, then climb Ranked from Bronze to Masters.
 👥 **Friends and parties**: add friends, see who's online, team up in a party of 4 and queue together.
 🕹 **8 modes**: Rush Build, Workshop Clash, King of the Hill, Gold Rush, Bounty Hunt, Combat Race, Survival and Boss Battle against a giant Titan. Plus Ranked and weekly events.
 🗺 **8 arenas**: canyons, frozen islands, a lava volcano, desert mesas, a toxic swamp, a neon city, a jungle temple and a scrapyard, by day, sunset or night.
