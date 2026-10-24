@@ -2,7 +2,7 @@
 (function () {
   const CW = (window.CW = window.CW || {});
 
-  CW.VERSION = 'v1.8.0';
+  CW.VERSION = 'v1.8.1';
   // escape text before it goes into innerHTML (mech/player names can come from pasted save codes)
   // "3h 12m" / "5d 4h" / "12m" until something ends
   CW.timeLeft = (ms) => { const m = Math.max(1, Math.ceil(ms / 60000)); return m >= 2880 ? `${Math.floor(m / 1440)}d ${Math.floor((m % 1440) / 60)}h` : m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; };
@@ -57,7 +57,7 @@
     frame:  { name: 'Frame', cat: 'Structure', cost: 4, mass: 1, hp: 35, color: 0x3a86ff, desc: 'Light, cheap building block. Uses your team color.' },
     armor:  { name: 'Armor', cat: 'Structure', cost: 10, mass: 3, hp: 120, color: 0x5c677d, desc: 'Heavy block that soaks up a lot of damage.' },
     // body parts: shiny car paint, to make your mech look like a car, truck or racer instead of a pile of blocks
-    body:   { name: 'Body Panel', cat: 'Body', cost: 6, mass: 0.6, hp: 50, color: 0x3a86ff, desc: 'Smooth, shiny car body. Uses your paint color.' },
+    body:   { name: 'Car Body', cat: 'Body', cost: 6, mass: 0.6, hp: 50, color: 0x3a86ff, desc: 'Smooth, shiny car body. Uses your paint color.' },
     plate:  { name: 'Flat Panel', cat: 'Body', cost: 3, mass: 0.3, hp: 30, color: 0x4f7fd6, desc: 'A thin floor or truck bed. Keeps cars low and sleek.' },
     nose:   { name: 'Nose', cat: 'Body', cost: 6, mass: 0.5, hp: 45, color: 0x2f6fe0, desc: 'Sloped hood for the front of a car, with a grille.' },
     cabin:  { name: 'Cabin', cat: 'Body', cost: 10, mass: 0.7, hp: 55, color: 0x9fb3d9, desc: 'Driver cabin with windows and a roof.' },

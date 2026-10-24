@@ -4,6 +4,43 @@
   const $ = (id) => document.getElementById(id);
   const MAX_HISTORY = 80;
 
+  // small pictures of every part for the part list: each part drawn once (front-left, from a little above) by a tiny
+  // renderer of its own, which is thrown away afterwards
+  CW.partPictures = function () {
+    if (CW._partPics) return CW._partPics;
+    const pics = {};
+    let r = null;
+    try {
+      const S = 96;
+      r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+      r.setPixelRatio(1);
+      r.setSize(S, S, false);
+      const scene = new THREE.Scene();
+      scene.add(new THREE.HemisphereLight(0xe4eeff, 0x4a5378, 1.3));
+      scene.add(new THREE.AmbientLight(0xffffff, 0.35)); // dark parts (tires, bumpers) stay readable
+      const sun = new THREE.DirectionalLight(0xffffff, 1);
+      sun.position.set(-3, 5, -4);
+      scene.add(sun);
+      const cam = new THREE.PerspectiveCamera(30, 1, 0.05, 50);
+      const box = new THREE.Box3(), mid = new THREE.Vector3(), size = new THREE.Vector3();
+      const from = new THREE.Vector3(-0.85, 0.7, -1.15).normalize();
+      for (const id of Object.keys(CW.PARTS)) {
+        const m = CW.buildPartMesh(id, 0x3a86ff);
+        scene.add(m);
+        m.updateMatrixWorld(true);
+        box.setFromObject(m).getCenter(mid);
+        const d = box.getSize(size).length();
+        cam.position.copy(mid).addScaledVector(from, d * 1.85);
+        cam.lookAt(mid);
+        r.render(scene, cam);
+        pics[id] = r.domElement.toDataURL('image/png');
+        scene.remove(m);
+      }
+    } catch (e) { /* no pictures: the list still works with names */ }
+    if (r) { r.dispose(); if (r.forceContextLoss) r.forceContextLoss(); }
+    return (CW._partPics = pics);
+  };
+
   class Workshop {
     constructor(game) {
       this.game = game;
@@ -108,7 +145,7 @@
           const b = document.createElement('button');
           b.className = 'pal-item';
           b.dataset.part = id;
-          b.innerHTML = `<span class="key">${n <= 9 ? n : n === 10 ? 0 : ''}</span><span class="sw" style="background:#${d.color.toString(16).padStart(6, '0')}"></span><span class="nm">${d.name}</span><span class="cnt"></span><span class="cost">${d.cost}</span>`;
+          b.innerHTML = `<span class="key">${n <= 9 ? n : n === 10 ? 0 : ''}</span><img class="pic" alt="" draggable="false"><span class="nm">${d.name}</span><span class="cnt"></span><span class="cost">${d.cost}</span>`;
           b.onclick = () => this.select(id);
           b.onmouseenter = () => this.showInfo(id);
           b.onmouseleave = () => this.showInfo(this.selected);
@@ -291,7 +328,19 @@
     }
 
     // ---------------- lifecycle ----------------
+    // the part pictures are made the first time the Workshop opens (not while the game is starting)
+    fillPictures() {
+      if (this.picsDone) return;
+      this.picsDone = true;
+      const pics = CW.partPictures();
+      for (const b of document.querySelectorAll('#wsPalette .pal-item')) {
+        const img = b.querySelector('.pic');
+        if (img && pics[b.dataset.part]) img.src = pics[b.dataset.part];
+      }
+    }
+
     open(bp, rush) {
+      this.fillPictures();
       this.active = true;
       this.rush = rush || null;
       this.undoStack = [];

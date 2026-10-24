@@ -9,12 +9,12 @@ The game, server, website, apps and store texts are ready. What's left below nee
 |---|---|---|
 | Website (play in browser, installable) | https://cogwild.duckdns.org | `deploy\upload.ps1` (see deploy/README.md) |
 | Download page | https://cogwild.duckdns.org/download | `build-apps.ps1 -Upload ...` |
-| Windows installer + portable | `dist\downloads\Cogwild-Setup-1.8.0.exe`, `Cogwild-1.8.0-portable.exe` | `build-apps.ps1` |
-| macOS (beta, not signed by Apple) | `dist\downloads\Cogwild-1.8.0-mac-arm64.zip` (Apple Silicon), `-mac-x64.zip` (Intel) | `build-apps.ps1` |
-| Linux | `dist\downloads\Cogwild-1.8.0-linux-x64.tar.gz`, `-linux-arm64.tar.gz` (Raspberry Pi etc.) | `build-apps.ps1` |
-| Android (sideload) | `dist\downloads\Cogwild-1.8.0.apk` (release-signed) | `build-apps.ps1` |
-| Google Play | `dist\store\Cogwild-1.8.0.aab` | `build-apps.ps1` |
-| Microsoft Store | `dist\store\Cogwild-1.7.3-store.appx` (needs your Store identity, see §3) | `build-apps.ps1 -StoreId ... -StorePublisher ...` |
+| Windows installer + portable | `dist\downloads\Cogwild-Setup-1.8.1.exe`, `Cogwild-1.8.1-portable.exe` | `build-apps.ps1` |
+| macOS (beta, not signed by Apple) | `dist\downloads\Cogwild-1.8.1-mac-arm64.zip` (Apple Silicon), `-mac-x64.zip` (Intel) | `build-apps.ps1` |
+| Linux | `dist\downloads\Cogwild-1.8.1-linux-x64.tar.gz`, `-linux-arm64.tar.gz` (Raspberry Pi etc.) | `build-apps.ps1` |
+| Android (sideload) | `dist\downloads\Cogwild-1.8.1.apk` (release-signed) | `build-apps.ps1` |
+| Google Play | `dist\store\Cogwild-1.8.1.aab` | `build-apps.ps1` |
+| Microsoft Store | `dist\store\Cogwild-1.8.1-store.appx` (needs your Store identity, see §3) | `build-apps.ps1 -StoreId ... -StorePublisher ...` |
 | itch.io (everything in one folder) | `dist\itch\` (browser zip + Windows/Mac/Linux downloads + `UPLOAD-THESE.txt`) | `build-apps.ps1`, then `build-itch.ps1 -Portal all` |
 | CrazyGames / Poki | `dist\cogwild-crazygames.zip`, `cogwild-poki.zip` | `build-itch.ps1 -Portal all` |
 | Store texts, ratings, data safety | [STORE_PAGE.md](STORE_PAGE.md) | |
@@ -41,7 +41,7 @@ The game, server, website, apps and store texts are ready. What's left below nee
 
 ## 2. Google Play (Android)
 - [ ] Google Play Console account: **$25 once**. New personal accounts must run a **closed test with at least 12 testers for 14 days** before going public. Start that early!
-- [ ] Create the app → upload `dist\store\Cogwild-1.8.0.aab` → turn on **Play App Signing** (default).
+- [ ] Create the app → upload `dist\store\Cogwild-1.8.1.aab` → turn on **Play App Signing** (default).
 - [ ] Store listing: title, short and long description, icon `img\icon-512.png`, feature graphic **1024×500** (crop `img\og-image.png`), at least 2 phone screenshots (the 16:9 screenshots work).
 - [ ] App content: privacy policy URL, **Data safety** and **content rating** answers (STORE_PAGE.md), target audience (choose 13+ or "all ages"; if you include under-13s, Google's Families policy applies), ads: **no**, account deletion URL `https://cogwild.duckdns.org/privacy.html#deleting`.
 - [ ] For each update: raise `versionCode` (+1) and `versionName` in `android\android\app\build.gradle`.
@@ -52,7 +52,7 @@ The game, server, website, apps and store texts are ready. What's left below nee
   1. Sign up at https://storedeveloper.microsoft.com (individual account) and open Partner Center.
   2. **Apps and games → New product → MSIX or PWA app**, reserve the name **Cogwild**.
   3. In the new app: **Product management → Product identity**. Copy **Package/Identity/Name** and **Package/Identity/Publisher** (starts with `CN=`).
-  4. Run `build-apps.ps1 -StoreId <Package/Identity/Name> -StorePublisher "<CN=...>"` (or give both to Claude). It makes `dist\store\Cogwild-1.7.3-store.appx`.
+  4. Run `build-apps.ps1 -StoreId <Package/Identity/Name> -StorePublisher "<CN=...>"` (or give both to Claude). It makes `dist\store\Cogwild-1.8.1-store.appx`.
   5. Start a submission: upload that `.appx` under **Packages**, fill in the store listing (texts and screenshots from STORE_PAGE.md),
      age rating questionnaire (same answers as Google Play), privacy policy URL, and submit. Certification usually takes 1-3 days.
   The package asks Windows for the internet and the microphone (voice chat); it needs Windows 10 (1809) or newer.

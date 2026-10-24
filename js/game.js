@@ -1716,8 +1716,9 @@
       if (!el) { el = document.createElement('div'); el.className = 'dmg'; }
       el.textContent = Math.max(1, Math.round(dmg));
       el.classList.toggle('big', dmg >= 25);
-      el.style.left = ((v.x * 0.5 + 0.5) * window.innerWidth + (Math.random() - 0.5) * 30) + 'px';
-      el.style.top = ((-v.y * 0.5 + 0.5) * window.innerHeight) + 'px';
+      const z = this.uiZoom || 1;
+      el.style.left = ((v.x * 0.5 + 0.5) * window.innerWidth / z + (Math.random() - 0.5) * 30) + 'px';
+      el.style.top = ((-v.y * 0.5 + 0.5) * window.innerHeight / z) + 'px';
       el.style.animation = 'none';
       void el.offsetWidth;
       el.style.animation = '';
@@ -2070,7 +2071,7 @@
         if (this.net.active) ni.textContent = this.net.hud();
       }
       const v = new V3();
-      const w = window.innerWidth, h = window.innerHeight;
+      const w = window.innerWidth / (this.uiZoom || 1), h = window.innerHeight / (this.uiZoom || 1);
       for (const c of this.combatants) {
         if (!c.tagEl) continue;
         let pos = null, frac = 0, onFoot = false;
@@ -2484,6 +2485,7 @@
       const root = document.documentElement;
       root.classList.toggle('compact', compact);
       root.style.setProperty('--z', z.toFixed(3));
+      this.uiZoom = z; // the HUD is drawn at this scale: things placed on it use window pixels / z
       root.style.setProperty('--vw', (w / z).toFixed(1) + 'px'); // window size in scaled pixels
       root.style.setProperty('--vh', (h / z).toFixed(1) + 'px');
       root.style.setProperty('--quests', h / z < 700 ? 'none' : 'block');

@@ -5,7 +5,7 @@ You build a mech from parts in the Workshop, then fight online (bots fill empty 
 It runs in the browser (three.js r128, no build step), as a Windows app (Electron) and an Android app (Capacitor),
 and on game portals (itch.io, CrazyGames, Poki). The online server is zero-dependency Node.js.
 
-**Live:** https://cogwild.duckdns.org (download page `/download`) · **Current version:** v1.8.0 · **Online protocol:** `cogwild-net-10`
+**Live:** https://cogwild.duckdns.org (download page `/download`) · **Current version:** v1.8.1 · **Online protocol:** `cogwild-net-10`
 The user is not a programmer: explain things in plain words, test everything yourself, and show screenshots as proof.
 
 ## How the user wants things done
@@ -141,6 +141,7 @@ apps would break with the new server; they then get an "update" prompt.
 - `tar` on Windows paths needs `--force-local`.
 - Never zip with `Compress-Archive` (Windows PowerShell 5.1): it stores `js\economy.js` with backslashes, and Linux hosts (itch.io,
   portals) unpack that as one odd file name, so the game sticks on "Building the arena…". build-itch.ps1 uses .NET ZipFile with `/`.
+- The HUD and menus are CSS-zoomed (`--z`, `game.uiZoom`): anything placed on them from a 3D point (name tags, damage numbers) must use window pixels / `uiZoom`.
 - CSP is strict (`script-src 'self'`): no inline scripts or `onclick=` in pages.
 - Two Electron windows in one test: create both before destroying either (a fresh window after a destroyed one can fail to load).
 - Class names on lobby buttons used to clash with other screens' styles (`.ach`, `.road`): keep side buttons as plain `side-btn`.

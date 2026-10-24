@@ -1290,7 +1290,11 @@
   #workshopUI .pal-item { background: transparent !important; border: 1px solid transparent !important; padding: 5px 8px; margin-bottom: 1px; font-size: 13.5px; transition: background .12s; }
   #workshopUI .pal-item:hover { background: rgba(255, 255, 255, .05) !important; border-color: transparent !important; }
   #workshopUI .pal-item.sel { background: rgba(92, 225, 255, .1) !important; border-color: rgba(92, 225, 255, .35) !important; }
-  #workshopUI .pal-item .sw { width: 12px; height: 12px; border-radius: 50%; border: none; }
+  #workshopUI .pal-item .pic { width: 30px; height: 30px; flex: none; margin: -3px 0; object-fit: contain; border-radius: 7px;
+    background: radial-gradient(circle at 50% 45%, rgba(170, 200, 255, .22), rgba(170, 200, 255, .04) 70%); }
+  #workshopUI .pal-item .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  #workshopUI .pal-item .pic:not([src]) { visibility: hidden; }
+  .compact #workshopUI .pal-item .pic { width: 24px; height: 24px; }
   #workshopUI .pal-item .cost { color: var(--muted2) !important; font-weight: 600; }
   #workshopUI .pal-item .key { color: #4d5a82; }
   #workshopUI .pal-cat { font-size: 12px !important; color: #7f8fb8 !important; margin: 10px 6px 3px; letter-spacing: .3px; }
@@ -1778,29 +1782,29 @@
 </div>
 
 <!-- three.js: from the CDN, or the local copy in js/vendor/ when offline (desktop build / no internet) -->
-<script src="js/vendor/three.min.js?v=27"></script>
-<script src="js/economy.js?v=27"></script>
-<script src="js/parts.js?v=27"></script>
-<script src="js/platform.js?v=27"></script>
-<script src="js/featured.js?v=27"></script>
-<script src="js/world.js?v=27"></script>
-<script src="js/entities.js?v=27"></script>
-<script src="js/meta.js?v=27"></script>
-<script src="js/extras.js?v=27"></script>
-<script src="js/modes.js?v=27"></script>
-<script src="js/tutorial.js?v=27"></script>
-<script src="js/clips.js?v=27"></script>
-<script src="js/gamepad.js?v=27"></script>
-<script src="js/workshop.js?v=27"></script>
-<script src="js/config.js?v=27"></script>
-<script src="js/net.js?v=27"></script>
-<script src="js/account.js?v=27"></script>
-<script src="js/touch.js?v=27"></script>
-<script src="js/supers.js?v=27"></script>
-<script src="js/gadgets.js?v=27"></script>
-<script src="js/pics.js?v=27"></script>
-<script src="js/talk.js?v=27"></script>
-<script src="js/voice.js?v=27"></script>
-<script src="js/game.js?v=27"></script>
+<script src="js/vendor/three.min.js?v=28"></script>
+<script src="js/economy.js?v=28"></script>
+<script src="js/parts.js?v=28"></script>
+<script src="js/platform.js?v=28"></script>
+<script src="js/featured.js?v=28"></script>
+<script src="js/world.js?v=28"></script>
+<script src="js/entities.js?v=28"></script>
+<script src="js/meta.js?v=28"></script>
+<script src="js/extras.js?v=28"></script>
+<script src="js/modes.js?v=28"></script>
+<script src="js/tutorial.js?v=28"></script>
+<script src="js/clips.js?v=28"></script>
+<script src="js/gamepad.js?v=28"></script>
+<script src="js/workshop.js?v=28"></script>
+<script src="js/config.js?v=28"></script>
+<script src="js/net.js?v=28"></script>
+<script src="js/account.js?v=28"></script>
+<script src="js/touch.js?v=28"></script>
+<script src="js/supers.js?v=28"></script>
+<script src="js/gadgets.js?v=28"></script>
+<script src="js/pics.js?v=28"></script>
+<script src="js/talk.js?v=28"></script>
+<script src="js/voice.js?v=28"></script>
+<script src="js/game.js?v=28"></script>
 </body>
 </html>
