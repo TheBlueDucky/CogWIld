@@ -141,7 +141,7 @@ apps would break with the new server; they then get an "update" prompt.
 ## Waiting on the user
 - Email sending: run `deploy\set-login.ps1` (Gmail app password or other SMTP; optional Google OAuth client ID).
   Steps are in `LAUNCH.md` > "Turn on email login".
-- DuckDNS: point `cogwild` at 84.13.68.152 (until then the old Ashburn server forwards players); then OK deleting the Ashburn server.
+- Minecraft players who joined by the old IP 150.136.43.207 need the new one (84.13.68.152); that address is gone.
 - Optional cleanup of old downloads on the server (1.0–1.6.3).
 - Confirm the Oracle alert email subscription.
 - Store launch: Google Play closed test (12 testers × 14 days), itch.io/CrazyGames/Poki submissions (zips in `dist/`).
