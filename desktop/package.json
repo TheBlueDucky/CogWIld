@@ -1,7 +1,7 @@
 {
   "name": "cogwild",
   "productName": "Cogwild",
-  "version": "1.8.2",
+  "version": "1.8.3",
   "description": "Build any mech, then rule the land, water and sky.",
   "author": "BlueDucky Games",
   "main": "main.js",
@@ -56,6 +56,8 @@
       "identityName": "BlueDuckyGames.Cogwild",
       "publisher": "CN=00000000-0000-0000-0000-000000000000",
       "publisherDisplayName": "BlueDucky Games",
+      "minVersion": "10.0.17763.0",
+      "maxVersionTested": "10.0.26100.0",
       "displayName": "Cogwild",
       "applicationId": "Cogwild",
       "backgroundColor": "#121a33",

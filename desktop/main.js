@@ -23,12 +23,14 @@ function createWindow() {
   });
   // no menu bar, except on a Mac: there the app menu gives Cmd+Q and the edit menu makes copy/paste work in text boxes
   Menu.setApplicationMenu(process.platform === 'darwin' ? Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'editMenu' }, { role: 'windowMenu' }]) : null);
-  // links (privacy, terms, download page) open in the player's own browser, never inside the game window
+  // links (privacy, terms, download page) open in the player's own browser, never inside the game window;
+  // "Email us" opens the player's email app, and the Store version can open the Microsoft Store for updates
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https:\/\//.test(url)) shell.openExternal(url);
+    if (/^(https:\/\/|mailto:|ms-windows-store:)/.test(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
-  win.loadFile(path.join(__dirname, 'app', 'index.html'));
+  // the Microsoft Store copy tells the game so (updates come from the Store, not the download page)
+  win.loadFile(path.join(__dirname, 'app', 'index.html'), process.windowsStore ? { query: { store: '1' } } : undefined);
   // F11 toggles fullscreen like most PC games
   win.webContents.on('before-input-event', (e, input) => {
     if (input.type === 'keyDown' && input.key === 'F11') win.setFullScreen(!win.isFullScreen());

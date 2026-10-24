@@ -2,7 +2,7 @@
 (function () {
   const CW = (window.CW = window.CW || {});
 
-  CW.VERSION = 'v1.8.2';
+  CW.VERSION = 'v1.8.3';
   // escape text before it goes into innerHTML (mech/player names can come from pasted save codes)
   // "3h 12m" / "5d 4h" / "12m" until something ends
   CW.timeLeft = (ms) => { const m = Math.max(1, Math.ceil(ms / 60000)); return m >= 2880 ? `${Math.floor(m / 1440)}d ${Math.floor((m % 1440) / 60)}h` : m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; };
@@ -25,6 +25,8 @@
     try { if (window.CogwildNative && window.CogwildNative.openUrl) return window.CogwildNative.openUrl(url); } catch (e) { /* fall back */ }
     window.open(url, '_blank');
   };
+  // the Microsoft Store copy of the desktop app (desktop/main.js adds ?store=1)
+  CW.STORE = new URLSearchParams(location.search).get('store') === '1';
   CW.esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   CW.SAVE_VERSION = 2;
   CW.WATER_Y = 0;

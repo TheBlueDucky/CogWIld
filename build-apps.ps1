@@ -4,11 +4,13 @@
 #   powershell -ExecutionPolicy Bypass -File build-apps.ps1
 #   ... -Only windows,android                 (just some of them: windows, store, unix (Linux + Mac), android)
 #   ... -Upload -Ip 84.13.68.152 -Key C:\path\to\ssh-key.key   (also puts what was built on the server's download page)
-#   ... -StoreId <Package/Identity/Name> -StorePublisher <CN=...>   (the Microsoft Store values from Partner Center >
-#        the app > Product management > Product identity; without them the .appx has placeholders and the Store refuses it)
+#   ... -StoreId <Package/Identity/Name> -StorePublisher <CN=...> [-StorePublisherName "<Publisher display name>"]
+#        (the Microsoft Store values from Partner Center > the app > Product management > Product identity; without them the
+#        .appx has placeholders and the Store refuses it. The display name defaults to "BlueDucky Games" and must match the
+#        account's publisher display name exactly)
 # Before a new release, raise the version in desktop\package.json, android\android\app\build.gradle
 # (versionCode + versionName) and the file names in download.html.
-param([switch]$Upload, [string]$Ip = '', [string]$Key = '', [string]$User = 'ubuntu', [string]$StoreId = '', [string]$StorePublisher = '',
+param([switch]$Upload, [string]$Ip = '', [string]$Key = '', [string]$User = 'ubuntu', [string]$StoreId = '', [string]$StorePublisher = '', [string]$StorePublisherName = '',
   [ValidateSet('windows', 'store', 'unix', 'android')][string[]]$Only = @('windows', 'store', 'unix', 'android'))
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
@@ -40,6 +42,7 @@ if ($Only -contains 'store') {
   $storeArgs = @('--win', 'appx', '--x64')
   if ($StoreId) { $storeArgs += "-c.appx.identityName=$StoreId" }
   if ($StorePublisher) { $storeArgs += "-c.appx.publisher=$StorePublisher" }
+  if ($StorePublisherName) { $storeArgs += "-c.appx.publisherDisplayName=$StorePublisherName" }
   npx electron-builder @storeArgs
   if ($LASTEXITCODE) { throw 'Microsoft Store build failed' }
   Copy-Item "dist\Cogwild-$ver-store.appx" $storeOut -Force

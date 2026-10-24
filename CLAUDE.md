@@ -5,7 +5,7 @@ You build a mech from parts in the Workshop, then fight online (bots fill empty 
 It runs in the browser (three.js r128, no build step), as a Windows app (Electron) and an Android app (Capacitor),
 and on game portals (itch.io, CrazyGames, Poki). The online server is zero-dependency Node.js.
 
-**Live:** https://cogwild.duckdns.org (download page `/download`) · **Current version:** v1.8.2 · **Online protocol:** `cogwild-net-10`
+**Live:** https://cogwild.duckdns.org (download page `/download`) · **Current version:** v1.8.3 · **Online protocol:** `cogwild-net-10`
 The user is not a programmer: explain things in plain words, test everything yourself, and show screenshots as proof.
 
 ## How the user wants things done
@@ -164,7 +164,7 @@ apps would break with the new server; they then get an "update" prompt.
 - Confirm the Oracle alert email subscription.
 - Store launch: Google Play closed test (12 testers × 14 days), itch.io/CrazyGames/Poki submissions (zips in `dist/`).
 - Possibly a chat word filter later (they asked to wait).
-- Microsoft Store: reserve the name in Partner Center (free individual account) and give Product identity Name + Publisher, then rebuild the .appx (LAUNCH.md §3).
+- Microsoft Store: everything on our side is ready (package, texts, screenshots, art, form answers in STORE_PAGE.md). Needs a Partner Center account (adult with ID; a parent can own it), then Product identity Name + Publisher + PublisherDisplayName → `build-apps.ps1 -Only store -StoreId -StorePublisher -StorePublisherName` (LAUNCH.md §3). The Store copy (`process.windowsStore` → `?store=1` → `CW.STORE`) sends updates to the Store.
 - The Mac builds were never tried on a real Mac (built on Windows); Linux arm64 was smoke-tested in Docker on DuckysSrv.
 - New parts must also go into `js/economy.js` PARTS (cost, type, level, HP, DPS) or the server refuses mechs with them; adding part types needs a NET_VERSION bump (old games crash on unknown parts).
 - Optional: delete the empty "CogWild" Google Cloud project on the personal Google account (made by mistake, no billing).

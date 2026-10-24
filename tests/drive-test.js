@@ -64,7 +64,21 @@ app.whenReady().then(async () => {
   const steerers = await js(`${G}.player.mech.parts.filter((p) => p.steers).length`);
   check(steerers === 2, `the buggy's 2 front wheels steer (${steerers})`);
   // drive forward, steer left, let go: the view and the mech stop turning right away
-  await js(`(() => { const g = ${G}; for (const e of g.mechs) if (e !== g.player.mech) e.place(e.pos.clone().setX(e.pos.x + 400), 0); g.keys.KeyW = true; return true; })()`);
+  // a long flat dry stretch to drive on (the spawn spot is random: water or a wall ahead would spoil the checks)
+  await js(`(() => {
+    const g = ${G}, w = g.world, m = g.player.mech;
+    for (const e of g.mechs) if (e !== m) e.place(e.pos.clone().setX(e.pos.x + 400), 0);
+    let best = null;
+    for (let x = -140; x <= 140 && !best; x += 7) for (let z = 120; z >= -60 && !best; z -= 7) {
+      let ok = true; const h0 = w.groundAt(x, z);
+      if (h0 < 1.5) continue;
+      for (let d = 0; d <= 90 && ok; d += 3) { const h = w.groundAt(x, z - d); if (h < 1.5 || Math.abs(h - h0) > 2.5) ok = false; } // north (yaw 0) for 90 m
+      if (ok) best = { x, z };
+    }
+    if (best) { m.place(best, 0); m.vel.set(0, 0, 0); g.cam.yaw = 0; }
+    window.__flat = best;
+    g.keys.KeyW = true; return true;
+  })()`);
   await ticks(90);
   await js(`${G}.keys.KeyA = true; true`);
   await ticks(40);
@@ -75,8 +89,11 @@ app.whenReady().then(async () => {
   await ticks(45);
   const after = await js(`({ cam: ${G}.cam.yaw, mech: ${G}.player.mech.yaw })`);
   check(Math.abs(after.cam - before.cam) < 0.02 && Math.abs(after.mech - before.mech) < 0.02, `after letting go of A the aim stays put (view moved ${(after.cam - before.cam).toFixed(3)}, mech ${(after.mech - before.mech).toFixed(3)} rad)`);
-  // S while rolling forward brakes hard
-  await ticks(60);
+  // S while rolling forward brakes hard: back to the flat stretch, drive straight, then brake
+  const toFlat = () => js(`(() => { const g = ${G}, m = g.player.mech; for (const k of ['KeyW', 'KeyA', 'KeyD', 'KeyS']) g.keys[k] = false; if (window.__flat) { m.place(window.__flat, 0); m.vel.set(0, 0, 0); g.cam.yaw = 0; g.cam.pitch = 0.05; } return true; })()`);
+  await toFlat();
+  await js(`${G}.keys.KeyW = true; true`);
+  await ticks(100);
   const v1 = await js(`${G}.player.mech.fwdSpeed`);
   await js(`(() => { const g = ${G}; g.keys.KeyW = false; g.keys.KeyS = true; return true; })()`);
   const media = [];
@@ -86,9 +103,14 @@ app.whenReady().then(async () => {
   check(v1 > 12 && v2 < v1 * 0.45, `S brakes like a car (${v1.toFixed(1)} → ${v2.toFixed(1)} m/s in 0.4 s, on ${media.join('/')})`);
 
   // shooting in first person: thin tracers, no flash covering the screen
-  await js(`(() => { const g = ${G}; g.settings.camMode = 'first'; g.mouse.left = true; return true; })()`);
-  await ticks(20);
-  const fire = await js(`(() => { const g = ${G}; const cam = g.camera.position; const near = g.fx.particles.filter((p) => p.mesh.position.distanceTo(cam) < 3 && p.mesh.scale.x > 0.15).length; const shells = g.fx.projectiles.filter((p) => p.kind === 'shell'); return { near, shells: shells.length, box: shells.length ? shells[0].mesh.geometry.type : '' }; })()`);
+  await toFlat();
+  await js(`(() => { const g = ${G}; g.settings.camMode = 'first'; g.cam.pitch = 0.08; return true; })()`);
+  await ticks(3); // the camera moves into the cockpit first
+  await js(`${G}.mouse.left = true; true`);
+  await ticks(10);
+  // big glows (sprites are as wide as their scale) within 2.5 m in front of the lens; smoke behind you doesn't count
+  const fire = await js(`(() => { const g = ${G}; const cam = g.camera.position, fwd = new THREE.Vector3(); g.camera.getWorldDirection(fwd);
+    const near = g.fx.particles.filter((p) => { const d = p.mesh.position.clone().sub(cam); return d.length() < 2.5 && d.dot(fwd) > 0 && p.mesh.scale.x > 0.5; }).length; const shells = g.fx.projectiles.filter((p) => p.kind === 'shell'); return { near, shells: shells.length, box: shells.length ? shells[0].mesh.geometry.type : '' }; })()`);
   check(fire.shells > 0 && fire.box === 'BoxGeometry', `cannon shots are thin tracers (${fire.shells} in the air, ${fire.box})`);
   check(fire.near === 0, `nothing big flashes in front of your own camera (${fire.near})`);
   await wait(50);

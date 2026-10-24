@@ -135,7 +135,10 @@
           if (m.fatal && CW.APP && CW.PUBLIC_URL) {
             const msg = '⬆ A new version of Cogwild is out! Online play needs the update.';
             this.setStatus(msg);
-            g.account.note(msg, [{ label: 'Download update', main: true, fn: () => CW.openExternal(CW.PUBLIC_URL + 'download.html') }, { label: 'Later' }], 60000);
+            // the Microsoft Store copy updates through the Store (its rules), the others from the download page
+            const upd = CW.STORE ? { label: 'Update in the Microsoft Store', main: true, fn: () => CW.openExternal('ms-windows-store://downloadsandupdates') }
+              : { label: 'Download update', main: true, fn: () => CW.openExternal(CW.PUBLIC_URL + 'download.html') };
+            g.account.note(msg, [upd, { label: 'Later' }], 60000);
             break;
           }
           g.toast('⚠ ' + m.msg);
