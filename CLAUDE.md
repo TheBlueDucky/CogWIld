@@ -5,7 +5,7 @@ You build a mech from parts in the Workshop, then fight online (bots fill empty 
 It runs in the browser (three.js r128, no build step), as a Windows app (Electron) and an Android app (Capacitor),
 and on game portals (itch.io, CrazyGames, Poki). The online server is zero-dependency Node.js.
 
-**Live:** https://cogwild.duckdns.org (download page `/download`) · **Current version:** v1.7.5 · **Online protocol:** `cogwild-net-9`
+**Live:** https://cogwild.duckdns.org (download page `/download`) · **Current version:** v1.8.0 · **Online protocol:** `cogwild-net-10`
 The user is not a programmer: explain things in plain words, test everything yourself, and show screenshots as proof.
 
 ## How the user wants things done
@@ -32,6 +32,14 @@ The user is not a programmer: explain things in plain words, test everything you
   (CogwildNative.setVoiceAudio).
   Players' own pictures and club pictures are circles; "Quick chat only" players see the preset avatars instead. Brawl Stars-like, but not a copy. Must fit phones (Galaxy A57 sideways
   ≈ 915×412; also check 780×350).
+- **Driving (v1.8, they asked for it):** mechs drive like racing-game cars: A/D steer (`inp.manual`: the wheel turns in
+  smoothly and snaps straight on release), front wheels visibly steer, S brakes then reverses, the body leans in turns.
+  The view turns only by exactly what the player's own steering turned the mech (`mech.camFollowYaw`, applied in
+  `updateCamera` the same frame), so letting go of A/D never moves the aim. Auto-steer (W drives toward the view) is off
+  on PCs and on for touch screens (`settings.carSteer` migration in meta.js). Budget 750 Bolts (`ECON.BUDGET`; Rush 400).
+  Effects they asked for: thin tracer bullets with a gunshot sound (not big white balls), no muzzle flash right in front of
+  your own camera, broken parts fly off smoking, a wreck falls apart and explodes 0.28 s later (`fx.later`). Menus, screens,
+  PLAY and the countdown animate (CSS block "v1.8 animations"); the Workshop is calm and flat (block "v1.8 Workshop").
 - Lobby layout: left = Shop, Workshop, Challenges, Achievements, Help; right = Friends, Clubs, Leaderboard, Trophy
   Road, News; top-left chip = Profile (stats live in Profile); bottom-left = party card, Cog Pass bar, one challenge;
   bottom-right = featured chip, mode/arena card, PLAY.
@@ -42,7 +50,7 @@ The user is not a programmer: explain things in plain words, test everything you
 | `index.html` | all screens + all CSS (later style blocks override earlier ones: "v1.4 look", "v1.5 theme", then lobby/phone blocks near the end of the first `<style>`) |
 | `js/economy.js` | **shared with the server**: shop catalog, deals, Trophy Road, Cog Pass seasons, weekly events, Ranked, levels/XP, part costs/levels/HP/DPS, mech rules (`mechProblem`), daily challenges, achievement rewards. Change prices/rewards here only. |
 | `js/featured.js` | shared: today's featured mode + arena |
-| `js/parts.js` | part definitions + meshes, presets, `CW.analyze/validate`, `CW.VERSION`, `CW.esc`, `CW.timeLeft` |
+| `js/parts.js` | part definitions + meshes (Body parts: body, plate, nose, cabin, fender, spoiler, lights, exhaust; `wheel`/`bigwheel` with `radius`, big wheels reach below their cell: `s.bottom`), presets (Scout Buggy, Monster Truck, Street Racer…), `CW.analyze/validate`, `CW.VERSION`, `CW.esc`, `CW.timeLeft` |
 | `js/game.js` | the game: modes table (`MODES`, `FORMATS`, `CW.MM_FORMAT`), lobby + lobby stage (party/searching mechs), match loop, bots (`botAim` = human-like aiming), camera (stays out of walls), HUD, results, Esc handling (`closeTop`), touch aim assist |
 | `js/entities.js` | mechs, pilots, physics (walls block instead of lifting you), projectiles, fx |
 | `js/modes.js` | objectives: King of the Hill, Gold Rush, Combat Race, Boss Battle, Bounty Hunt |
@@ -148,6 +156,7 @@ apps would break with the new server; they then get an "update" prompt.
 - Possibly a chat word filter later (they asked to wait).
 - Microsoft Store: reserve the name in Partner Center (free individual account) and give Product identity Name + Publisher, then rebuild the .appx (LAUNCH.md §3).
 - The Mac builds were never tried on a real Mac (built on Windows); Linux arm64 was smoke-tested in Docker on DuckysSrv.
+- New parts must also go into `js/economy.js` PARTS (cost, type, level, HP, DPS) or the server refuses mechs with them; adding part types needs a NET_VERSION bump (old games crash on unknown parts).
 - Optional: delete the empty "CogWild" Google Cloud project on the personal Google account (made by mistake, no billing).
 
 ## Google sign-in (done 23 Oct 2026)

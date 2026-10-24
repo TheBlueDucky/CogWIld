@@ -41,7 +41,15 @@
         this.bust = bust;
       }
       // wheels and legs on the bottom row get visual suspension
-      this.suspended = this.parts.filter((p) => (p.t === 'wheel' || p.t === 'leg') && p.y === Math.min(...this.parts.map((q) => q.y)));
+      const reach = (p) => p.y - Math.max(0.5, CW.PARTS[p.t].radius || 0);
+      const low = Math.min(...this.parts.map(reach));
+      this.suspended = this.parts.filter((p) => (p.t === 'wheel' || p.t === 'bigwheel' || p.t === 'leg') && reach(p) < low + 0.05);
+      // front wheels steer like a car's (those ahead of the middle of all wheels)
+      const wz = this.parts.filter((p) => p.t === 'wheel' || p.t === 'bigwheel').map((p) => p.z);
+      const midZ = wz.length ? (Math.min(...wz) + Math.max(...wz)) / 2 : 0;
+      for (const p of this.parts) p.steers = (p.t === 'wheel' || p.t === 'bigwheel') && wz.length > 1 && p.z < midZ - 0.1;
+      this.steer = 0; // the steering wheel: -1 left .. 1 right
+      this.camFollowYaw = 0; // how much the player's own steering turned the mech (the view turns with it)
       this.dashCd = 0;
       this.dashTime = 0;
       this.ramCd = 0;
@@ -76,10 +84,10 @@
       Object.assign(this, {
         mass: s.mass, pr: s.pr, drive: s.drive, swim: s.swim, thrust: s.thrust, rotors: s.rotors,
         wings: s.wings, buoy: s.buoy, legs: s.legs, wheels: s.wheels, shieldMax: s.shield, domains: s.domains, stats: s,
-        boosters: s.boosters, spikes: s.spikes,
+        boosters: s.boosters, spikes: s.spikes, bigWheels: s.bigWheels,
       });
       this.cameraOk = !!(this.camPart && this.camPart.alive);
-      this.baseOff = 0.5 - s.minY;
+      this.baseOff = -s.bottom;
       let r = 0;
       for (const p of alive) r = Math.max(r, Math.hypot(p.x, p.y, p.z));
       this.radius = r + 0.8;
@@ -134,7 +142,14 @@
       let fwd = this.vel.x * fx + this.vel.z * fz;
       const sideX = this.vel.x - fx * fwd, sideZ = this.vel.z - fz * fwd;
       const dashing = this.dashTime > 0;
-      const sideK = dashing ? 0.6 : grounded && !inWater ? 8 : inWater ? 2.5 : 1.2;
+      // S while rolling forward brakes hard first (then reverses), like a car
+      if (inp.throttle < 0 && fwd > 1 && bottom <= ground + 0.5 && !inWater) { // (also over small bumps)
+        const b = Math.min(fwd - 0.5, 32 * dt);
+        this.vel.x -= fx * b; this.vel.z -= fz * b; fwd -= b;
+      }
+      // tires grip, but slide a little when you turn hard at speed
+      const slide = 1 + Math.abs(this.steer || 0) * Math.max(0, Math.abs(fwd) - 18) * 0.04;
+      const sideK = dashing ? 0.6 : grounded && !inWater ? 8 / slide : inWater ? 2.5 : 1.2;
       const sk = Math.exp(-sideK * dt);
       const drag = dashing ? 0.35 : inWater ? CW.DRAG.water : grounded ? CW.DRAG.land : CW.DRAG.air;
       const dk = Math.exp(-drag * dt);
@@ -147,8 +162,24 @@
       const canSteer =
         (grounded && (this.drive > 0 || this.swim > 0)) || (inWater && (this.swim > 0 || this.drive > 0)) ||
         (!grounded && !inWater && (this.rotors > 0 || this.wings > 0)) || this.thrust > 0;
-      const turnRate = (canSteer ? 2.5 : 0.5) * (0.5 + 0.5 * pr);
-      this.yaw -= inp.turn * turnRate * dt;
+      let turnRate = (canSteer ? 2.5 : 0.5) * (0.5 + 0.5 * pr);
+      // the player's A/D steer like a car's wheel: it turns in smoothly (small taps = small corrections)
+      // and snaps straight the moment you let go, so the mech (and your view) stops turning right there.
+      // Bots and auto-steer set the wheel directly.
+      const want = clamp(inp.turn || 0, -1, 1);
+      if (!inp.manual || !want || want * this.steer < 0) this.steer = inp.manual ? 0 : want;
+      if (inp.manual && want) this.steer += (want - this.steer) * Math.min(1, dt * 9);
+      let dir = 1;
+      if (grounded && !inWater && this.wheels > 0 && this.legs === 0) {
+        // wheels: a car turns tighter as it gets going, a bit wider at top speed; it can still creep around when slow
+        const sp = Math.abs(fwd);
+        turnRate *= clamp(0.45 + sp / 9, 0.45, 1.15) / (1 + Math.max(0, sp - 28) / 45);
+        if (inp.manual && fwd < -1) dir = -1; // backing up: the steering works like a real car's
+      }
+      const dyaw = -this.steer * turnRate * dir * dt;
+      this.yaw += dyaw;
+      if (inp.manual || this.steerManual) this.camFollowYaw += dyaw;
+      this.steerManual = !!inp.manual;
 
       // --- vertical ---
       this.vel.y -= g * dt;
@@ -195,7 +226,7 @@
         const rise = ng - ground;
         // jets can shove a mech up steeper ground than wheels alone
         const jetPush = Math.min(0.6, ((this.thrust * pr) / this.mass) * 0.004);
-        const maxSlope = (this.legs > 0 ? 2.4 : this.wheels > 0 ? 0.8 : 0.55) + jetPush;
+        const maxSlope = (this.legs > 0 ? 2.4 : this.bigWheels > 0 ? 1.25 : this.wheels > 0 ? 0.8 : 0.55) + jetPush;
         if (rise > 0.7 || (rise > 0.01 && rise > step * maxSlope)) {
           nx = this.pos.x; nz = this.pos.z;
           this.vel.x *= -0.2; this.vel.z *= -0.2;
@@ -244,6 +275,10 @@
         const hl = world.groundAt(this.pos.x - cy * 1.5, this.pos.z + sy * 1.5, bottom + 1);
         tp = clamp(Math.atan2(hf - hb, 3), -0.6, 0.6);
         tr = clamp(Math.atan2(hr - hl, 3), -0.6, 0.6);
+        if (this.wheels > 0) {
+          tr += (this.steer || 0) * clamp(fwd / 26, -1, 1) * 0.07; // leans out of a turn
+          tp += inp.throttle > 0 && fwd < 20 ? 0.025 : inp.throttle < 0 && fwd > 2 ? -0.045 : 0;
+        }
       } else if (inWater) {
         tp = Math.sin(this.game.time * 1.7 + this.pos.x) * 0.04;
         tr = Math.sin(this.game.time * 1.3 + this.pos.z) * 0.05;
@@ -344,7 +379,18 @@
         if (!p.alive) continue;
         const ud = p.obj.userData;
         switch (p.t) {
-          case 'wheel': ud.spin.rotation.x -= (fwd * dt) / 0.48; break;
+          case 'wheel':
+          case 'bigwheel':
+            ud.spin.rotation.x -= (fwd * dt) / ud.radius;
+            if (p.steers) ud.steer.rotation.y += (-(this.steer || 0) * 0.42 - ud.steer.rotation.y) * Math.min(1, dt * 12);
+            break;
+          case 'exhaust':
+            // puffs of smoke while you speed up
+            if (this.occupied && inp.throttle > 0 && Math.random() < dt * (fwd < 12 ? 14 : 5)) {
+              tmp2.copy(ud.exhaust[Math.random() < 0.5 ? 0 : 1]).applyMatrix4(p.obj.matrixWorld);
+              this.game.fx.burst(tmp2, { n: 1, color: 'smoke', speed: 1.2, up: 1.5, life: 0.7, size: 0.16, grow: 2.5 });
+            }
+            break;
           case 'leg': ud.swing.rotation.x = Math.sin(this.walkPhase + ((p.x + p.z) & 1) * Math.PI) * 0.55 * moveAmt; break;
           case 'rotor': {
             const rs = (this.occupied ? 28 : 3) * pr;
@@ -369,6 +415,8 @@
         }
         if (ud.aim && aim && this.occupied) ud.aim.lookAt(aim);
         if (p.cd > 0) p.cd -= dt;
+        // badly damaged parts smoke (so you can see a mech is about to fall apart)
+        if (p.hp < p.maxHp * 0.35 && Math.random() < dt * 2.2) this.game.fx.burst(p.wp, { n: 1, color: 'smoke', speed: 0.8, up: 2.2, life: 0.9, size: 0.22, grow: 2 });
       }
 
       this.syncTransform();
@@ -378,7 +426,7 @@
           if (!p.alive) continue;
           tmp.set(p.x, p.y, p.z).applyMatrix4(this.group.matrixWorld);
           const gy = world.groundAt(tmp.x, tmp.z, tmp.y + 1);
-          const want = clamp(gy - (tmp.y - 0.48), -0.45, 0.35);
+          const want = clamp(gy - (tmp.y - (p.obj.userData.radius || 0.48)), -0.45, 0.35);
           p.susp = (p.susp || 0) + (want - (p.susp || 0)) * Math.min(1, dt * 14);
           p.obj.position.y = p.y + p.susp;
         }
@@ -463,10 +511,14 @@
         const vel = dir.clone().multiplyScalar(w.speed).add(this.vel);
         if (w.kind === 'flame') vel.multiplyScalar(0.9 + Math.random() * 0.2).add(new V3((Math.random() - 0.5) * 4, (Math.random() - 0.5) * 3, (Math.random() - 0.5) * 4));
         this.game.fx.projectile({ pos: start, vel, dmg: w.dmg * mult, splash: w.splash, grav: w.grav, who: this.combatant, kind: w.kind });
-        if (w.kind === 'rail') this.game.fx.burst(start, { n: 8, color: this.game.fx.colorKey(0x48cae4), speed: 7, life: 0.3, size: 0.25 });
-        else if (w.kind !== 'flame') this.game.fx.burst(start, { n: 3, color: 'spark', speed: 4, life: 0.15, size: 0.25 });
+        // a small muzzle flash (left out right in front of your own camera, where it would cover the screen)
+        const nearLens = this.game.camera && this.game.camera.position.distanceTo(start) < 3;
+        if (!nearLens) {
+          if (w.kind === 'rail') this.game.fx.burst(start, { n: 5, color: this.game.fx.colorKey(0x48cae4), speed: 6, life: 0.2, size: 0.12 });
+          else if (w.kind !== 'flame') this.game.fx.burst(start, { n: 2, color: 'flash', speed: 2, life: 0.06, size: 0.1 });
+        }
         p.cd = 1 / (w.rate * rateK);
-        if (this.combatant.isPlayer) this.game.audio.shot(w.kind);
+        this.game.audio.shot(w.kind, this.combatant.isPlayer ? 1 : this.game.audio.near(start));
       }
     }
 
@@ -515,15 +567,17 @@
 
     breakPart(part, who) {
       part.alive = false;
-      this.game.fx.debris(part.obj, this.vel);
-      this.game.fx.explosion(part.wp, 0.6);
+      this.game.fx.debris(part.obj, this.vel, this.pos, true);
+      this.game.fx.chunks(part.wp, 3, this.color, 0.5);
+      this.game.fx.burst(part.wp, { n: 8, color: 'spark', speed: 10, life: 0.35, size: 0.08, grav: 20 });
+      this.game.fx.explosion(part.wp, 0.45);
       this.game.onPartBroken(this, who);
       if (part.t === 'camera' && this.combatant.isPlayer) this.game.bigMsg('CAMERA DESTROYED', 'Switched to chase view', 2);
       if (part.t === 'core') { this.destroy(who); return; }
       const alive = this.parts.filter((p) => p.alive);
       const keep = new Set(CW.connected(alive));
       for (const p of alive) {
-        if (!keep.has(p)) { p.alive = false; this.game.fx.debris(p.obj, this.vel); }
+        if (!keep.has(p)) { p.alive = false; this.game.fx.debris(p.obj, this.vel, this.pos); }
       }
       this.recompute();
     }
@@ -579,10 +633,18 @@
       if (!this.alive) return;
       this.alive = false;
       if (this.flashOn) this.group.traverse((o) => { if (o.isMesh && o.userData.mat0) o.material = o.userData.mat0; });
-      this.game.fx.explosion(this.pos, 2.8);
-      this.game.fx.chunks(this.pos, 14, this.combatant.color);
-      this.game.fx.shockwave(this.pos);
-      for (const p of this.parts) if (p.alive) { p.alive = false; this.game.fx.debris(p.obj, this.vel); }
+      // it falls apart first (every part flies off, some burning), then the big explosion
+      const at = this.pos.clone(), fx = this.game.fx;
+      let i = 0;
+      for (const p of this.parts) if (p.alive) { p.alive = false; fx.debris(p.obj, this.vel, at, i++ % 3 === 0, 1.6); }
+      fx.explosion(at, 1.1);
+      fx.chunks(at, 8, this.combatant.color);
+      fx.later(0.28, () => {
+        fx.explosion(at, 2.6);
+        fx.chunks(at, 10, this.combatant.color);
+        fx.shockwave(at);
+        fx.burst(at, { n: 8, color: 'smoke', speed: 2, up: 5, life: 2.2, size: 0.9, grow: 2.5 });
+      });
       this.game.scene.remove(this.group);
       this.game.onMechDestroyed(this, who);
     }
@@ -743,20 +805,20 @@
       this.pGeo = new THREE.IcosahedronGeometry(1, 0);
       this.pMats = {
         fire: new THREE.MeshBasicMaterial({ color: 0xffa53a }),
-        flash: new THREE.MeshBasicMaterial({ color: 0xfff3b0 }),
+        flash: new THREE.MeshBasicMaterial({ color: 0xffc061, transparent: true, opacity: 0.85, depthWrite: false }), // warm fire, not a white ball
         smoke: new THREE.MeshLambertMaterial({ color: 0x8a8a8a, transparent: true, opacity: 0.7, depthWrite: false }),
         spark: new THREE.MeshBasicMaterial({ color: 0xffe066 }),
         water: new THREE.MeshLambertMaterial({ color: 0xe6f7ff, transparent: true, opacity: 0.85 }),
       };
       this.projGeo = {
-        shell: new THREE.SphereGeometry(0.17, 8, 6),
+        shell: new THREE.BoxGeometry(0.06, 0.06, 1.5), // a thin tracer, not a ball
         rocket: new THREE.CylinderGeometry(0.13, 0.13, 0.8, 8).rotateX(Math.PI / 2),
         bolt: new THREE.BoxGeometry(0.1, 0.1, 0.8),
         rail: new THREE.BoxGeometry(0.14, 0.14, 3.2),
         flame: new THREE.IcosahedronGeometry(0.3, 0),
       };
       this.projMat = {
-        shell: new THREE.MeshBasicMaterial({ color: 0xfff1a8 }),
+        shell: new THREE.MeshBasicMaterial({ color: 0xffc46b, transparent: true, opacity: 0.9 }),
         rocket: new THREE.MeshBasicMaterial({ color: 0xff3d3d }),
         bolt: new THREE.MeshBasicMaterial({ color: 0x5cf2ff }),
         rail: new THREE.MeshBasicMaterial({ color: 0xbff6ff }),
@@ -770,7 +832,7 @@
       for (const d of this.debrisList) this.game.scene.remove(d.obj);
       if (this.beams) for (const b of this.beams) this.game.scene.remove(b.mesh);
       if (this.rings) for (const r of this.rings) this.game.scene.remove(r.mesh);
-      this.projectiles = []; this.particles = []; this.debrisList = []; this.rings = []; if (this.beams) this.beams = [];
+      this.projectiles = []; this.particles = []; this.debrisList = []; this.rings = []; this.timers = []; if (this.beams) this.beams = [];
     }
 
     projectile(o) {
@@ -864,7 +926,7 @@
 
     explosion(pos, size) {
       const p = pos.clone ? pos.clone() : new V3(pos.x, pos.y, pos.z);
-      this.burst(p, { n: 1, color: 'flash', speed: 0, life: 0.18, size: 1.6 * size, grow: 10 * size });
+      this.burst(p, { n: 1, color: 'flash', speed: 0, life: 0.13, size: 0.8 * size, grow: 2.4 });
       this.burst(p, { n: Math.round(8 * size + 4), color: 'fire', speed: 7 * size + 2, life: 0.5, size: 0.5 * size + 0.2 });
       this.burst(p, { n: Math.round(5 * size + 2), color: 'smoke', speed: 3, life: 1.4, size: 0.7 * size + 0.3, grow: 1.5, up: 2 });
       this.burst(p, { n: Math.round(6 * size), color: 'spark', speed: 14 * size + 4, life: 0.45, size: 0.15, grav: 20 });
@@ -878,15 +940,15 @@
     }
 
     // small metal chunks that fly off a wreck (painted like the mech)
-    chunks(pos, n, color) {
+    chunks(pos, n, color, scale = 1) {
       if (!this.chunkGeo) this.chunkGeo = new THREE.BoxGeometry(0.35, 0.25, 0.3);
       for (let i = 0; i < n; i++) {
         const m = new THREE.Mesh(this.chunkGeo, CW.mat(i % 3 ? color : 0x3a3a3a, null, 'panel'));
         m.position.copy(pos).add(new V3((Math.random() - 0.5) * 2, Math.random() * 1.5, (Math.random() - 0.5) * 2));
-        m.scale.setScalar(0.6 + Math.random() * 1.2);
+        m.scale.setScalar((0.6 + Math.random() * 1.2) * scale);
         m.castShadow = true;
         this.game.scene.add(m);
-        this.debrisList.push({ obj: m, vel: new V3((Math.random() - 0.5) * 22, 8 + Math.random() * 12, (Math.random() - 0.5) * 22), ang: new V3((Math.random() - 0.5) * 14, (Math.random() - 0.5) * 14, (Math.random() - 0.5) * 14), life: 4, s0: m.scale.x });
+        this.debrisList.push({ obj: m, vel: new V3((Math.random() - 0.5) * 22, 8 + Math.random() * 12, (Math.random() - 0.5) * 22).multiplyScalar(0.6 + scale * 0.4), ang: new V3((Math.random() - 0.5) * 14, (Math.random() - 0.5) * 14, (Math.random() - 0.5) * 14), life: 4, s0: m.scale.x });
       }
       while (this.debrisList.length > 160) { const d = this.debrisList.shift(); this.game.scene.remove(d.obj); }
     }
@@ -899,17 +961,26 @@
       (this.rings = this.rings || []).push({ mesh, life: 0.55 });
     }
 
-    debris(obj, baseVel) {
+    // a part that came off: it flies away from the mech's middle and tumbles; burning ones trail smoke
+    debris(obj, baseVel, from, burning, power = 1) {
       this.game.scene.attach(obj);
-      const v = new V3((Math.random() - 0.5) * 12, 5 + Math.random() * 8, (Math.random() - 0.5) * 12).add(baseVel);
-      const a = new V3((Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10);
-      this.debrisList.push({ obj, vel: v, ang: a, life: 5, s0: obj.scale.x });
+      const v = new V3((Math.random() - 0.5) * 12, 5 + Math.random() * 8, (Math.random() - 0.5) * 12);
+      if (from) { const out = obj.getWorldPosition(new V3()).sub(from); out.y = Math.max(0, out.y); if (out.lengthSq() > 0.01) v.addScaledVector(out.normalize(), 7); }
+      v.multiplyScalar(power).add(baseVel);
+      const a = new V3((Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10).multiplyScalar(power);
+      this.debrisList.push({ obj, vel: v, ang: a, life: 5, s0: obj.scale.x, smoke: burning ? 2.2 : 0, puff: 0 });
       if (this.debrisList.length > 140) { const d = this.debrisList.shift(); this.game.scene.remove(d.obj); }
     }
+
+    // run something a moment later (the big explosion after a wreck falls apart)
+    later(t, fn) { (this.timers = this.timers || []).push({ t, fn }); }
 
     update(dt) {
       const game = this.game;
       const world = game.world;
+      if (this.timers && this.timers.length) {
+        for (const tm of this.timers.slice()) if ((tm.t -= dt) <= 0) { this.timers.splice(this.timers.indexOf(tm), 1); tm.fn(); }
+      }
       if (this.rings) for (let i = this.rings.length - 1; i >= 0; i--) {
         const r = this.rings[i];
         r.life -= dt;
@@ -931,7 +1002,7 @@
         p.vel.y -= p.grav * dt;
         p.pos.addScaledVector(p.vel, dt);
         p.mesh.position.copy(p.pos);
-        if (p.kind !== 'shell') p.mesh.lookAt(tmp.copy(p.pos).add(p.vel));
+        p.mesh.lookAt(tmp.copy(p.pos).add(p.vel));
         p.life -= dt;
         if (p.kind === 'flame') {
           // flames swell and slow down as they burn out
@@ -1011,7 +1082,7 @@
               if (inWater) this.splashFx(impact, 1.4);
               else this.explosion(impact, 1);
             } else if (inWater) this.splashFx(impact, 0.4);
-            else this.burst(impact, { n: 5, color: hit ? 'spark' : 'smoke', speed: 5, life: 0.35, size: 0.22 });
+            else this.burst(impact, { n: hit ? 4 : 3, color: hit ? 'spark' : 'smoke', speed: hit ? 6 : 3, life: hit ? 0.25 : 0.4, size: hit ? 0.09 : 0.18, grav: hit ? 18 : 0 });
           }
           game.scene.remove(p.mesh);
           this.projectiles.splice(i, 1);
@@ -1039,6 +1110,10 @@
         if (inW) d.vel.multiplyScalar(Math.exp(-3 * dt));
         o.position.addScaledVector(d.vel, dt);
         o.rotation.x += d.ang.x * dt; o.rotation.y += d.ang.y * dt; o.rotation.z += d.ang.z * dt;
+        if (d.smoke > 0) {
+          d.smoke -= dt; d.puff -= dt;
+          if (d.puff <= 0) { d.puff = 0.06; this.burst(o.position, { n: 1, color: d.smoke > 1.6 ? 'fire' : 'smoke', speed: 0.6, up: 1, life: 0.7, size: 0.22, grow: 2 }); }
+        }
         const g = world.groundAt(o.position.x, o.position.z, o.position.y);
         if (o.position.y < g + 0.3) {
           o.position.y = g + 0.3;

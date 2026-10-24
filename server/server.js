@@ -18,7 +18,7 @@ const { Referee } = require('./referee');
 
 const PORT = parseInt(process.env.PORT || '8765', 10);
 const ROOT = path.resolve(__dirname, '..');
-const NET_VERSION = 'cogwild-net-9';
+const NET_VERSION = 'cogwild-net-10';
 const MAX_PLAYERS = 8;
 // Matchmaking (PLAY): each arena has its own queue. A search lasts up to SEARCH_SECS; then bots fill every
 // empty seat (at least one, so there's always someone to fight) and the match starts. A full room starts at once.
@@ -395,7 +395,7 @@ accounts.pics = new Pics(accounts, path.join(process.env.DATA_DIR || path.resolv
 // mech parts from players: only short part names and small whole-number positions are relayed
 const coord = (v) => Math.max(-64, Math.min(64, v | 0));
 function cleanParts(parts) {
-  return parts.slice(0, 120).filter((p) => p && typeof p.t === 'string' && /^[a-z][a-z0-9_]{0,23}$/.test(p.t)).map((p) => ({ t: p.t, x: coord(p.x), y: coord(p.y), z: coord(p.z) }));
+  return parts.slice(0, E.MAX_PARTS).filter((p) => p && typeof p.t === 'string' && /^[a-z][a-z0-9_]{0,23}$/.test(p.t)).map((p) => ({ t: p.t, x: coord(p.x), y: coord(p.y), z: coord(p.z) }));
 }
 
 function handle(c, data) {
@@ -449,7 +449,7 @@ function handle(c, data) {
     case 'ready':
       if (!room || room.state !== 'lobby') break;
       c.ready = !!m.ready;
-      c.bp = m.bp && Array.isArray(m.bp.parts) && m.bp.parts.length <= 120 ? { name: clean(m.bp.name, 24), color: m.bp.color & 0xffffff, parts: cleanParts(m.bp.parts) } : null;
+      c.bp = m.bp && Array.isArray(m.bp.parts) && m.bp.parts.length <= E.MAX_PARTS ? { name: clean(m.bp.name, 24), color: m.bp.color & 0xffffff, parts: cleanParts(m.bp.parts) } : null;
       // the mech must fit this player's level (from the server's XP) and the budget
       if (c.bp) {
         const why = E.mechProblem(c.bp.parts, accounts.level(c), E.BUDGET);
@@ -486,7 +486,7 @@ function handle(c, data) {
         room.beginPayload = m.payload;
         room.log = [];
         // every player's mech in the match must fit that player's level and the mode's budget
-        const budget = room.settings.mode === 'rush' ? 250 : E.BUDGET;
+        const budget = room.settings.mode === 'rush' ? E.RUSH_BUDGET : E.BUDGET;
         const bad = m.payload.roster.find((e) => e && e.h && clients.get(e.o | 0) && E.mechProblem(e.bp && e.bp.parts, accounts.level(clients.get(e.o | 0)), budget));
         if (bad) {
           console.warn(`match refused in ${room.code}: ${clean(bad.n, 16)}'s mech is not allowed`);

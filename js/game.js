@@ -22,7 +22,7 @@
   ];
   const FOUR = ['duel', 'squads', 'quads', 'ffa'];
   const MODES = {
-    rush: { name: 'Rush Build', icon: '⏱', sub: 'Build from scratch in the match', color: '#ff8c42', fromScratch: true, buildTime: 75, budget: 250, formats: FOUR, desc: 'Everyone starts with just a Core. Build from scratch in 75 seconds, then fight. Your Workshop mechs stay at home.' },
+    rush: { name: 'Rush Build', icon: '⏱', sub: 'Build from scratch in the match', color: '#ff8c42', fromScratch: true, buildTime: 75, budget: CW.ECON.RUSH_BUDGET, formats: FOUR, desc: 'Everyone starts with just a Core. Build from scratch in 75 seconds, then fight. Your Workshop mechs stay at home.' },
     clash: { name: 'Workshop Clash', icon: '🔧', sub: 'Use the mech you built in the lobby', color: '#3a86ff', fromScratch: false, formats: FOUR, desc: 'Bring a mech you built in the Workshop. No building during the match: your design is everything.' },
     koth: { name: 'King of the Hill', icon: '👑', sub: 'Hold the zone · respawns on', color: '#ffd23f', objective: 'koth', respawn: true, timeLimit: 240, scoreToWin: 100, formats: FOUR, desc: 'Stand in the glowing zone to score. It moves every minute. Wrecked? You respawn in 4 seconds.' },
     gold: { name: 'Gold Rush', icon: '💰', sub: 'Grab the most gold · respawns on', color: '#f4a261', objective: 'gold', respawn: true, timeLimit: 180, scoreToWin: 40, formats: FOUR, desc: 'Collect gold nuggets all over the map. Wreck enemies and they spill half their gold. Richest team wins.' },
@@ -89,12 +89,18 @@
       src.connect(f).connect(g).connect(this.ctx.destination);
       src.start(t);
     }
-    shot(kind) {
-      if (kind === 'rail') { this.tone(1400, 0.35, 'sawtooth', 0.12, 0.15); this.noise(0.25, 0.3, 3000); return; }
-      if (kind === 'flame') { if (Math.random() < 0.25) this.noise(0.15, 0.12, 700); return; }
-      if (kind === 'shell') this.tone(220, 0.08, 'square', 0.12, 0.4);
-      else if (kind === 'rocket') this.noise(0.3, 0.25, 900);
-      else this.tone(880, 0.07, 'sawtooth', 0.08, 0.5);
+    // k = loudness (1 = your own gun; other mechs' shots are quieter the farther away they are)
+    shot(kind, k = 1) {
+      if (k < 0.04) return;
+      if (kind === 'rail') { this.tone(1400, 0.35, 'sawtooth', 0.12 * k, 0.15); this.noise(0.25, 0.3 * k, 3000); return; }
+      if (kind === 'flame') { if (Math.random() < 0.25) this.noise(0.15, 0.12 * k, 700); return; }
+      if (kind === 'shell') { this.noise(0.05, 0.42 * k, 2600); this.tone(150, 0.07, 'triangle', 0.2 * k, 0.45); } // a gunshot: crack + thump
+      else if (kind === 'rocket') this.noise(0.3, 0.25 * k, 900);
+      else this.tone(880, 0.07, 'sawtooth', 0.08 * k, 0.5);
+    }
+    near(pos) {
+      const g = window.game;
+      return g && g.camera ? clamp(1 - g.camera.position.distanceTo(pos) / 55, 0, 1) * 0.3 : 0;
     }
     boom(size, pos) {
       const g = window.game;
@@ -489,6 +495,9 @@
     }
     play() {
       this.audio.ensure();
+      // the PLAY button bounces as you press it
+      const pb = $('btnPlay');
+      if (pb) { pb.classList.remove('go'); void pb.offsetWidth; pb.classList.add('go'); }
       // your mech must fit your rank; otherwise you pick one first (examples always fit)
       if (!CW.validate(this.currentBp.parts, this.allowedDomains()).ok && !this.net.mechChoices().some((e) => e.ok)) return this.showPicker();
       const kind = this.settings.mmEvent;
@@ -813,6 +822,10 @@
     // humans (online only): the room's players [{ id, name, bp }], host first; bots fill the empty slots
     startMatch(bp, humans) {
       this.beginMatchState();
+      // a quick fade in from dark blue as the arena appears
+      let wipe = $('cwWipe');
+      if (!wipe) { wipe = document.createElement('div'); wipe.id = 'cwWipe'; $('app').appendChild(wipe); }
+      wipe.classList.remove('on'); void wipe.offsetWidth; wipe.classList.add('on');
       this.countdown = 3.5;
       const fmt = FORMATS[this.formatId];
       const coop = COOP.includes(this.formatId);
@@ -1214,6 +1227,7 @@
           turn = clamp(-err * 2.5, -1, 1);
         }
         m.input.turn = locked ? 0 : turn;
+        m.input.manual = !locked && !!manualTurn; // A/D: car steering (js/entities.js)
         m.input.up = !locked && !!k.Space;
         m.input.upPressed = !locked && !!this.pressed.Space;
         m.input.down = !locked && !!(k.KeyC || k.KeyQ || k.ControlLeft || k.ControlRight);
@@ -1223,9 +1237,9 @@
           m.input.dash = m.legs > 0 && manualTurn ? 2 * manualTurn : k.KeyS ? -1 : 1;
           if (m.dashCd > 0) this.toast(`Dash recharging: ${m.dashCd.toFixed(1)}s`);
         }
-        // turning the mech with A/D also turns your view, like sitting inside it
-        if (manualTurn && this.lastMechYaw !== undefined) this.cam.yaw += wrap(m.yaw - this.lastMechYaw);
-        this.lastMechYaw = m.yaw;
+        // steering with A/D turns your view with the mech, like sitting inside it: exactly as much as the
+        // steering turned it, so when you let go your aim stays right where it is (nothing swings it back)
+        if (m.camFollowYaw) { this.cam.yaw += m.camFollowYaw; m.camFollowYaw = 0; }
         if (ePressed && !locked) this.exitMech(c);
         if (this.pressed.KeyX && !locked) this.supers.activate(c);
         if (this.pressed.KeyG && !locked) this.gadgets.use(c);
@@ -2145,9 +2159,10 @@
       $('edgeWarn').textContent = warn;
       $('edgeWarn').classList.toggle('hidden', !warn);
       $('camBadge').textContent = this.cameraLost ? '📷✖ chase view' : this.settings.camMode === 'first' ? '📷 First person (V)' : '🎥 Chase cam (V)';
-      $('countdown').textContent = this.countdown > 0 ? (this.countdown > 0.5 ? Math.ceil(this.countdown - 0.5) : 'GO!') : '';
+      const cdText = String(this.countdown > 0.5 ? Math.ceil(this.countdown - 0.5) : this.countdown > -0.6 ? 'GO!' : '');
+      const cd = $('countdown');
+      if (cd.textContent !== cdText) { cd.textContent = cdText; cd.classList.remove('pop'); if (cdText) { void cd.offsetWidth; cd.classList.add('pop'); } }
       $('countdown').style.display = this.countdown > -0.6 && !this.isPractice() ? 'block' : 'none';
-      if (this.countdown <= 0 && this.countdown > -0.6) $('countdown').textContent = 'GO!';
       this.hitMarker = Math.max(0, (this.hitMarker || 0) - 1 / 60);
       $('crosshair').classList.toggle('hit', this.hitMarker > 0);
       this.killMarker = Math.max(0, (this.killMarker || 0) - 1 / 60);
@@ -2204,6 +2219,9 @@
 
     // ---------------- camera ----------------
     updateCamera(dt) {
+      // the view turns with your own steering in the same frame (no lag, so aiming stays steady)
+      const own = this.player && this.player.mech;
+      if (own && own.camFollowYaw) { this.cam.yaw += own.camFollowYaw; own.camFollowYaw = 0; }
       const view = this.viewTarget();
       if (!view) return;
       let pivot, dist;
@@ -2331,7 +2349,7 @@
         const o = CW.buildPartMesh(p.t, color);
         o.position.set(p.x, p.y, p.z);
         g.add(o);
-        minY = Math.min(minY, p.y);
+        minY = Math.min(minY, p.y + 0.5 - Math.max(0.5, CW.PARTS[p.t].radius || 0)); // big wheels reach lower
       }
       const ped = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.8, 0.8, 32), CW.mat(0x2e3a63));
       ped.position.y = minY - 0.9;
@@ -2376,7 +2394,7 @@
             const o = CW.buildPartMesh(p.t, w.bp.color || 0x3a86ff);
             o.position.set(p.x, p.y, p.z);
             g.add(o);
-            minY = Math.min(minY, p.y);
+            minY = Math.min(minY, p.y + 0.5 - Math.max(0.5, CW.PARTS[p.t].radius || 0)); // big wheels reach lower
           }
           g.scale.setScalar(0.85);
           this.scene.add(g);

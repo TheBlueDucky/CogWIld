@@ -9,11 +9,15 @@
       this.game = game;
       this.active = false;
       this.scene = new THREE.Scene();
-      this.scene.background = new THREE.Color(0x1d2540);
+      this.scene.background = new THREE.Color(0x141a33);
       this.scene.environment = CW.makeEnv(game.renderer, 0x8fb4ff, 0x3a4a7a, 0x1d2540).texture; // garage-light reflections
-      this.scene.fog = new THREE.Fog(0x1d2540, 30, 70);
+      this.scene.fog = new THREE.Fog(0x141a33, 26, 60);
       this.camera = new THREE.PerspectiveCamera(48, 1, 0.1, 200);
-      this.scene.add(new THREE.HemisphereLight(0xcfe3ff, 0x2a2f45, 0.9));
+      this.scene.add(new THREE.HemisphereLight(0xcfe3ff, 0x2a2f45, 0.85));
+      // a cool rim light from behind makes the mech's outline stand out against the dark garage
+      const rim = new THREE.DirectionalLight(0x8fd8ff, 0.45);
+      rim.position.set(-6, 8, 14);
+      this.scene.add(rim);
       const dl = new THREE.DirectionalLight(0xffffff, 0.8);
       dl.position.set(8, 16, 6);
       dl.castShadow = true;
@@ -23,27 +27,37 @@
 
       const gb = CW.GRID;
       const floorY = gb.minY - 0.5;
-      const pad = new THREE.Mesh(new THREE.CylinderGeometry(9, 9.5, 0.6, 48), CW.mat(0x2e3a63));
-      pad.position.y = floorY - 0.3;
+      // a dark, matte turntable with a thin cyan edge (calm, so the mech is what you look at)
+      const pad = new THREE.Mesh(new THREE.CylinderGeometry(9, 9.4, 0.5, 64), new THREE.MeshLambertMaterial({ color: 0x161d38 }));
+      pad.position.y = floorY - 0.25;
       pad.receiveShadow = true;
       this.scene.add(pad);
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(9.1, 0.12, 8, 64), CW.matBasic(0xffc43d));
+      const inner = new THREE.Mesh(new THREE.CircleGeometry(6.6, 64).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0x1c2445 }));
+      inner.position.y = floorY + 0.003;
+      inner.receiveShadow = true;
+      this.scene.add(inner);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(9.05, 0.035, 6, 96), new THREE.MeshBasicMaterial({ color: 0x5ce1ff, transparent: true, opacity: 0.45 }));
       ring.rotation.x = Math.PI / 2;
-      ring.position.y = floorY;
+      ring.position.y = floorY + 0.01;
       this.scene.add(ring);
-      const grid = new THREE.GridHelper(9, 9, 0x5d6fa8, 0x3c4a7a);
+      const grid = new THREE.GridHelper(9, 9, 0x3a4878, 0x2a3560);
       grid.position.y = floorY + 0.01;
+      grid.material.transparent = true;
+      grid.material.opacity = 0.7;
       this.scene.add(grid);
       const vol = new THREE.Box3(new THREE.Vector3(gb.minX - 0.5, gb.minY - 0.5, gb.minZ - 0.5), new THREE.Vector3(gb.maxX + 0.5, gb.maxY + 0.5, gb.maxZ + 0.5));
-      this.scene.add(new THREE.Box3Helper(vol, 0x3c4a7a));
-      const arrow = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1.2, 3), CW.matBasic(0xffc43d));
+      const volLines = new THREE.Box3Helper(vol, 0x34406a);
+      volLines.material.transparent = true;
+      volLines.material.opacity = 0.5;
+      this.scene.add(volLines);
+      const arrow = new THREE.Mesh(new THREE.ConeGeometry(0.4, 1, 3), new THREE.MeshBasicMaterial({ color: 0x5ce1ff, transparent: true, opacity: 0.6 }));
       arrow.rotation.x = -Math.PI / 2;
       arrow.position.set(0, floorY + 0.05, gb.minZ - 1.6);
       this.scene.add(arrow);
       // mirror plane
       const mp = new THREE.Mesh(
         new THREE.PlaneGeometry(gb.maxZ - gb.minZ + 1, gb.maxY - gb.minY + 1),
-        new THREE.MeshBasicMaterial({ color: 0xffc43d, transparent: true, opacity: 0.06, side: THREE.DoubleSide, depthWrite: false })
+        new THREE.MeshBasicMaterial({ color: 0x5ce1ff, transparent: true, opacity: 0.04, side: THREE.DoubleSide, depthWrite: false })
       );
       mp.rotation.y = Math.PI / 2;
       mp.position.set(0, (gb.maxY + gb.minY) / 2, (gb.maxZ + gb.minZ) / 2);
@@ -65,7 +79,7 @@
       this.pickGeo = new THREE.BoxGeometry(1, 1, 1);
       this.raycaster = new THREE.Raycaster();
 
-      this.orbit = { yaw: 0.75, pitch: 0.42, dist: 13, target: new THREE.Vector3(0, 0.5, 0) };
+      this.orbit = { yaw: -2.35, pitch: 0.42, dist: 13, target: new THREE.Vector3(0, 0.5, 0) };
       this.selected = 'frame';
       this.mirror = true;
       this.mouse = { x: -1, y: -1, down: -1, moved: 0 };
@@ -265,7 +279,7 @@
     }
 
     resetView() {
-      Object.assign(this.orbit, { yaw: 0.75, pitch: 0.42, dist: 13 });
+      Object.assign(this.orbit, { yaw: -2.35, pitch: 0.42, dist: 13 });
       this.orbit.target.set(0, 0.5, 0);
     }
 
@@ -486,7 +500,7 @@
       $('wsDomains').innerHTML = chips.join('') + `<span class="dom-count ${s.domains.size > allowed ? 'bad' : ''}">${s.domains.size}/${allowed}</span>`;
 
       const sp = (v) => (v > 0.5 ? Math.round(v * 3.6) + ' km/h' : '—');
-      const land = s.drive > 0 || s.thrust > 0 ? `${sp(s.landSpeed)}${s.legs ? ' · climbs cliffs' : s.wheels ? ' · flat ground' : ''}` : 'Can\'t drive';
+      const land = s.drive > 0 || s.thrust > 0 ? `${sp(s.landSpeed)}${s.legs ? ' · climbs cliffs' : s.bigWheels ? ' · rough ground' : s.wheels ? ' · flat ground' : ''}` : 'Can\'t drive';
       let water;
       if (s.floats) water = `Floats · ${sp(s.waterSpeed)}`;
       else if (s.swim > 0) water = `Submarine · ${sp(s.waterSpeed)}`;

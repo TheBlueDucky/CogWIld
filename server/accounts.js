@@ -560,7 +560,7 @@ class Accounts {
   partyMech(c, m) {
     if (!c.user || !m.bp || !Array.isArray(m.bp.parts)) return;
     const G = E.GRID;
-    const parts = m.bp.parts.slice(0, 120).filter((p) => p && Object.prototype.hasOwnProperty.call(E.PARTS, p.t)).map((p) => ({ t: p.t, x: p.x | 0, y: p.y | 0, z: p.z | 0 }))
+    const parts = m.bp.parts.slice(0, E.MAX_PARTS).filter((p) => p && Object.prototype.hasOwnProperty.call(E.PARTS, p.t)).map((p) => ({ t: p.t, x: p.x | 0, y: p.y | 0, z: p.z | 0 }))
       .filter((p) => p.x >= G.minX && p.x <= G.maxX && p.y >= G.minY && p.y <= G.maxY && p.z >= G.minZ && p.z <= G.maxZ);
     if (!parts.length) return;
     c.showBp = { color: m.bp.color & 0xffffff, parts };

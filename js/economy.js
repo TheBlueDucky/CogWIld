@@ -194,6 +194,9 @@
     float: [8, 'water', 1, 25, 0], prop: [16, 'water', 1, 28, 0], wing: [12, 'air', 1, 25, 0], rotor: [30, 'air', 1, 30, 0], jet: [26, 'air', 1, 30, 0], engine: [20, null, 1, 45, 0],
     cannon: [24, null, 1, 40, 33], rocket: [36, null, 3, 40, 28], laser: [34, null, 6, 35, 26], railgun: [42, null, 7, 40, 22], flamer: [28, null, 4, 40, 34], saw: [16, null, 3, 60, 45],
     spikes: [10, null, 2, 70, 40], shield: [32, null, 5, 40, 0], drone: [30, null, 5, 30, 0], booster: [18, null, 4, 30, 0], flag: [1, null, 1, 10, 0], lamp: [1, null, 2, 10, 0], horn: [2, null, 3, 15, 0],
+    // since v1.8: big wheels and car/truck body parts
+    bigwheel: [22, 'land', 1, 60, 0], body: [6, null, 1, 50, 0], plate: [3, null, 1, 30, 0], nose: [6, null, 1, 45, 0], cabin: [10, null, 1, 55, 0],
+    fender: [4, null, 1, 30, 0], spoiler: [5, null, 1, 25, 0], lights: [3, null, 1, 20, 0], exhaust: [3, null, 1, 20, 0],
   };
   // a mech's total HP and the most damage per second its weapons can deal (for the referee)
   function mechPower(parts) {
@@ -201,10 +204,10 @@
     for (const p of Array.isArray(parts) ? parts : []) { const r = p && Object.prototype.hasOwnProperty.call(PARTS, p.t) ? PARTS[p.t] : null; if (r) { hp += r[3]; dps += r[4]; } }
     return { hp, dps };
   }
-  const BUDGET = 300, GRID = { minX: -4, maxX: 4, minY: -2, maxY: 4, minZ: -4, maxZ: 4 };
+  const BUDGET = 750, RUSH_BUDGET = 400, MAX_PARTS = 200, GRID = { minX: -4, maxX: 4, minY: -2, maxY: 4, minZ: -4, maxZ: 4 };
   // why a mech isn't allowed for a player of this level (or null when it's fine)
   function mechProblem(parts, level, budget) {
-    if (!Array.isArray(parts) || !parts.length || parts.length > 120) return 'no parts';
+    if (!Array.isArray(parts) || !parts.length || parts.length > MAX_PARTS) return 'no parts';
     let cost = 0, cores = 0;
     const doms = new Set(), at = new Set();
     for (const p of parts) {
@@ -266,7 +269,7 @@
   // ready-made chat lines (quick chat): friends, party and club chat, and everything for "Quick chat only" players
   const TALK_QUICK = ['👋 Hi!', 'GG!', 'Want to play?', 'Party up! 🎉', 'Nice one! 🏆', 'Thanks! 🙏', 'One more?', 'Be right back', 'Yes 👍', 'No 👎', "Let's go! 🔥", 'Good night 🌙'];
 
-  const api = { TALK_QUICK, xpFor, levelOf, domainsAt, PARTS, mechPower, BUDGET, GRID, mechProblem, CHALLENGES, DAILY_CHALLENGES, dailyChallenges, ACH, SHOP, AVATAR_COUNT, FREE_AVATARS, item, dealPrice, dailyDeals, ROAD, giftAmount, EARN, EARN_PER_DAY, MATCH_GAP, day, nextMidnight, seeded, hash, season, PASS, passRewards, WEEKLY, week, RANKED };
+  const api = { TALK_QUICK, xpFor, levelOf, domainsAt, PARTS, mechPower, BUDGET, RUSH_BUDGET, MAX_PARTS, GRID, mechProblem, CHALLENGES, DAILY_CHALLENGES, dailyChallenges, ACH, SHOP, AVATAR_COUNT, FREE_AVATARS, item, dealPrice, dailyDeals, ROAD, giftAmount, EARN, EARN_PER_DAY, MATCH_GAP, day, nextMidnight, seeded, hash, season, PASS, passRewards, WEEKLY, week, RANKED };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.CW = root.CW || {}; root.CW.ECON = api; root.CW.SHOP = SHOP; root.CW.ROAD = ROAD; }
 })(this);

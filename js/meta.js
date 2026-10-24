@@ -35,7 +35,7 @@
   ];
 
   const DEFAULT_SETTINGS = {
-    graphics: 'auto', showFps: false, tutorialDone: false, clips: true, arena: 'random', timeOfDay: 'random', difficulty: 'normal', music: true, sens: 1, fov: 80, invertY: false, camMode: 'first', autoSteer: true, shake: true, dmgNumbers: true, volume: 0.6,
+    graphics: 'auto', showFps: false, tutorialDone: false, clips: true, arena: 'random', timeOfDay: 'random', difficulty: 'normal', music: true, sens: 1, fov: 80, invertY: false, camMode: 'first', autoSteer: false, shake: true, dmgNumbers: true, volume: 0.6,
     musicVol: 1, keys: {}, touch: 'auto', touchSize: 1, vibrate: true, aimAssist: true, friendOnline: true, otherChat: true,
     // chat and voice chat (js/talk.js, js/voice.js); voice: undefined until the game has asked
     chatNotes: true, vcHear: 'game', vcMode: 'open', vcVol: 1, vcMic: '', vcOut: '',
@@ -64,6 +64,9 @@
       p.trail = p.trail || 'spark';
       p.stats = Object.assign({ matches: 0, wins: 0, wrecks: 0, elims: 0, deaths: 0, dashes: 0, parts: 0, rams: 0, airTime: 0, waterTime: 0, bestStreak: 0, coinsEarned: 0, rush: 0, clash: 0 }, p.stats || {});
       p.settings = Object.assign({}, DEFAULT_SETTINGS, p.settings || {});
+      // v1.8 drives like a car: A/D steer, the mouse only aims. Auto-steer (W drives toward where you look) stays on
+      // for touch screens, where the left thumb has only the stick
+      if (!p.settings.carSteer) { p.settings.carSteer = 1; p.settings.autoSteer = 'ontouchstart' in window || navigator.maxTouchPoints > 0; }
       this.rollChallenges();
       this.bind();
     }
@@ -343,7 +346,7 @@
           </section><section class="set-sec" data-sec="controls"><h3>🎮 Controls</h3>
           <label class="set-row"><span>Look sensitivity (mouse, stick, touch) <b id="setSensV"></b></span><input type="range" id="setSens" min="0.3" max="2.5" step="0.05"></label>
           <label class="set-row chk"><input type="checkbox" id="setInvert"><span>Invert look up/down</span></label>
-          <label class="set-row chk"><input type="checkbox" id="setSteer"><span>Auto-steer: your mech turns toward where you look while driving</span></label>
+          <label class="set-row chk"><input type="checkbox" id="setSteer"><span>Auto-steer: W drives toward where you look (off = steer with A/D like a car)</span></label>
           <label class="set-row"><span>Bot difficulty</span><select id="setDiff"><option value="easy">🙂 Easy</option><option value="normal">😐 Normal</option><option value="hard">😈 Hard</option></select></label>
           </section><section class="set-sec" data-sec="keys"><h3>⌨ Keys <button class="ws-btn" id="setKeysReset">Reset keys</button></h3>
           <div class="small">Click a key, then press the new key (Esc cancels). Esc always pauses, keys 1-8 send quick chat online.</div>
@@ -507,6 +510,7 @@
         body.innerHTML = `<div class="small">${n} / ${CW.ACHIEVEMENTS.length} unlocked. Each one pays coins.</div><div class="ach-grid">${CW.ACHIEVEMENTS.map((a) => `<div class="ach ${got[a.id] ? 'got' : ''}"><b>${got[a.id] ? '🏆' : '🔒'} ${a.name}</b><span class="small">${a.desc}</span>${got[a.id] ? '' : prog(a)}<div class="small">+${a.reward} 🪙</div></div>`).join('')}</div>`;
       } else if (k === 'news') {
         body.innerHTML = `<ul class="news">
+          <li><b>v1.8.0</b>: 🏎 Mechs drive like cars: A/D steer (front wheels turn, small taps = small corrections), S brakes, and letting go of A/D keeps your aim exactly where it is. 🔩 750 Bolts to build with. New <b>Body</b> parts (Body Panel, Flat Panel, Nose, Cabin, Fender, Spoiler, Headlights, Exhaust), real-looking wheels and monster-truck <b>Big Wheels</b>. New example mechs: Monster Truck and Street Racer. Small tracer bullets with a real gunshot sound, parts that break off and fly, wrecks that fall apart and then explode. A calmer Workshop and smoother menus.</li>
           <li><b>v1.7.5</b>: 🎓 A clearer tutorial: a small see-through card with the keys to press (they light up), and a big arrow pointing at what to do next: the Target, the gem, your mech, or the button to tap on a phone.</li>
           <li><b>v1.7.4</b>: 🧹 A chat filter: bad words (also when hidden with spaces or numbers) become ****, and links, emails and phone numbers are hidden. Club pictures show on the clubs leaderboard, profile pictures are always 256×256, and chat you've read stays read after restarting.</li>
           <li><b>v1.7.3</b>: 👤 Play right away without an account: logging in is optional again. Guests keep their progress on their device; log in to keep it everywhere and get trophies, friends, clubs and voice chat.</li>

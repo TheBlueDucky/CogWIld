@@ -2,7 +2,7 @@
 (function () {
   const CW = (window.CW = window.CW || {});
 
-  CW.VERSION = 'v1.7.5';
+  CW.VERSION = 'v1.8.0';
   // escape text before it goes into innerHTML (mech/player names can come from pasted save codes)
   // "3h 12m" / "5d 4h" / "12m" until something ends
   CW.timeLeft = (ms) => { const m = Math.max(1, Math.ceil(ms / 60000)); return m >= 2880 ? `${Math.floor(m / 1440)}d ${Math.floor((m % 1440) / 60)}h` : m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; };
@@ -29,7 +29,7 @@
   CW.SAVE_VERSION = 2;
   CW.WATER_Y = 0;
   CW.GRAV = 22;
-  CW.BUDGET = 300;
+  CW.BUDGET = CW.ECON.BUDGET; // 750 Bolts (js/economy.js, the server checks the same number)
   CW.ARENA_HALF = 176;
   CW.CEILING = 110;
   CW.DRAG = { land: 1.55, water: 1.2, air: 0.55 }; // lower = faster top speed
@@ -49,14 +49,24 @@
     air: { label: 'Air', icon: '☁', color: '#b9c8ff' },
   };
 
-  CW.CATS = ['Control', 'Structure', 'Land', 'Water', 'Air', 'Power', 'Weapon', 'Utility', 'Decor'];
+  CW.CATS = ['Control', 'Structure', 'Body', 'Land', 'Water', 'Air', 'Power', 'Weapon', 'Utility', 'Decor'];
 
   CW.PARTS = {
     core:   { name: 'Core', cat: 'Core', cost: 0, mass: 4, hp: 150, color: 0xffc43d, power: 12, desc: 'The heart of your mech. If it breaks, your mech is wrecked.' },
     camera: { name: 'Camera', cat: 'Control', cost: 0, mass: 0.4, hp: 45, color: 0x111827, unique: true, desc: 'Your eyes: you see the match from here. One per mech, nothing may sit in front of it. If you skip it, it\'s auto-placed on top.' },
     frame:  { name: 'Frame', cat: 'Structure', cost: 4, mass: 1, hp: 35, color: 0x3a86ff, desc: 'Light, cheap building block. Uses your team color.' },
     armor:  { name: 'Armor', cat: 'Structure', cost: 10, mass: 3, hp: 120, color: 0x5c677d, desc: 'Heavy block that soaks up a lot of damage.' },
-    wheel:  { name: 'Wheel', cat: 'Land', domain: 'land', cost: 12, mass: 1.5, hp: 35, color: 0x2b2d42, drive: 210, use: 2, desc: 'Fast on flat ground, but can\'t climb steep slopes.' },
+    // body parts: shiny car paint, to make your mech look like a car, truck or racer instead of a pile of blocks
+    body:   { name: 'Body Panel', cat: 'Body', cost: 6, mass: 0.6, hp: 50, color: 0x3a86ff, desc: 'Smooth, shiny car body. Uses your paint color.' },
+    plate:  { name: 'Flat Panel', cat: 'Body', cost: 3, mass: 0.3, hp: 30, color: 0x4f7fd6, desc: 'A thin floor or truck bed. Keeps cars low and sleek.' },
+    nose:   { name: 'Nose', cat: 'Body', cost: 6, mass: 0.5, hp: 45, color: 0x2f6fe0, desc: 'Sloped hood for the front of a car, with a grille.' },
+    cabin:  { name: 'Cabin', cat: 'Body', cost: 10, mass: 0.7, hp: 55, color: 0x9fb3d9, desc: 'Driver cabin with windows and a roof.' },
+    fender: { name: 'Fender', cat: 'Body', cost: 4, mass: 0.25, hp: 30, color: 0x5d8ef0, desc: 'Wheel arch: put it right above a wheel.' },
+    spoiler:{ name: 'Spoiler', cat: 'Body', cost: 5, mass: 0.25, hp: 25, color: 0xe63946, desc: 'Racing wing for the back. Looks fast.' },
+    lights: { name: 'Headlights', cat: 'Body', cost: 3, mass: 0.2, hp: 20, color: 0xfff3b0, desc: 'Bumper with two bright headlights. Put it at the front.' },
+    exhaust:{ name: 'Exhaust', cat: 'Body', cost: 3, mass: 0.2, hp: 20, color: 0xadb5bd, desc: 'Rear bumper with tail lights and chrome pipes that puff smoke when you speed up. Put it at the back.' },
+    wheel:  { name: 'Wheel', cat: 'Land', domain: 'land', cost: 12, mass: 1.5, hp: 35, color: 0x2b2d42, drive: 210, use: 2, radius: 0.48, desc: 'Fast on flat ground, but can\'t climb steep slopes. Front wheels steer.' },
+    bigwheel: { name: 'Big Wheel', cat: 'Land', domain: 'land', cost: 22, mass: 2.6, hp: 60, color: 0x1f2233, drive: 300, use: 3, radius: 0.95, desc: 'Monster-truck tire: lifts your mech high, rolls over bumps and climbs steeper hills.' },
     leg:    { name: 'Leg', cat: 'Land', domain: 'land', cost: 20, mass: 2, hp: 45, color: 0xef8354, drive: 175, use: 3, desc: 'Slower, but climbs steep cliffs. Space = jump.' },
     float:  { name: 'Float', cat: 'Water', domain: 'water', cost: 8, mass: 0.8, hp: 25, color: 0xffb703, buoy: 6, desc: 'Keeps your mech on the surface. Add enough or you sink.' },
     prop:   { name: 'Propeller', cat: 'Water', domain: 'water', cost: 16, mass: 1, hp: 28, color: 0x219ebc, swim: 215, use: 3, desc: 'Drives you through water. Space / Shift to dive like a sub.' },
@@ -312,8 +322,12 @@
     const ud = g.userData;
     // inside part models every material gets a metal finish unless a part picks another:
     // weapons/engines are gunmetal, wings/props/rotors carbon fiber, armor tread plate, the rest painted panels
-    const finish = { cannon: 'gunmetal', rocket: 'gunmetal', laser: 'gunmetal', railgun: 'gunmetal', flamer: 'gunmetal', saw: 'gunmetal', jet: 'gunmetal', booster: 'gunmetal', engine: 'gunmetal', spikes: 'gunmetal', wing: 'carbon', prop: 'carbon', rotor: 'carbon', armor: 'plate' }[t] || 'panel';
-    const M = (color, extra, tex) => CW.mat(color, extra, tex || finish);
+    const finish = { cannon: 'gunmetal', rocket: 'gunmetal', laser: 'gunmetal', railgun: 'gunmetal', flamer: 'gunmetal', saw: 'gunmetal', jet: 'gunmetal', booster: 'gunmetal', engine: 'gunmetal', spikes: 'gunmetal', wing: 'carbon', prop: 'carbon', rotor: 'carbon', armor: 'plate', bigwheel: 'gunmetal',
+      body: 'none', plate: 'none', nose: 'none', cabin: 'none', fender: 'none', spoiler: 'none', lights: 'none', exhaust: 'none' }[t] || 'panel';
+    // 'none' = smooth: shiny car paint, glass and chrome
+    const M = (color, extra, tex) => { tex = tex || finish; return tex === 'none' ? CW.mat(color, extra) : CW.mat(color, extra, tex); };
+    const paint = (color) => M(color, { metalness: 0.35, roughness: 0.3 });
+    const chrome = () => M(0xe3e7ee, { metalness: 0.95, roughness: 0.18 }, 'none');
     switch (t) {
       case 'core': {
         add(g, box(0.92, 0.92, 0.92), M(0xffc43d, null, 'hazard'));
@@ -332,13 +346,99 @@
         add(g, box(1.03, 0.22, 1.03), M(0xb0b7c3), 0, 0.22, 0);
         add(g, box(1.03, 0.08, 1.03), M(0x6c757d), 0, -0.3, 0);
         break;
-      case 'wheel': {
+      case 'wheel':
+      case 'bigwheel': {
+        // a real tire: rubber with tread, a chrome rim with spokes and a hub cap in your paint color.
+        // ud.steer turns (front wheels steer), ud.spin rolls
+        const big = t === 'bigwheel', r = big ? 0.95 : 0.48, w = big ? 0.66 : 0.38;
+        const steer = new THREE.Group();
+        g.add(steer);
         const spin = new THREE.Group();
-        g.add(spin);
-        add(spin, cyl(0.48, 0.48, 0.4, 18), M(0x9a9a9a, { roughness: 0.9, metalness: 0 }, 'tread')).rotation.z = Math.PI / 2;
-        add(spin, cyl(0.22, 0.22, 0.44, 10), M(0xd9d9d9)).rotation.z = Math.PI / 2;
-        add(spin, box(0.42, 0.78, 0.12), M(0xffc43d));
+        steer.add(spin);
+        const rubber = M(big ? 0x5c5c5c : 0x6a6a6a, { roughness: 0.92, metalness: 0 }, 'tread');
+        add(spin, cyl(r, r, w, big ? 26 : 22), rubber).rotation.z = Math.PI / 2;
+        // rounded tire shoulders
+        for (const sx of [-1, 1]) add(spin, cyl(r * 0.94, r, 0.06, big ? 26 : 22), rubber, sx * (w / 2 + 0.02), 0, 0).rotation.z = Math.PI / 2;
+        add(spin, cyl(r * 0.62, r * 0.62, w + 0.06, 18), chrome()).rotation.z = Math.PI / 2;
+        add(spin, cyl(r * 0.5, r * 0.5, w + 0.08, 18), M(0x2a2f3a, { metalness: 0.6, roughness: 0.4 }, 'none')).rotation.z = Math.PI / 2;
+        const spokes = big ? 6 : 5;
+        for (const sx of [-1, 1]) for (let i = 0; i < spokes; i++) {
+          const piv = new THREE.Group();
+          piv.rotation.x = (i / spokes) * Math.PI * 2;
+          piv.position.x = sx * (w / 2 + 0.05);
+          spin.add(piv);
+          add(piv, box(0.05, r * 0.5, r * 0.13), chrome(), 0, r * 0.26, 0);
+        }
+        for (const sx of [-1, 1]) add(spin, cyl(r * 0.17, r * 0.2, 0.08, 12), paint(team), sx * (w / 2 + 0.08), 0, 0).rotation.z = Math.PI / 2;
+        if (big) for (const sx of [-1, 1]) for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2;
+          add(spin, cyl(0.035, 0.035, 0.06, 6), chrome(), sx * (w / 2 + 0.1), Math.cos(a) * 0.29, Math.sin(a) * 0.29).rotation.z = Math.PI / 2;
+        }
         ud.spin = spin;
+        ud.steer = steer;
+        ud.radius = r;
+        break;
+      }
+      case 'body':
+        add(g, box(1, 0.9, 1), paint(team), 0, 0, 0);
+        add(g, box(0.92, 0.1, 0.92), paint(team), 0, 0.48, 0);
+        add(g, box(1.02, 0.08, 1.02), M(CW.shade(team, -0.2), { metalness: 0.3, roughness: 0.4 }), 0, -0.2, 0);
+        break;
+      case 'plate':
+        add(g, box(1, 0.22, 1), paint(team), 0, -0.39, 0);
+        add(g, box(1.02, 0.05, 1.02), M(0x2a2f3a, { metalness: 0.5, roughness: 0.5 }), 0, -0.27, 0);
+        break;
+      case 'nose': {
+        // a hood that slopes down to the front (-z), with a dark grille under it
+        const geo = G('noseShape', () => {
+          const sh = new THREE.Shape();
+          sh.moveTo(-0.5, -0.5); sh.lineTo(-0.5, 0.45); sh.lineTo(0.5, -0.12); sh.lineTo(0.5, -0.5); sh.closePath();
+          return new THREE.ExtrudeGeometry(sh, { depth: 0.98, bevelEnabled: false }).rotateY(Math.PI / 2).translate(-0.49, 0, 0);
+        });
+        add(g, geo, paint(team));
+        add(g, box(0.48, 0.2, 0.04), M(0x15181f, { metalness: 0.6, roughness: 0.5 }), 0, -0.3, -0.5);
+        for (let i = -2; i <= 2; i++) add(g, box(0.03, 0.16, 0.05), chrome(), i * 0.1, -0.3, -0.51);
+        for (const sx of [-0.36, 0.36]) add(g, cyl(0.075, 0.075, 0.04, 12), MB(0xfffbe6), sx, -0.27, -0.505).rotation.x = Math.PI / 2;
+        break;
+      }
+      case 'cabin': {
+        const glass = M(0x2b4a6e, { metalness: 0.9, roughness: 0.08, transparent: true, opacity: 0.82 });
+        add(g, box(1, 0.46, 1), paint(team), 0, -0.27, 0);
+        add(g, box(0.84, 0.44, 0.84), glass, 0, 0.18, 0);
+        add(g, box(0.94, 0.08, 0.92), paint(team), 0, 0.43, 0);
+        for (const sx of [-0.43, 0.43]) for (const sz of [-0.42, 0.42]) add(g, box(0.07, 0.44, 0.07), paint(CW.shade(team, -0.15)), sx, 0.18, sz);
+        break;
+      }
+      case 'fender': {
+        // an arch that hugs a wheel in the cell below, with a flat mudguard on top
+        const arch = G('fenderArch', () => new THREE.CylinderGeometry(0.66, 0.66, 0.9, 20, 1, true, 0, Math.PI).rotateZ(Math.PI / 2));
+        add(g, arch, M(team, { metalness: 0.35, roughness: 0.3, side: THREE.DoubleSide }), 0, -0.97, 0);
+        add(g, box(0.96, 0.1, 1.0), paint(team), 0, -0.37, 0);
+        break;
+      }
+      case 'spoiler':
+        for (const sx of [-0.3, 0.3]) add(g, box(0.06, 0.42, 0.12), M(0x2a2f3a, { metalness: 0.6, roughness: 0.4 }), sx, -0.25, 0.1);
+        add(g, box(1, 0.06, 0.46), paint(team), 0, 0.0, 0.12).rotation.x = -0.14;
+        for (const sx of [-0.5, 0.5]) add(g, box(0.04, 0.26, 0.5), paint(CW.shade(team, -0.2)), sx, 0.02, 0.12);
+        break;
+      case 'lights':
+        add(g, box(1, 0.3, 1), M(0x20242c, { metalness: 0.5, roughness: 0.45 }), 0, -0.34, 0);
+        add(g, box(1.02, 0.06, 0.2), chrome(), 0, -0.2, -0.42);
+        for (const sx of [-0.3, 0.3]) {
+          add(g, cyl(0.13, 0.15, 0.08, 14), chrome(), sx, -0.02, -0.42).rotation.x = Math.PI / 2;
+          add(g, cyl(0.1, 0.1, 0.03, 14), MB(0xfffbe6), sx, -0.02, -0.465).rotation.x = Math.PI / 2;
+        }
+        for (const sx of [-0.45, 0.45]) add(g, box(0.08, 0.06, 0.03), MB(0xffa53a), sx, -0.3, -0.505);
+        ud.lamps = true;
+        break;
+      case 'exhaust': {
+        add(g, box(1, 0.3, 0.42), M(0x20242c, { metalness: 0.5, roughness: 0.45 }), 0, -0.33, -0.29);
+        for (const sx of [-0.4, 0.4]) add(g, box(0.16, 0.08, 0.03), MB(0xff2d3d), sx, -0.25, -0.07);
+        for (const sx of [-0.18, 0.18]) {
+          add(g, cyl(0.075, 0.075, 0.5, 12), chrome(), sx, -0.38, 0.0).rotation.x = Math.PI / 2;
+          add(g, cyl(0.055, 0.055, 0.02, 12), M(0x101010), sx, -0.38, 0.25).rotation.x = Math.PI / 2;
+        }
+        ud.exhaust = [new THREE.Vector3(-0.18, -0.38, 0.3), new THREE.Vector3(0.18, -0.38, 0.3)];
         break;
       }
       case 'leg': {
@@ -595,9 +695,10 @@
       cost: 0, mass: 0, supply: 0, use: 0, count: {}, drive: 0, swim: 0, thrust: 0,
       rotors: 0, wings: 0, buoy: 0, shield: 0, hp: 0, dps: 0, domains: new Set(), minY: 0, weapons: 0,
     };
-    let minY = Infinity;
+    let minY = Infinity, bottom = Infinity;
     for (const p of parts) {
       const d = CW.PARTS[p.t];
+      bottom = Math.min(bottom, p.y - (d.radius > 0.5 ? d.radius : 0.5)); // big wheels reach below their cell
       s.cost += d.cost;
       s.mass += d.mass;
       s.supply += d.power || 0;
@@ -616,8 +717,10 @@
       if (p.y < minY) minY = p.y;
     }
     s.minY = minY === Infinity ? 0 : minY;
+    s.bottom = bottom === Infinity ? -0.5 : bottom;
     s.legs = s.count.leg || 0;
-    s.wheels = s.count.wheel || 0;
+    s.bigWheels = s.count.bigwheel || 0;
+    s.wheels = (s.count.wheel || 0) + s.bigWheels;
     s.boosters = s.count.booster || 0;
     s.spikes = s.count.spikes || 0;
     s.saws = s.count.saw || 0;
@@ -693,8 +796,21 @@
   const P = (list) => CW.ensureCamera(list.map(([t, x, y, z]) => ({ t, x, y, z }))).parts;
   CW.PRESETS = [
     {
-      id: 'buggy', name: 'Scout Buggy', bot: true, ai: 'ground', desc: 'Fast 4-wheeler with twin cannons.',
-      parts: P([['core', 0, 0, 0], ['frame', 0, 0, -1], ['frame', 0, 0, 1], ['wheel', -1, 0, -1], ['wheel', 1, 0, -1], ['wheel', -1, 0, 1], ['wheel', 1, 0, 1], ['cannon', 0, 1, -1], ['cannon', 0, 1, 0], ['engine', 0, 1, 1]]),
+      id: 'buggy', name: 'Scout Buggy', bot: true, ai: 'ground', desc: 'A little car with twin cannons.',
+      parts: P([['core', 0, 0, 0], ['body', 0, 0, -1], ['body', 0, 0, 1], ['nose', 0, 0, -2], ['wheel', -1, 0, -1], ['wheel', 1, 0, -1], ['wheel', -1, 0, 1], ['wheel', 1, 0, 1],
+        ['fender', -1, 1, -1], ['fender', 1, 1, -1], ['fender', -1, 1, 1], ['fender', 1, 1, 1], ['camera', 0, 1, -1], ['cabin', 0, 1, 0], ['cannon', -1, 1, 0], ['cannon', 1, 1, 0],
+        ['engine', 0, 1, 1], ['spoiler', 0, 2, 1], ['exhaust', 0, 0, 2]]),
+    },
+    {
+      id: 'monster', name: 'Monster Truck', bot: true, ai: 'ground', desc: 'Giant wheels, rockets on the back, rolls over anything.',
+      parts: P([['core', 0, 0, 0], ['body', 0, 0, -1], ['body', 0, 0, 1], ['body', 0, 0, 2], ['nose', 0, 0, -2], ['bigwheel', -1, 0, -1], ['bigwheel', 1, 0, -1], ['bigwheel', -1, 0, 1], ['bigwheel', 1, 0, 1],
+        ['camera', 0, 1, -1], ['cabin', 0, 1, 0], ['cannon', 0, 2, 0], ['rocket', 0, 1, 1], ['engine', 0, 1, 2], ['exhaust', 0, 1, 3], ['lights', 0, 0, -3]]),
+    },
+    {
+      id: 'racer', name: 'Street Racer', bot: true, ai: 'ground', desc: 'Low, long and fast, with twin lasers and a booster.',
+      parts: P([['core', 0, 0, 0], ['body', 0, 0, -1], ['body', 0, 0, 1], ['nose', 0, 0, -2], ['wheel', -1, 0, -2], ['wheel', 1, 0, -2], ['wheel', -1, 0, 1], ['wheel', 1, 0, 1],
+        ['fender', -1, 1, -2], ['fender', 1, 1, -2], ['fender', -1, 1, 1], ['fender', 1, 1, 1], ['camera', 0, 1, -1], ['cabin', 0, 1, 0], ['laser', -1, 0, 0], ['laser', 1, 0, 0],
+        ['engine', 0, 1, 1], ['spoiler', 0, 2, 1], ['booster', 0, 1, 2], ['exhaust', 0, 0, 2]]),
     },
     {
       id: 'spider', name: 'Spider', bot: true, ai: 'ground', desc: 'Four legs, climbs cliffs, rockets.',

@@ -9,7 +9,7 @@ const path = require('path');
 
 const PORT = 8800 + Math.floor(Math.random() * 100);
 const DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'cogwild-test-'));
-const VER = 'cogwild-net-9';
+const VER = 'cogwild-net-10';
 let server;
 let failed = 0;
 
@@ -408,7 +408,7 @@ async function main() {
   await gu2.next('room');
   gu2.send({ t: 'ready', ready: true, bp: { name: 'Cheat', color: 1, parts: [{ t: 'core', x: 0, y: 0, z: 0 }, { t: 'laser', x: 0, y: 1, z: 0 }] } });
   check(/allowed/.test((await gu2.next('err')).msg) && (await gu2.next('room')).room.players[0].bp === null, 'a mech with parts above your level is refused');
-  gu2.send({ t: 'ready', ready: true, bp: { name: 'Fat', color: 1, parts: [{ t: 'core', x: 0, y: 0, z: 0 }].concat([...Array(9)].map((_, i) => ({ t: 'armor', x: i - 4, y: 1, z: 0 }))).concat([...Array(9)].map((_, i) => ({ t: 'rotor', x: i - 4, y: 2, z: 0 }))) } });
+  gu2.send({ t: 'ready', ready: true, bp: { name: 'Fat', color: 1, parts: [{ t: 'core', x: 0, y: 0, z: 0 }].concat([...Array(27)].map((_, i) => ({ t: 'rotor', x: (i % 9) - 4, y: 1 + Math.floor(i / 9), z: 0 }))) } }); // 27 × 30 = 810 Bolts
   check(/over budget/.test((await gu2.next('err')).msg), 'an over-budget mech is refused');
   gu2.send({ t: 'begin', payload: { kind: 'match', arena: 'canyon', roster: [{ i: 1, o: gu2.id, h: 1, bp: { parts: [{ t: 'core', x: 0, y: 0, z: 0 }, { t: 'railgun', x: 0, y: 1, z: 0 }] } }] } });
   check(!!(await gu2.next('kicked', null, 2000).catch(() => null)), 'a host who starts a match with a mech that is not allowed is removed');

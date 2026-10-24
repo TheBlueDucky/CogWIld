@@ -1276,6 +1276,66 @@
   #tutArrow small:empty { display: none; }
   #tutRing { position: absolute; z-index: 7; border-radius: 50%; border: 3px solid var(--hl); pointer-events: none; animation: tutRing 1.1s ease-out infinite; }
   @keyframes tutRing { 0% { transform: scale(.85); opacity: 1; } 100% { transform: scale(1.25); opacity: 0; } }
+
+  /* ---- v1.8 Workshop: quiet, flat controls that don't pop out; the mech is the star ---- */
+  #workshopUI .ws-top, #workshopUI .ws-left, #workshopUI .ws-right, #workshopUI .ws-bottom {
+    background: rgba(13, 19, 40, .62) !important; border: 1px solid rgba(255, 255, 255, .08) !important; box-shadow: none !important;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  #workshopUI .ws-btn { background: rgba(255, 255, 255, .04) !important; border: 1px solid rgba(255, 255, 255, .1) !important; box-shadow: none !important;
+    font-weight: 700; font-size: 14px; padding: 7px 12px; color: #dfe7ff; transition: background .12s, border-color .12s, color .12s; }
+  #workshopUI .ws-btn:hover { background: rgba(255, 255, 255, .08) !important; border-color: rgba(92, 225, 255, .5) !important; }
+  #workshopUI .ws-btn.on { background: rgba(92, 225, 255, .1) !important; color: var(--hl) !important; border-color: rgba(92, 225, 255, .35) !important; }
+  #workshopUI .ws-btn.test { color: #9be7b0; border-color: rgba(123, 201, 80, .35) !important; }
+  #workshopUI .ws-tools .ws-btn { background: rgba(13, 19, 40, .62) !important; }
+  #workshopUI .pal-item { background: transparent !important; border: 1px solid transparent !important; padding: 5px 8px; margin-bottom: 1px; font-size: 13.5px; transition: background .12s; }
+  #workshopUI .pal-item:hover { background: rgba(255, 255, 255, .05) !important; border-color: transparent !important; }
+  #workshopUI .pal-item.sel { background: rgba(92, 225, 255, .1) !important; border-color: rgba(92, 225, 255, .35) !important; }
+  #workshopUI .pal-item .sw { width: 12px; height: 12px; border-radius: 50%; border: none; }
+  #workshopUI .pal-item .cost { color: var(--muted2) !important; font-weight: 600; }
+  #workshopUI .pal-item .key { color: #4d5a82; }
+  #workshopUI .pal-cat { font-size: 12px !important; color: #7f8fb8 !important; margin: 10px 6px 3px; letter-spacing: .3px; }
+  #workshopUI #wsTitle { font-size: 18px !important; color: var(--muted2) !important; }
+  #workshopUI #wsName { background: rgba(0, 0, 0, .22); border: 1px solid rgba(255, 255, 255, .1); }
+  #workshopUI .chip { opacity: .9; }
+  #workshopUI #wsStats .row { border-bottom-color: rgba(255, 255, 255, .06); }
+  #workshopUI .ws-left, #workshopUI .ws-right { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .15) transparent; }
+
+  /* ---- v1.8 animations: menus open with a little lift, screens rise in, PLAY swooshes into the match ---- */
+  @keyframes cwFade { from { opacity: 0; } }
+  @keyframes cwPop { from { opacity: 0; transform: translateY(14px) scale(.97); } }
+  @keyframes cwRise { from { opacity: 0; transform: translateY(18px); } }
+  @keyframes cwSideL { from { opacity: 0; transform: translateX(-24px); } }
+  @keyframes cwSideR { from { opacity: 0; transform: translateX(24px); } }
+  @keyframes cwUp { from { opacity: 0; transform: translateY(24px); } }
+  #panel:not(.hidden) { animation: cwFade .18s ease-out; }
+  #panel:not(.hidden) .panel-box, #modal:not(.hidden) .modal-box, #confirm:not(.hidden) > *, #acct:not(.hidden) > *, #pause:not(.hidden) > * { animation: cwPop .24s cubic-bezier(.2, .9, .3, 1.15) both; }
+  #panel.full:not(.hidden) .panel-box { animation: cwFade .2s ease-out both; }
+  #panel.full:not(.hidden) #panelBody { animation: cwRise .3s ease-out both; }
+  .screen:not(.hidden):not(#pause) > *:not(.res-chest):not(.tro-pop):not(.g-spin) { animation: cwRise .32s ease-out both; }
+  .screen:not(.hidden) > :nth-child(2) { animation-delay: .04s; }
+  .screen:not(.hidden) > :nth-child(3) { animation-delay: .08s; }
+  .screen:not(.hidden) > :nth-child(4) { animation-delay: .12s; }
+  .screen:not(.hidden) > :nth-child(n+5) { animation-delay: .16s; }
+  #menu:not(.hidden) .lobby-side.left { animation: cwSideL .35s ease-out both; }
+  #menu:not(.hidden) .lobby-side.right { animation: cwSideR .35s ease-out both; }
+  #menu:not(.hidden) .lobby-bottom, #menu:not(.hidden) .lobby-top { animation: cwUp .35s ease-out both; }
+  #workshopUI:not(.hidden) .ws-left { animation: cwSideL .3s ease-out both; }
+  #workshopUI:not(.hidden) .ws-right { animation: cwSideR .3s ease-out both; }
+  #workshopUI:not(.hidden) .ws-top, #workshopUI:not(.hidden) .ws-dock { animation: cwFade .3s ease-out both; }
+  #hud:not(.hidden) #status, #hud:not(.hidden) #minimap, #hud:not(.hidden) #topInfo { animation: cwFade .5s ease-out both; }
+  .side-btn, .bs-btn, .btn { transition: transform .08s, background .12s, border-color .12s, color .12s; }
+  .side-btn:active, .btn:active { transform: scale(.95); }
+  .bs-btn.play-btn:active { transform: scale(.95); }
+  .bs-btn.play-btn.go { animation: cwPlayGo .45s ease-out; }
+  @keyframes cwPlayGo { 0% { transform: scale(.94); } 35% { transform: scale(1.06); box-shadow: 0 0 0 6px rgba(92, 225, 255, .35); } 100% { transform: scale(1); } }
+  /* countdown numbers punch in; "GO!" zooms out */
+  #countdown.pop { animation: cwCount .5s cubic-bezier(.2, .9, .3, 1.2); }
+  @keyframes cwCount { from { opacity: 0; transform: translate(-50%, -50%) scale(1.8); } 40% { opacity: 1; } to { transform: translate(-50%, -50%) scale(1); } }
+  /* a quick dark-blue fade when a match starts */
+  #cwWipe { position: absolute; inset: 0; z-index: 30; pointer-events: none; background: radial-gradient(ellipse at 50% 50%, rgba(18, 26, 51, .55), #0b1024 75%); opacity: 0; }
+  #cwWipe.on { animation: cwWipe .7s ease-out; }
+  @keyframes cwWipe { 0% { opacity: 1; } 100% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; } }
   /* the picture cropper */
   #picCrop { position: absolute; inset: 0; z-index: 32; background: rgba(6, 10, 24, .78); display: flex; align-items: center; justify-content: center; padding: 16px; zoom: var(--z); }
   .crop-box { width: min(340px, 100%); }
@@ -1718,29 +1778,29 @@
 </div>
 
 <!-- three.js: from the CDN, or the local copy in js/vendor/ when offline (desktop build / no internet) -->
-<script src="js/vendor/three.min.js?v=26"></script>
-<script src="js/economy.js?v=26"></script>
-<script src="js/parts.js?v=26"></script>
-<script src="js/platform.js?v=26"></script>
-<script src="js/featured.js?v=26"></script>
-<script src="js/world.js?v=26"></script>
-<script src="js/entities.js?v=26"></script>
-<script src="js/meta.js?v=26"></script>
-<script src="js/extras.js?v=26"></script>
-<script src="js/modes.js?v=26"></script>
-<script src="js/tutorial.js?v=26"></script>
-<script src="js/clips.js?v=26"></script>
-<script src="js/gamepad.js?v=26"></script>
-<script src="js/workshop.js?v=26"></script>
-<script src="js/config.js?v=26"></script>
-<script src="js/net.js?v=26"></script>
-<script src="js/account.js?v=26"></script>
-<script src="js/touch.js?v=26"></script>
-<script src="js/supers.js?v=26"></script>
-<script src="js/gadgets.js?v=26"></script>
-<script src="js/pics.js?v=26"></script>
-<script src="js/talk.js?v=26"></script>
-<script src="js/voice.js?v=26"></script>
-<script src="js/game.js?v=26"></script>
+<script src="js/vendor/three.min.js?v=27"></script>
+<script src="js/economy.js?v=27"></script>
+<script src="js/parts.js?v=27"></script>
+<script src="js/platform.js?v=27"></script>
+<script src="js/featured.js?v=27"></script>
+<script src="js/world.js?v=27"></script>
+<script src="js/entities.js?v=27"></script>
+<script src="js/meta.js?v=27"></script>
+<script src="js/extras.js?v=27"></script>
+<script src="js/modes.js?v=27"></script>
+<script src="js/tutorial.js?v=27"></script>
+<script src="js/clips.js?v=27"></script>
+<script src="js/gamepad.js?v=27"></script>
+<script src="js/workshop.js?v=27"></script>
+<script src="js/config.js?v=27"></script>
+<script src="js/net.js?v=27"></script>
+<script src="js/account.js?v=27"></script>
+<script src="js/touch.js?v=27"></script>
+<script src="js/supers.js?v=27"></script>
+<script src="js/gadgets.js?v=27"></script>
+<script src="js/pics.js?v=27"></script>
+<script src="js/talk.js?v=27"></script>
+<script src="js/voice.js?v=27"></script>
+<script src="js/game.js?v=27"></script>
 </body>
 </html>
