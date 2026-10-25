@@ -8,6 +8,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
+import androidx.activity.OnBackPressedCallback;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
@@ -19,6 +20,16 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        // the phone's Back button / gesture works like Esc in the game (closes a menu, opens the match menu, goes back a
+        // screen); only on the main menu does it leave, and then the app just goes to the background
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                getBridge().getWebView().evaluateJavascript("(window.CW && CW.onBack) ? CW.onBack() : 'exit'", (res) -> {
+                    if (res != null && res.contains("exit")) moveTaskToBack(true);
+                });
+            }
+        });
         // music may start the moment the game opens, without waiting for a tap
         getBridge().getWebView().getSettings().setMediaPlaybackRequiresUserGesture(false);
         // the game opens Google sign-in (and other https pages) in the phone's own browser: CogwildNative.openUrl(url)

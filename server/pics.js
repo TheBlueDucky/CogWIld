@@ -88,6 +88,8 @@ class Pics {
   }
   // an account or club is gone: so is its picture
   drop(kind, id) { try { fs.unlinkSync(this.file(kind, id)); } catch (e) { /* none */ } }
+  // a player changed their username: the picture moves to the new name
+  move(kind, from, to) { try { fs.renameSync(this.file(kind, from), this.file(kind, to)); } catch (e) { /* no picture */ } }
 
   // GET /pic/u/<name>.jpg or /pic/c/<id>.jpg: true when it answered
   serve(url, res, headers) {

@@ -682,7 +682,21 @@
       if (this.state === 'workshop' && !this.workshop.rush) { $('wsBack').click(); return true; }
       return false;
     }
+    // Back on a phone (Android's Back button / gesture, see MainActivity): like Esc. 'exit' = leave the app (main menu)
+    onBack() {
+      if (this.closeTop()) return 'ok';
+      if (this.state === 'match') {
+        if (this.spectator) { this.net.stopSpectating(); return 'ok'; }
+        if (this.paused) this.resume(); else this.pause();
+        return 'ok';
+      }
+      if (this.state === 'workshop') { if (this.workshop.rush) return 'ok'; $('wsBack').click(); return 'ok'; }
+      if (this.state === 'results' || this.state === 'lobby' || this.state === 'search') { if (this.net.room || this.net.searching) this.net.leaveRoom(); this.showMenu(); return 'ok'; }
+      if (this.state !== 'menu') { this.showMenu(); return 'ok'; }
+      return 'exit';
+    }
     bindInput() {
+      CW.onBack = () => { try { return this.onBack(); } catch (e) { return 'ok'; } };
       window.addEventListener('keydown', (e) => {
         // Esc closes the top-most menu or pop-up (even while typing in it), before it pauses a match
         if (e.code === 'Escape' && !e.repeat && this.closeTop()) { e.preventDefault(); return; }

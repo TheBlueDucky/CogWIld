@@ -5,7 +5,7 @@ You build a mech from parts in the Workshop, then fight online (bots fill empty 
 It runs in the browser (three.js r128, no build step), as a Windows app (Electron) and an Android app (Capacitor),
 and on game portals (itch.io, CrazyGames, Poki). The online server is zero-dependency Node.js.
 
-**Live:** https://cogwild.duckdns.org (download page `/download`) · **Current version:** v1.8.3 · **Online protocol:** `cogwild-net-10`
+**Live:** https://cogwild.duckdns.org (download page `/download`) · **Current version:** v1.8.4 · **Online protocol:** `cogwild-net-10`
 The user is not a programmer: explain things in plain words, test everything yourself, and show screenshots as proof.
 
 ## How the user wants things done
@@ -147,6 +147,8 @@ apps would break with the new server; they then get an "update" prompt.
 - `tar` on Windows paths needs `--force-local`.
 - Never zip with `Compress-Archive` (Windows PowerShell 5.1): it stores `js\economy.js` with backslashes, and Linux hosts (itch.io,
   portals) unpack that as one odd file name, so the game sticks on "Building the arena…". build-itch.ps1 uses .NET ZipFile with `/`.
+- Phones: Android's Back button/gesture calls `CW.onBack()` (MainActivity OnBackPressedCallback; like Esc: closes a menu, opens/closes the match menu, goes back a screen; 'exit' only from the main menu → app to background). The touch HUD's menu button reads "☰ Menu". `#testBar` lives at the top level of #app (z 6) so the touch look layer (#touch, z 4) doesn't swallow taps; HUD buttons inside #hud are under it.
+- Usernames: `acctRename` (Profile › Change username, once a week, capital letters any time) re-keys the account everywhere (friends/requests/blocked/unread, clubs, DMs + club chat authors, tokens, email map, online, party, picture file).
 - Bridges: `world.groundAt(x, z, refY)` counts a deck only within 0.9 of `refY` (2.2 near the ends): otherwise anything
   under a bridge popped up onto it. Pilots treat ground rising > 0.5 m within 0.5 m ahead as a wall (no creeping up cliffs),
   and step onto mech parts only up to 0.55 m (jump onto them). Getting out picks a spot at the mech's own height.

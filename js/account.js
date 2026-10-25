@@ -158,7 +158,7 @@
           if ($('acctErr') && !$('acct').classList.contains('hidden')) { $('acctErr').textContent = m.msg; $('acctErr').classList.remove('ok'); }
           else g.toast('⚠ ' + m.msg);
           break;
-        case 'acctMe': this.me = m.me; this.renderChips(); this.rerender(); break;
+        case 'acctMe': this.me = m.me; if (m.me && m.me.name) { g.profile.name = m.me.name; g.saveProfile(); } this.renderChips(); this.rerender(); break;
         case 'wallet': this.onWallet(m); break;
         case 'club': this.club = m.club; this.peek = null; this.rerender(); g.talk.refresh(); break;
         case 'clubs': this.clubs = m.list; this.rerender(); break;
@@ -857,10 +857,12 @@
           ? `<input id="linkCode" inputmode="numeric" maxlength="6" placeholder="Code from the email"><button class="ws-btn on">Confirm</button>`
           : `<input id="linkMail" type="email" maxlength="254" placeholder="you@gmail.com" value="${esc(this.myEmail || '')}"><button class="ws-btn">${this.myEmail ? 'Change email' : 'Add email'}</button>`}</form>` : ''}
         <div class="menu-btns" style="justify-content:flex-start;margin-top:8px">
+          <button class="ws-btn" id="profRename">✏ Change username</button>
           ${this.hasPass ? '<button class="ws-btn" id="profPass">🔑 Change password</button>' : ''}
           <button class="ws-btn" id="profOut">🚪 Log out</button>
           <button class="ws-btn" id="profDel">🗑 Delete account…</button>
         </div>
+        <form id="profRenameForm" class="acct-mini hidden"><input id="prName" maxlength="16" autocomplete="off" spellcheck="false" placeholder="New username" value="${esc(me.name)}"><button class="ws-btn on">Save username</button><div class="small">3-16 letters, numbers or _. You can change it once a week (changing only capital letters is always fine). Friends, clubs and messages keep working.</div></form>
         <form id="profPassForm" class="acct-mini hidden"><input type="password" id="ppOld" placeholder="Current password" autocomplete="current-password"><input type="password" id="ppNew" placeholder="New password (6+)" autocomplete="new-password"><button class="ws-btn on">Save new password</button><div class="small">Other devices will be logged out.</div></form>
         <form id="profDelForm" class="acct-mini hidden"><div class="small">This removes <b>${esc(me.name)}</b>, its trophies, friends and cloud backup <b>forever</b>.</div><input type="${this.hasPass ? 'password' : 'text'}" id="pdPass" placeholder="${this.hasPass ? 'Your password' : 'Type your username to confirm'}" autocomplete="off"><button class="ws-btn bad">Delete my account</button></form>`;
       // picking an avatar also stops using your own picture
@@ -870,6 +872,13 @@
       if ($('profPicDel')) $('profPicDel').onclick = () => this.net.send({ t: 'picSet', kind: 'u', data: null });
       $('profOut').onclick = () => this.logout();
       if ($('profPass')) $('profPass').onclick = () => { $('profPassForm').classList.toggle('hidden'); $('ppOld').focus(); };
+      $('profRename').onclick = () => { $('profRenameForm').classList.toggle('hidden'); $('prName').focus(); $('prName').select(); };
+      $('profRenameForm').onsubmit = (e) => {
+        e.preventDefault();
+        const name = $('prName').value.trim();
+        if (!/^[A-Za-z0-9_]{3,16}$/.test(name)) return g.toast('Usernames are 3-16 letters, numbers or _');
+        this.net.send({ t: 'acctRename', name });
+      };
       if ($('linkForm')) $('linkForm').onsubmit = (e) => {
         e.preventDefault();
         if (this.linkStep === 'code') return this.net.send({ t: 'emailCode', email: this.linkMail, code: $('linkCode').value.trim() });

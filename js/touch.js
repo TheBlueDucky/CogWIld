@@ -18,7 +18,8 @@
   // rarely-needed ones in the bottom-middle row, away from both thumbs (Exit needs a short hold)
   const ARC = ['fire', 'super', 'gadget', 'dash'], LEFT = ['up', 'down'], AUX = ['exit', 'repair', 'unstuck'];
   const HOLD_EXIT = 0.45; // seconds
-  const SMALL = [['pause', '⏸'], ['cam', '🎥'], ['scores', '📋'], ['chat', '💬']];
+  // ☰ Menu: resume, restart, settings and quit (also skip the tutorial / back to the Workshop); the phone's Back does it too
+  const SMALL = [['pause', '☰ Menu'], ['cam', '🎥'], ['scores', '📋'], ['chat', '💬']];
 
   class Touch {
     constructor(game) {

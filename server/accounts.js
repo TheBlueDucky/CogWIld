@@ -14,6 +14,7 @@ const filter = require('./filter'); // bad words (names are refused, description
 const DATA_DIR = process.env.DATA_DIR || path.resolve(__dirname, '..', 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 const NAME_RE = /^[A-Za-z0-9_]{3,16}$/;
+const RENAME_GAP = 7 * 86400000; // a new username at most once a week
 const EMAIL_RE = /^[^\s@<>"'`,;]{1,64}@[A-Za-z0-9.-]{1,180}\.[A-Za-z]{2,24}$/;
 const CODE_LIFE = 10 * 60000; // login codes work for 10 minutes, 5 tries
 // names kids shouldn't see (substring match, case-insensitive) and names that pretend to be staff
@@ -219,7 +220,7 @@ class Accounts {
     if (!/^(acct|friend|party|invite|top|profile|save|status|earn|gift|buy|roadClaim|passClaim|club|guest|email|google)/.test(t)) return false;
     const fn = {
       acctRegister: () => this.register(c, m), acctSignup: () => this.signup(c, m), acctLogin: () => this.login(c, m), acctAuth: () => this.auth(c, m),
-      acctLogout: () => this.logout(c), acctPass: () => this.changePass(c, m), acctDelete: () => this.remove(c, m),
+      acctLogout: () => this.logout(c), acctPass: () => this.changePass(c, m), acctDelete: () => this.remove(c, m), acctRename: () => this.rename(c, m),
       save: () => this.saveData(c, m), profileSet: () => this.setProfile(c, m), profile: () => this.showProfile(c, m),
       friendAdd: () => this.friendAdd(c, m), friendAccept: () => this.friendAccept(c, m), friendDecline: () => this.friendDecline(c, m), friendRemove: () => this.friendRemove(c, m),
       partyInvite: () => this.partyInvite(c, m), partyAccept: () => this.partyAccept(c, m), partyLeave: () => c.user && this.leaveParty(c.user), partyKick: () => this.partyKick(c, m), partyMech: () => this.partyMech(c, m),
@@ -498,6 +499,69 @@ class Accounts {
     if (this.pics) this.pics.drop('u', k);
     this.dirty();
     this.send(c, { t: 'acctOut', reason: 'Account deleted' });
+  }
+
+  // A logged-in player picks a new username (once a week; only changing capital letters is always fine). Accounts are
+  // stored under their lowercase name, so everything that remembers a player by name moves over: the account, other
+  // players' friends / requests / blocked lists and unread counts, clubs, private messages and club chat, logins, the
+  // online list, the party and the profile picture.
+  rename(c, m) {
+    const u = this.me(c);
+    if (!u) return this.err(c, 'Log in to change your username');
+    if (this.slowDown(c)) return;
+    const name = String(m.name || '').trim();
+    if (!NAME_RE.test(name)) return this.err(c, 'Usernames are 3-16 letters, numbers or _');
+    if (name === u.name) return this.err(c, 'That is already your username');
+    if (BLOCKED.some((b) => key(name).includes(b)) || filter.isBad(name)) return this.err(c, 'Please pick a different username');
+    const ok = c.user, nk = key(name);
+    if (nk !== ok) {
+      if (this.db.users[nk]) return this.err(c, 'That username is taken');
+      const wait = (u.renamedAt || 0) + RENAME_GAP - Date.now();
+      if (wait > 0) return this.err(c, `You can change your username again in ${Math.ceil(wait / 86400000)} day${wait > 86400000 ? 's' : ''}`);
+      const old = u.name;
+      const swap = (list) => (Array.isArray(list) ? list.map((x) => (x === ok ? nk : x)) : list);
+      this.db.users[nk] = u;
+      delete this.db.users[ok];
+      for (const o of Object.values(this.db.users)) {
+        for (const f of ['friends', 'reqIn', 'reqOut', 'blocked']) if (o[f]) o[f] = swap(o[f]);
+        if (o.unread && o.unread[old] !== undefined) { o.unread[name] = o.unread[old]; delete o.unread[old]; }
+      }
+      for (const club of Object.values(this.db.clubs || {})) {
+        club.members = swap(club.members);
+        if (club.owner === ok) club.owner = nk;
+      }
+      const relabel = (list) => (Array.isArray(list) ? list.map((x) => (x && key(x.f) === ok ? Object.assign({}, x, { f: name }) : x)) : list);
+      for (const p of Object.keys(this.db.dms || {})) {
+        const ks = p.split('|');
+        if (!ks.includes(ok)) continue;
+        const np = ks.map((x) => (x === ok ? nk : x)).sort().join('|');
+        this.db.dms[np] = relabel(this.db.dms[p]);
+        delete this.db.dms[p];
+      }
+      for (const id of Object.keys(this.db.clubChat || {})) this.db.clubChat[id] = relabel(this.db.clubChat[id]);
+      for (const [t, k] of this.byToken) if (k === ok) this.byToken.set(t, nk);
+      if (u.email) this.byEmail.set(u.email, nk);
+      if (this.online.get(ok)) { this.online.set(nk, this.online.get(ok)); this.online.delete(ok); }
+      const pid = this.partyOf.get(ok);
+      if (pid) {
+        this.partyOf.delete(ok);
+        this.partyOf.set(nk, pid);
+        const p = this.parties.get(pid);
+        if (p) { p.members = swap(p.members); if (p.leader === ok) p.leader = nk; }
+      }
+      if (this.pics) this.pics.move('u', ok, nk);
+      c.user = nk;
+      u.renamedAt = Date.now();
+    }
+    u.name = name;
+    c.name = name;
+    this.dirty();
+    this.send(c, { t: 'acctMe', me: this.publicCard(u) });
+    this.send(c, { t: 'note', kind: 'info', msg: `✏ You're now ${name}` });
+    this.friendsChanged(nk);
+    if (this.partyOf.has(nk)) this.sendParty(nk);
+    const club = this.clubOf(u);
+    if (club) this.clubChanged(club);
   }
 
   // ---------------- cloud save + profile ----------------

@@ -110,8 +110,11 @@
   .pc-name { font-family: 'Lilita One'; font-size: 20px; }
   .pc-meta { font-size: 12px; margin-top: 4px; }
   .pc-err { font-size: 11px; color: var(--bad); margin-top: 4px; }
-  #testBar { position: absolute; top: 56px; left: 50%; transform: translateX(-50%); pointer-events: auto; }
+  #testBar { position: absolute; top: 56px; left: 50%; transform: translateX(-50%); pointer-events: auto; z-index: 6; zoom: var(--z); }
   #testBar .btn { font-size: 14px; padding: 6px 14px; }
+  /* phones: the test-drive way back sits above the bottom buttons, where the help message can't cover it */
+  .touch-ui #testBar { top: auto; bottom: calc(66px + env(safe-area-inset-bottom)); z-index: 6; } /* above the touch look area */
+  .t-sm[data-t=pause] { font-size: 15px !important; background: rgba(92, 225, 255, .18) !important; border-color: rgba(92, 225, 255, .55) !important; }
   .team-pill { display: inline-block; min-width: 22px; text-align: center; border-radius: 8px; padding: 0 6px; margin: 0 2px; color: #10162b; font-weight: 800; }
   .tag.ally .tag-bar i { background: var(--good); }
   .soon { position: absolute; top: 12px; right: 12px; background: #3c4a7a; border-radius: 8px; padding: 2px 8px; font-size: 12px; }
@@ -1618,7 +1621,6 @@
     <div id="status"></div>
     <div id="hint"></div>
     <div id="countdown"></div>
-    <div id="testBar" class="hidden"><button id="testBack" class="btn">← Back to Workshop (T)</button></div>
     <div id="camBadge"></div>
     <div id="edgeWarn" class="hidden"></div>
     <div id="dmgDir"><i></i></div>
@@ -1695,6 +1697,8 @@
   <!-- the tutorial's arrow (what to do next) and the ring around the phone button to press (js/tutorial.js) -->
   <div id="tutArrow" class="hidden"><span class="tut-arrow-ico" id="tutArrowIco"><svg viewBox="0 0 64 64" width="56" height="56" aria-hidden="true"><path d="M6 24h30V10l24 22-24 22V40H6z" fill="#5ce1ff" stroke="#0b1024" stroke-width="4" stroke-linejoin="round"/></svg></span><small id="tutArrowLbl"></small></div>
   <div id="tutRing" class="hidden"></div>
+  <!-- test drive: the way back (outside the HUD so it sits above the phone's touch look area) -->
+  <div id="testBar" class="hidden"><button id="testBack" class="btn">← Back to Workshop (T)</button></div>
   <!-- 💬 🎤 🎧 in matches and while waiting for one (js/talk.js shows them) -->
     <div id="hudTalk" class="hidden"><button id="hudVoice" class="vc-btn" aria-label="Voice chat: mute">🎤</button><button id="hudDeaf" class="vc-btn deaf-btn" aria-label="Voice chat: deafen">🎧</button><button id="hudChat" aria-label="Chat (Enter)">💬<i class="badge hidden" id="hudChatBadge">0</i></button></div>
   <!-- CHAT (js/talk.js) -->
@@ -1810,29 +1814,29 @@
 </div>
 
 <!-- three.js: from the CDN, or the local copy in js/vendor/ when offline (desktop build / no internet) -->
-<script src="js/vendor/three.min.js?v=30"></script>
-<script src="js/economy.js?v=30"></script>
-<script src="js/parts.js?v=30"></script>
-<script src="js/platform.js?v=30"></script>
-<script src="js/featured.js?v=30"></script>
-<script src="js/world.js?v=30"></script>
-<script src="js/entities.js?v=30"></script>
-<script src="js/meta.js?v=30"></script>
-<script src="js/extras.js?v=30"></script>
-<script src="js/modes.js?v=30"></script>
-<script src="js/tutorial.js?v=30"></script>
-<script src="js/clips.js?v=30"></script>
-<script src="js/gamepad.js?v=30"></script>
-<script src="js/workshop.js?v=30"></script>
-<script src="js/config.js?v=30"></script>
-<script src="js/net.js?v=30"></script>
-<script src="js/account.js?v=30"></script>
-<script src="js/touch.js?v=30"></script>
-<script src="js/supers.js?v=30"></script>
-<script src="js/gadgets.js?v=30"></script>
-<script src="js/pics.js?v=30"></script>
-<script src="js/talk.js?v=30"></script>
-<script src="js/voice.js?v=30"></script>
-<script src="js/game.js?v=30"></script>
+<script src="js/vendor/three.min.js?v=31"></script>
+<script src="js/economy.js?v=31"></script>
+<script src="js/parts.js?v=31"></script>
+<script src="js/platform.js?v=31"></script>
+<script src="js/featured.js?v=31"></script>
+<script src="js/world.js?v=31"></script>
+<script src="js/entities.js?v=31"></script>
+<script src="js/meta.js?v=31"></script>
+<script src="js/extras.js?v=31"></script>
+<script src="js/modes.js?v=31"></script>
+<script src="js/tutorial.js?v=31"></script>
+<script src="js/clips.js?v=31"></script>
+<script src="js/gamepad.js?v=31"></script>
+<script src="js/workshop.js?v=31"></script>
+<script src="js/config.js?v=31"></script>
+<script src="js/net.js?v=31"></script>
+<script src="js/account.js?v=31"></script>
+<script src="js/touch.js?v=31"></script>
+<script src="js/supers.js?v=31"></script>
+<script src="js/gadgets.js?v=31"></script>
+<script src="js/pics.js?v=31"></script>
+<script src="js/talk.js?v=31"></script>
+<script src="js/voice.js?v=31"></script>
+<script src="js/game.js?v=31"></script>
 </body>
 </html>

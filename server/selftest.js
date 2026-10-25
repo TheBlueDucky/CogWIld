@@ -62,7 +62,7 @@ function codeFor(email) {
 }
 
 function start() {
-  server = spawn(process.execPath, [path.join(__dirname, 'server.js')], { env: Object.assign({}, process.env, { PORT, DATA_DIR: DATA, SEARCH_SECS: '2', TROPHY_MIN_SECS: '0',
+  server = spawn(process.execPath, [path.join(__dirname, 'server.js')], { env: Object.assign({}, process.env, { PORT, DATA_DIR: DATA, SEARCH_SECS: '2', TROPHY_MIN_SECS: '0', SIGNUPS_PER_HOUR: '30',
     MAIL_SMTP_HOST: '127.0.0.1', MAIL_SMTP_PORT: String(SMTP_PORT), MAIL_SMTP_SECURE: 'none', MAIL_SMTP_USER: 'game@test.dev', MAIL_SMTP_PASS: 'mailpass123', MAIL_FROM: 'Cogwild <game@test.dev>',
     GOOGLE_CLIENT_ID: 'test-client', GOOGLE_CERTS_URL: `http://127.0.0.1:${CERTS_PORT}/certs` }), stdio: process.env.TEST_LOG ? 'inherit' : 'ignore' });
   return wait(700);
@@ -599,6 +599,35 @@ async function main() {
     const fake = { db: { users: {}, dms: { 'a|b': [{ f: 'a', x: 'old', at: old }, { f: 'a', x: 'new', at: now }] }, clubChat: { c1: [{ f: 'a', x: 'old', at: old }] } }, dirty() {} };
     new Talk(fake, { clients: new Map(), rooms: new Map() });
     check(fake.db.dms['a|b'].length === 1 && fake.db.dms['a|b'][0].x === 'new' && !fake.db.clubChat.c1, 'messages older than a week are deleted');
+  }
+
+  console.log('username change');
+  {
+    const ra = await player(), rb = await player();
+    ra.send({ t: 'acctRegister', name: 'Ren_A', pass: 'renpass1' }); await ra.next('acctOk');
+    rb.send({ t: 'acctRegister', name: 'Ren_B', pass: 'renpass2' }); await rb.next('acctOk');
+    ra.send({ t: 'friendAdd', name: 'Ren_B' }); await rb.next('note', (m) => m.kind === 'friendReq');
+    rb.send({ t: 'friendAccept', name: 'Ren_A' }); await ra.next('friends', (m) => m.list.length === 1);
+    ra.send({ t: 'dmSend', to: 'Ren_B', x: 'hello before' }); await rb.next('dm');
+    ra.send({ t: 'acctRename', name: 'Ren_New' });
+    check((await ra.next('acctMe')).me.name === 'Ren_New', 'a logged-in player can change their username');
+    check((await rb.next('friends', (m) => m.list.some((f) => f.name === 'Ren_New'))).list.length === 1, 'friends see the new name (still friends)');
+    rb.send({ t: 'dmOpen', name: 'Ren_New' });
+    const log = await rb.next('dmLog');
+    check(log.list.length === 1 && log.list[0].f === 'Ren_New', 'private messages move to the new name');
+    ra.send({ t: 'acctRename', name: 'Ren_Again' });
+    check(/again in 7 days/.test((await ra.next('acctErr')).msg), 'a second new name has to wait a week');
+    ra.send({ t: 'acctRename', name: 'REN_new' });
+    check((await ra.next('acctMe')).me.name === 'REN_new', 'changing only capital letters is always fine');
+    rb.send({ t: 'acctRename', name: 'ren_new' });
+    check(/taken/.test((await rb.next('acctErr')).msg), "someone else's name is refused");
+    const rl = await player();
+    rl.send({ t: 'acctLogin', name: 'ren_new', pass: 'renpass1' });
+    check((await rl.next('acctOk')).me.name === 'REN_new', 'logging in works with the new name and the same password');
+    const rf = await player();
+    rf.send({ t: 'acctRegister', name: 'Ren_A', pass: 'renpass3' });
+    check((await rf.next('acctOk')).me.name === 'Ren_A', 'the old name is free again');
+    for (const x of [ra, rb, rl, rf]) x.ws.close();
   }
 
   console.log('weekly event + ranked');
