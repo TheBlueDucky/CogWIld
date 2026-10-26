@@ -377,6 +377,7 @@
           <section class="set-sec" data-sec="account"><h3>👤 Account</h3>
           <div class="set-row"><span>${acct && acct.loggedIn ? `Logged in as <b>${CW.esc(acct.me.name)}</b> · progress backed up to the cloud` : 'Playing as a guest (progress saved on this device only)'}</span><button class="ws-btn on" id="setAcct">${acct && acct.loggedIn ? 'Profile' : 'Log in / Sign up'}</button></div>
           </section><section class="set-sec" data-sec="display"><h3>🖥 Display</h3>
+          <label class="set-row"><span>🌐 Language</span><select id="setLang" translate="no">${CW.LANGS.map(([id, n]) => `<option value="${id}" ${CW.I18N.lang === id ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
           <label class="set-row"><span>Graphics quality</span><select id="setGfx"><option value="auto">Auto (recommended)</option><option value="low">Low (fast, for older laptops and phones)</option><option value="medium">Medium</option><option value="high">High (shadows + max detail)</option></select></label>
           <label class="set-row"><span>Field of view <b id="setFovV"></b></span><input type="range" id="setFov" min="60" max="105" step="1"></label>
           <label class="set-row"><span>Camera</span><select id="setCam"><option value="first">First person (from your Camera part)</option><option value="third">Chase (behind the mech)</option></select></label>
@@ -450,6 +451,7 @@
         body.querySelectorAll('[data-key]').forEach((b) => (b.onclick = () => this.listenKey(b)));
         $('setGfx').value = s.graphics;
         $('setGfx').onchange = (e) => { s.graphics = e.target.value; this.apply(); };
+        $('setLang').onchange = (e) => { s.lang = e.target.value; this.save(); CW.I18N.set(e.target.value); }; // reloads in that language
         $('setExport').onclick = () => {
           const g = this.game;
           const data = { v: CW.SAVE_VERSION, profile: g.profile, blueprints: g.blueprints, current: g.currentBp };

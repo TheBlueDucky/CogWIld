@@ -1356,6 +1356,9 @@
   .gal-sbox input { margin-left: 6px; padding: 6px 8px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .15); background: rgba(0, 0, 0, .25); color: #fff; color-scheme: dark; font: inherit; }
   @media (max-width: 700px) { .gal-dbox { flex-direction: column; } .gal-view { min-height: 200px; flex: none; height: 42vh; } }
   @media (max-height: 460px) and (min-width: 701px) { .gal-dbox { padding: 10px; gap: 10px; } .gal-view { min-height: 0; } .gal-info { gap: 5px; } .gal-info h2 { font-size: 18px; } .gal-stats div { padding: 3px 6px; } .gal-acts .btn { padding: 6px 10px; font-size: 14px; } }
+  /* languages (js/i18n.js): Arabic and Hebrew read right to left in menus and panels; the HUD keeps its places */
+  html.rtl #panelBody, html.rtl .modal-box, html.rtl #acct, html.rtl .gal-info, html.rtl .gal-sbox, html.rtl #results .res-body, html.rtl .ws-right { direction: rtl; text-align: right; }
+  html.rtl .feat-card div, html.rtl .set-row span { text-align: right; }
   /* replays: the viewer's controls (zoomed like the HUD, over the touch layer) and the list */
   #replayUi { position: absolute; inset: 0; z-index: 6; pointer-events: none; zoom: var(--z); }
   #replayUi > * { pointer-events: auto; }
@@ -1733,7 +1736,7 @@
   <div id="specBar" class="hidden">👁 Watching <b id="specName"></b> <button id="specLeave" class="ws-btn">Leave (Esc)</button></div>
   <div id="hud" class="hidden">
     <div id="vignette"></div>
-    <div id="tags"></div>
+    <div id="tags" translate="no"></div>
     <div id="crosshair"></div>
     <div id="topInfo"></div>
     <div id="feed"></div>
@@ -1803,7 +1806,7 @@
         <button id="rpSpeed" class="ws-btn" aria-label="Speed">1×</button>
         <span class="rp-gap"></span>
         <button id="rpPrev" class="ws-btn" aria-label="Previous mech">◀</button>
-        <b id="rpWho"></b>
+        <b id="rpWho" translate="no"></b>
         <button id="rpNext" class="ws-btn" aria-label="Next mech">▶</button>
         <button id="rpCam" class="ws-btn" aria-label="Camera">🎥 Follow</button>
         <button id="rpHide" class="ws-btn" aria-label="Hide the controls">👁</button>
@@ -1961,6 +1964,7 @@
 <script src="js/vendor/three.min.js?v=31"></script>
 <script src="js/economy.js?v=31"></script>
 <script src="js/parts.js?v=31"></script>
+<script src="js/i18n.js?v=31"></script>
 <script src="js/platform.js?v=31"></script>
 <script src="js/featured.js?v=31"></script>
 <script src="js/world.js?v=31"></script>
