@@ -1293,6 +1293,24 @@
   .swatch.wfx { background: radial-gradient(circle at 50% 55%, var(--wc, #ffb347) 0%, rgba(0, 0, 0, 0) 62%), #0d1226; }
   .wfx-confetti { --wc: #ff6fb5; } .wfx-pixel { --wc: #5ce1ff; } .wfx-fireworks { --wc: #ffd23f; } .wfx-lightning { --wc: #8fd8ff; } .wfx-blackhole { --wc: #9b5de5; }
   .wfx-ev_bats { --wc: #7b2cbf; } .wfx-ev_snow { --wc: #dff4ff; } .wfx-ev_hearts { --wc: #ff4d6d; } .wfx-ev_petals { --wc: #ffb7d5; } .wfx-ev_splash { --wc: #00b4d8; }
+  /* Weekend Cup: the lobby chip (over the featured chip), the PLAY panel card, the cup screen */
+  .lb-chips { position: absolute; right: 0; bottom: calc(100% + 10px); display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .lb-chips .feat-chip { position: static; }
+  .cup-chip b { color: #ffd23f !important; }
+  .cup-chip.ready { border-color: #ffd23f; }
+  .cup-head { display: flex; gap: 14px; align-items: center; padding: 12px 14px; border-radius: var(--rad); border: 1px solid rgba(255, 210, 63, .45); background: rgba(255, 210, 63, .08); }
+  .cup-head .cup-big { font-size: 44px; }
+  .cup-head b { font-size: 20px; color: #ffd23f; }
+  .cup-me { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-top: 10px; }
+  .cup-me div { display: flex; flex-direction: column; padding: 8px 10px; border-radius: 8px; background: rgba(255, 255, 255, .05); }
+  .cup-me b { font-size: 20px; }
+  .cup-me span { font-size: 12px; opacity: .7; }
+  .cup-pts { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
+  .cup-pts i { font-style: normal; padding: 2px 7px; border-radius: 6px; background: rgba(92, 225, 255, .15); font-weight: 800; font-size: 13px; }
+  .cup-claim { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 10px; padding: 10px 12px; border-radius: var(--rad); border: 1px solid #ffd23f; background: rgba(255, 210, 63, .1); }
+  .cup-rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 6px; margin-top: 6px; }
+  .cup-rules span { padding: 6px 8px; border-radius: 8px; background: rgba(255, 255, 255, .04); font-size: 13px; }
+  .arena-card.cup { border-color: #ffd23f !important; }
   /* mech gallery (js/gallery.js) */
   .gal-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
   .gal-sorts { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -1559,7 +1577,7 @@
         </div>
       </div>
       <div class="lb-right">
-        <button id="featChip" class="feat-chip"></button>
+        <div class="lb-chips"><button id="cupChip" class="feat-chip cup-chip hidden" aria-label="The Weekend Cup"></button><button id="featChip" class="feat-chip"></button></div>
         <button id="arenaCard" class="arena-card" aria-label="Pick the mode and arena you want to play"><span class="ac-icon" id="acIcon">🔧</span><b id="acMode">Workshop Clash</b><small id="acName">🎲 Any arena</small><span class="ac-change">Change</span></button>
         <button id="btnPlay" class="bs-btn play-btn" aria-label="Find a match on your arena">PLAY<small>find a match</small></button>
       </div>

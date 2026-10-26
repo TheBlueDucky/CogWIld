@@ -231,6 +231,7 @@ function cleanSettings(s) {
     // matchmaking only: this week's event (its id) and Ranked
     event: E.WEEKLY.some((w) => w.id === s.event) ? s.event : null,
     ranked: s.ranked === true,
+    cup: typeof s.cup === 'string' && /^cup\d{4}-\d\d-\d\d$/.test(s.cup) ? s.cup : null, // the Weekend Cup (matchmaking only)
   };
 }
 
@@ -437,11 +438,18 @@ function handle(c, data) {
       // matchmaking (PLAY) for one mode on one arena ("random" = any arena): join the fullest searching
       // room with space for you (and your party), or start a new search
       // kind 'weekly': this week's event (its mode, any arena, with its twist); kind 'ranked': 3v3 on ranked points
-      const kind = m.kind === 'weekly' || m.kind === 'ranked' ? m.kind : null;
+      const kind = m.kind === 'weekly' || m.kind === 'ranked' || m.kind === 'cup' ? m.kind : null;
       let mode = MM_FORMAT[m.mode] ? m.mode : 'clash';
       let arena = /^[a-z]{1,16}$/.test(m.arena) ? m.arena : 'random';
       let event = null;
       if (kind === 'weekly') { const w = E.week(); mode = w.mode; arena = 'random'; event = w.id; }
+      let cupId = null;
+      if (kind === 'cup') {
+        const cu = accounts.cupNow();
+        if (!accounts.me(c)) return c.ws.send({ t: 'err', msg: 'Log in to play the Weekend Cup' });
+        if (!cu.live) return c.ws.send({ t: 'err', msg: 'The Weekend Cup is on from Friday 18:00 to Sunday 24:00 (UTC)' });
+        mode = cu.mode; arena = 'random'; cupId = cu.id;
+      }
       if (kind === 'ranked') {
         if (!accounts.canRanked(c)) return c.ws.send({ t: 'err', msg: `Ranked unlocks at ${E.RANKED.unlockAt} trophies (your best ever)` });
         mode = E.RANKED.modes[crypto.randomInt(E.RANKED.modes.length)];
@@ -451,14 +459,14 @@ function handle(c, data) {
       const need = 1 + accounts.followers(c).length;
       const tro = troOf(c, ranked);
       const open = [...rooms.values()].filter((r) => r.pub && r.auto && r.state === 'lobby' && !r.autoAt && r.code !== c.room && troFits(r, tro)
-        && r.settings.ranked === ranked && r.settings.event === event && (ranked || r.settings.mode === mode)
+        && r.settings.ranked === ranked && r.settings.event === event && (r.settings.cup || null) === cupId && (ranked || r.settings.mode === mode)
         && (arena === 'random' || r.settings.arena === arena) && knowsArena(c, r.settings.arena) && r.players.size + need <= seatsOf(r)).sort((a, b) => b.players.size - a.players.size)[0];
       if (open) joinRoom(c, open);
-      else createRoom(c, true, { mode, format: MM_FORMAT[mode], arena, tod: 'random', difficulty: 'normal', teams: 'split', event, ranked }, true);
+      else createRoom(c, true, { mode, format: MM_FORMAT[mode], arena, tod: 'random', difficulty: 'normal', teams: 'split', event, ranked, cup: cupId }, true);
       break;
     }
     case 'leave': leaveRoom(c); break;
-    case 'settings': if (isHost && room.state === 'lobby' && !room.auto) { room.settings = Object.assign(cleanSettings(m.settings), { ranked: false }); for (const id of room.players) clients.get(id).ready = false; sendRoom(room); } break;
+    case 'settings': if (isHost && room.state === 'lobby' && !room.auto) { room.settings = Object.assign(cleanSettings(m.settings), { ranked: false, cup: null }); for (const id of room.players) clients.get(id).ready = false; sendRoom(room); } break;
     case 'ready':
       if (!room || room.state !== 'lobby') break;
       c.ready = !!m.ready;
@@ -526,6 +534,7 @@ function handle(c, data) {
           console.warn(`results refused in ${room.code} (host ${c.name}): ${why}`);
           accounts.disputed(c, room, why);
         } else if (room.settings.ranked) accounts.rankedResult(room, m.res, n); // Ranked: ranked points instead of trophies
+        else if (room.settings.cup) accounts.cupResult(room, m.res, n); // Weekend Cup: cup points instead of trophies
         else accounts.matchResult(room, m.res, n); // Quick Match placings move trophies
       }
       room.state = 'lobby';

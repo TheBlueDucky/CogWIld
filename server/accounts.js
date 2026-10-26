@@ -220,7 +220,7 @@ class Accounts {
     if (this.talk && this.talk.handle(c, m)) return true; // chat and voice (server/talk.js)
     if (this.pics && this.pics.handle(c, m)) return true; // profile and club pictures (server/pics.js)
     if (this.gallery && this.gallery.handle(c, m)) return true; // the mech gallery (server/gallery.js)
-    if (!/^(acct|friend|party|invite|top|profile|save|status|earn|gift|buy|roadClaim|passClaim|eventClaim|club|guest|email|google)/.test(t)) return false;
+    if (!/^(acct|friend|party|invite|top|profile|save|status|earn|gift|buy|roadClaim|passClaim|eventClaim|cup|club|guest|email|google)/.test(t)) return false;
     const fn = {
       acctRegister: () => this.register(c, m), acctSignup: () => this.signup(c, m), acctLogin: () => this.login(c, m), acctAuth: () => this.auth(c, m),
       acctLogout: () => this.logout(c), acctPass: () => this.changePass(c, m), acctDelete: () => this.remove(c, m), acctRename: () => this.rename(c, m),
@@ -230,7 +230,7 @@ class Accounts {
       clubCreate: () => this.clubCreate(c, m), clubJoin: () => this.clubJoin(c, m), clubLeave: () => this.clubLeave(c), clubKick: () => this.clubKick(c, m),
       clubList: () => this.clubList(c, m), clubInfo: () => this.clubInfo(c, m), clubChat: () => this.clubChat(c, m), clubEdit: () => this.clubEdit(c, m),
       guest: () => this.guestHello(c, m), earn: () => this.earn(c, m),
-      emailStart: () => this.emailStart(c, m), emailCode: () => this.emailCode(c, m), emailName: () => this.emailName(c, m), googleLogin: () => this.googleLogin(c, m), googleStart: () => this.googleStart(c, m), acctResetPass: () => this.resetPass(c, m), gift: () => this.gift(c), buy: () => this.buy(c, m), roadClaim: () => this.roadClaim(c, m), passClaim: () => this.passClaim(c, m), eventClaim: () => this.eventClaim(c, m),
+      emailStart: () => this.emailStart(c, m), emailCode: () => this.emailCode(c, m), emailName: () => this.emailName(c, m), googleLogin: () => this.googleLogin(c, m), googleStart: () => this.googleStart(c, m), acctResetPass: () => this.resetPass(c, m), gift: () => this.gift(c), buy: () => this.buy(c, m), roadClaim: () => this.roadClaim(c, m), passClaim: () => this.passClaim(c, m), eventClaim: () => this.eventClaim(c, m), cupInfo: () => this.cupInfo(c), cupClaim: () => this.cupClaim(c, m),
       invite: () => this.inviteRoom(c, m), top: () => this.top(c, m), status: () => { c.busy = !!m.busy; if (c.user) this.friendsChanged(c.user); },
     }[t];
     if (!fn) return true;
@@ -1196,6 +1196,85 @@ class Accounts {
     const u = c && this.me(c);
     const now = Date.now();
     return !!u && (u.disputes || []).filter((t) => now - t < 7 * 86400000).length >= 2;
+  }
+  // ---------------- Weekend Cup (js/economy.js CUP): db.cups[id] = { mode, players: { key: { n, pts: [], claimed } } } ----------------
+  cupNow() { return E.cup(process.env.CUP_DATE ? Date.parse(process.env.CUP_DATE) : Date.now()); } // CUP_DATE: only for tests
+  cupData(id, mode) {
+    if (!this.db.cups) this.db.cups = {};
+    if (!this.db.cups[id] && mode) {
+      this.db.cups[id] = { mode, players: {} };
+      for (const old of Object.keys(this.db.cups).sort().slice(0, -4)) delete this.db.cups[old]; // the last 4 weekends are kept
+    }
+    return this.db.cups[id] || null;
+  }
+  // everyone who played, best first (ties: fewer matches, then who got there first)
+  cupBoard(id) {
+    const d = this.cupData(id);
+    if (!d) return [];
+    if (this.cupCache && this.cupCache.id === id && this.cupCache.v === d.v) return this.cupCache.list;
+    const list = Object.entries(d.players).map(([k, p]) => ({ k, n: p.n, score: E.cupScore(p.pts), games: p.pts.length, at: p.at || 0 }))
+      .sort((a, b) => b.score - a.score || a.games - b.games || a.at - b.at);
+    this.cupCache = { id, v: d.v, list };
+    return list;
+  }
+  cupResult(room, res, n) {
+    if (!room.auto || !room.settings.cup || !res || typeof res !== 'object') return;
+    if ((Date.now() - (room.beganAt || Date.now())) / 1000 < QUICK_MIN_SECS) return;
+    const cu = this.cupNow();
+    // a match that began during the weekend still counts if it ends a little after
+    if (room.settings.cup !== cu.id || Date.now() > cu.end + 30 * 60000 || (room.beganAt || 0) > cu.end) return;
+    const d = this.cupData(cu.id, cu.mode);
+    for (const [id, place] of Object.entries(res)) {
+      const c = this.h.clients.get(+id);
+      const pl = place | 0;
+      if (!c || c.room !== room.code || !room.players.has(c.id) || pl < 1 || pl > n) continue;
+      const u = this.me(c);
+      if (!u) continue;
+      const k = key(u.name), pts = E.cupPoints(pl, n);
+      const p = d.players[k] || (d.players[k] = { n: u.name, pts: [], claimed: false });
+      p.n = u.name;
+      if (p.pts.length >= 200) continue; // plenty
+      const before = E.cupScore(p.pts);
+      p.pts.push(pts);
+      const score = E.cupScore(p.pts);
+      if (score > before) p.at = Date.now();
+      d.v = (d.v | 0) + 1;
+      const rank = this.cupBoard(cu.id).findIndex((x) => x.k === k) + 1;
+      this.send(c, { t: 'cupResult', pts, score, rank, games: p.pts.length, place: pl, n });
+    }
+    this.dirty();
+  }
+  // the cup screen: this weekend's board (or the last one's), your place, and rewards waiting from ended cups
+  cupInfo(c) {
+    const u = this.me(c), cu = this.cupNow(), k = u ? key(u.name) : null;
+    const board = this.cupBoard(cu.id), d = this.cupData(cu.id);
+    const mine = k ? board.findIndex((x) => x.k === k) : -1;
+    const card = (x) => { const o = this.db.users[x.k]; return { name: x.n, score: x.score, games: x.games, av: o ? o.av | 0 : 0, pv: o ? o.pv | 0 : 0 }; };
+    const claims = [];
+    if (k) for (const [id, cd] of Object.entries(this.db.cups || {})) {
+      const p = cd.players[k];
+      const ended = id !== cu.id || !cu.live;
+      if (!p || p.claimed || !ended) continue;
+      const rank = this.cupBoard(id).findIndex((x) => x.k === k) + 1;
+      claims.push({ id, mode: cd.mode, rank, games: p.pts.length, score: E.cupScore(p.pts), reward: E.cupReward(rank, p.pts.length), of: Object.keys(cd.players).length });
+    }
+    this.send(c, {
+      t: 'cupInfo', cup: cu, total: board.length, top: board.slice(0, 50).map(card),
+      me: mine >= 0 ? Object.assign(card(board[mine]), { rank: mine + 1, pts: d.players[k].pts.slice().sort((a, b) => b - a).slice(0, E.CUP.best) }) : null, claims,
+    });
+  }
+  cupClaim(c, m) {
+    const u = this.me(c);
+    if (!u) return;
+    const k = key(u.name), cu = this.cupNow(), id = String(m.id || ''), d = (this.db.cups || {})[id];
+    const p = d && d.players[k];
+    if (!p || p.claimed || (id === cu.id && cu.live)) return this.cupInfo(c);
+    const rank = this.cupBoard(id).findIndex((x) => x.k === k) + 1;
+    p.claimed = true;
+    const w = this.wallet(u);
+    const r = E.cupReward(rank, p.pts.length);
+    this.sendWallet(c, u, { cupClaim: id, rank, reward: this.grant(w, r) });
+    this.cupInfo(c);
   }
   // ---------------- Ranked: points per season (half of last season's carry over) ----------------
   canRanked(c) { const u = this.me(c); return !!u && (u.best | 0) >= E.RANKED.unlockAt; }

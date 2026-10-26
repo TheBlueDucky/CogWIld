@@ -368,6 +368,7 @@
       clearTimeout(this.vcAskT);
       this.vcAskT = setTimeout(() => this.voice && this.voice.maybeAsk(), 2500); // the first time: voice chat?
       this.world.applyTime(this.menuTime || ((CW.ECON.event() || {}).id === 'halloween' ? 'night' : 'sunset'), this);
+      this.account.askCup();
       this.buildShowcase();
       $('menu').classList.remove('hidden');
       this.renderProfile();
@@ -485,11 +486,19 @@
       const a = this.arenaInfo(this.arenaChoice());
       const m = MODES[this.modeChoice()];
       const kind = this.settings.mmEvent, w = CW.ECON.week();
-      $('acIcon').textContent = kind === 'weekly' ? w.icon : kind === 'ranked' ? '🏅' : m.icon;
-      $('acMode').textContent = kind === 'weekly' ? w.name : kind === 'ranked' ? 'Ranked' : m.name;
-      $('acName').textContent = kind === 'weekly' ? `${MODES[w.mode].icon} ${MODES[w.mode].name} · ${w.desc}` : kind === 'ranked' ? '3v3 · random mode and arena' : `${a.icon} ${a.name}`;
+      const cu = CW.ECON.cup(), cm = MODES[cu.mode];
+      if (kind === 'cup' && !cu.live) { this.settings.mmEvent = null; this.saveProfile(); return this.renderArenaCard(); } // the cup ended
+      $('acIcon').textContent = kind === 'weekly' ? w.icon : kind === 'ranked' ? '🏅' : kind === 'cup' ? '🏆' : m.icon;
+      $('acMode').textContent = kind === 'weekly' ? w.name : kind === 'ranked' ? 'Ranked' : kind === 'cup' ? 'Weekend Cup' : m.name;
+      $('acName').textContent = kind === 'weekly' ? `${MODES[w.mode].icon} ${MODES[w.mode].name} · ${w.desc}` : kind === 'ranked' ? '3v3 · random mode and arena' : kind === 'cup' ? `${cm.icon} ${cm.name} · best 10 matches count` : `${a.icon} ${a.name}`;
       $('arenaCard').classList.toggle('weekly', kind === 'weekly');
       $('arenaCard').classList.toggle('ranked', kind === 'ranked');
+      $('arenaCard').classList.toggle('cup', kind === 'cup');
+      // the Weekend Cup chip: while it's on, or when a reward waits
+      const claims = (this.account.cupInfo && this.account.cupInfo.claims) || [];
+      $('cupChip').classList.toggle('hidden', !cu.live && !claims.length);
+      $('cupChip').classList.toggle('ready', claims.length > 0);
+      $('cupChip').innerHTML = claims.length ? '<b>🏆 Weekend Cup</b><span>🎁 Your reward is ready!</span>' : `<b>🏆 Weekend Cup</b><span>${cm.icon} ${cm.name}</span><small>best 10 matches · ends in ${CW.timeLeft(cu.end - Date.now())}</small>`;
       // the featured chip above PLAY, and a badge when your pick is today's featured event
       const f = CW.FEATURED.today(), fm = MODES[f.mode], fa = CW.ARENAS[f.arena];
       $('featChip').innerHTML = `<b>⭐ Featured today</b><span>${fm.icon} ${fm.name} · ${fa.icon} ${fa.name}</span><small>${CW.FEATURED.COIN_MULT}× coins · +50% trophies · ends in ${this.featuredLeft()}</small>`;
@@ -506,6 +515,12 @@
       if (!CW.validate(this.currentBp.parts, this.allowedDomains()).ok && !this.net.mechChoices().some((e) => e.ok)) return this.showPicker();
       const kind = this.settings.mmEvent;
       if (kind === 'weekly') return this.net.matchmake(CW.ECON.week().mode, 'random', 'weekly');
+      if (kind === 'cup') {
+        const cu = CW.ECON.cup();
+        if (!cu.live) { this.settings.mmEvent = null; this.saveProfile(); this.renderArenaCard(); return this.toast('🏆 The Weekend Cup is over. The next one starts Friday 18:00 UTC'); }
+        if (!this.account.loggedIn) return this.account.openLogin('Log in to play the Weekend Cup');
+        return this.net.matchmake(cu.mode, 'random', 'cup');
+      }
       if (kind === 'ranked') {
         if (!this.account.canRanked()) { this.settings.mmEvent = null; this.saveProfile(); this.renderArenaCard(); return this.toast(`🏅 Ranked unlocks at ${CW.ECON.RANKED.unlockAt} trophies`); }
         return this.net.matchmake('koth', 'random', 'ranked');

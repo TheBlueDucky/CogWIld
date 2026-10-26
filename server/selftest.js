@@ -61,10 +61,10 @@ function codeFor(email) {
   return null;
 }
 
-function start() {
-  server = spawn(process.execPath, [path.join(__dirname, 'server.js')], { env: Object.assign({}, process.env, { PORT, DATA_DIR: DATA, SEARCH_SECS: '2', TROPHY_MIN_SECS: '0', SIGNUPS_PER_HOUR: '30', EVENT_DATE: '2026-10-26T12:00:00Z', MATCH_GAP_SECS: '1',
+function start(extra) {
+  server = spawn(process.execPath, [path.join(__dirname, 'server.js')], { env: Object.assign({}, process.env, { PORT, DATA_DIR: DATA, SEARCH_SECS: '2', TROPHY_MIN_SECS: '0', SIGNUPS_PER_HOUR: '30', EVENT_DATE: '2026-10-26T12:00:00Z', MATCH_GAP_SECS: '1', CUP_DATE: '2026-10-31T12:00:00Z',
     MAIL_SMTP_HOST: '127.0.0.1', MAIL_SMTP_PORT: String(SMTP_PORT), MAIL_SMTP_SECURE: 'none', MAIL_SMTP_USER: 'game@test.dev', MAIL_SMTP_PASS: 'mailpass123', MAIL_FROM: 'Cogwild <game@test.dev>',
-    GOOGLE_CLIENT_ID: 'test-client', GOOGLE_CERTS_URL: `http://127.0.0.1:${CERTS_PORT}/certs` }), stdio: process.env.TEST_LOG ? 'inherit' : 'ignore' });
+    GOOGLE_CLIENT_ID: 'test-client', GOOGLE_CERTS_URL: `http://127.0.0.1:${CERTS_PORT}/certs` }, extra || {}), stdio: process.env.TEST_LOG ? 'inherit' : 'ignore' });
   return wait(700);
 }
 function stop() { return new Promise((res) => { server.once('exit', res); server.kill('SIGTERM'); }); }
@@ -765,6 +765,62 @@ async function main() {
   const rtop = await rk.next('top', (m) => m.kind === 'ranked');
   check(rtop.list[0].name === 'Alice_1' && rtop.list[0].rp === E.RANKED.win, 'the Ranked leaderboard shows the season');
   rk.ws.close();
+
+  console.log('weekend cup');
+  {
+    const cuNow = E.cup(Date.parse('2026-10-31T12:00:00Z'));
+    const cg = await player();
+    cg.send({ t: 'quick', kind: 'cup' });
+    check(/Log in/.test((await cg.next('err')).msg), 'the Weekend Cup needs an account');
+    cg.ws.close();
+    const cp = await player();
+    cp.send({ t: 'acctLogin', name: 'Alice_1', pass: 'newpass456' });
+    await cp.next('acctOk');
+    const tro0 = (await (cp.send({ t: 'top' }), cp.next('top'))).me.card.tro;
+    cp.send({ t: 'quick', kind: 'cup', mode: 'race', arena: 'moon' });
+    const cr = (await cp.next('room')).room;
+    check(cr.settings.cup === 'cup2026-10-30' && cr.settings.mode === cuNow.mode && cr.settings.arena === 'random', `a cup match plays this weekend's mode on any arena (${cr.settings.mode})`);
+    const playCup = async (place) => {
+      await cp.next('autostart', null, 8000);
+      cp.send({ t: 'begin', payload: { kind: 'match', arena: 'canyon', roster: [] } });
+      await wait(100);
+      cp.send({ t: 'end', res: { [cp.id]: place }, n: 8 });
+      return cp.next('cupResult');
+    };
+    const c1 = await playCup(1);
+    check(c1.pts === 12 && c1.score === 12 && c1.rank === 1 && c1.games === 1, '1st of 8: 12 cup points, #1');
+    const c2 = await playCup(8);
+    check(c2.pts === 2 && c2.score === 14 && c2.games === 2, 'last of 8: 2 points (score 14 from the best matches)');
+    const tro1 = (await (cp.send({ t: 'top' }), cp.next('top'))).me.card.tro;
+    check(tro1 === tro0, 'cup matches do not move trophies');
+    cp.send({ t: 'cupInfo' });
+    const ci = await cp.next('cupInfo');
+    check(ci.cup.live && ci.me && ci.me.rank === 1 && ci.me.score === 14 && ci.top[0].name === 'Alice_1' && !ci.claims.length, 'the cup board shows you (#1, 14 points); nothing to claim while it runs');
+    cp.send({ t: 'cupClaim', id: 'cup2026-10-30' });
+    check(!(await cp.next('cupInfo')).claims.length && !(await cp.next('wallet', (m) => m.cupClaim, 500).catch(() => null)), 'no reward before the weekend is over');
+    cp.send({ t: 'leave' });
+    cp.ws.close();
+    // Monday: the cup is over
+    await wait(2000);
+    await stop();
+    await start({ CUP_DATE: '2026-11-02T08:00:00Z' });
+    const cm = await player();
+    cm.send({ t: 'acctLogin', name: 'Alice_1', pass: 'newpass456' });
+    const coins0 = (await cm.next('acctOk')).wallet.coins;
+    cm.send({ t: 'quick', kind: 'cup' });
+    check(/Friday/.test((await cm.next('err')).msg), 'no cup matches on Monday');
+    cm.send({ t: 'cupInfo' });
+    const cl = await cm.next('cupInfo');
+    check(!cl.cup.live && cl.claims.length === 1 && cl.claims[0].rank === 1 && cl.claims[0].reward.coins === E.CUP.tryReward, `after the weekend the reward waits (2 matches: ${cl.claims[0] && cl.claims[0].reward.coins} coins; ${E.CUP.minGames}+ for the full reward)`);
+    cm.send({ t: 'cupClaim', id: 'cup2026-10-30' });
+    const cw = await cm.next('wallet', (m) => m.cupClaim);
+    check(cw.w.coins === coins0 + E.CUP.tryReward && cw.rank === 1, 'claiming pays it');
+    cm.send({ t: 'cupClaim', id: 'cup2026-10-30' });
+    check(!(await cm.next('cupInfo')).claims.length && !(await cm.next('wallet', (m) => m.cupClaim, 500).catch(() => null)), 'only once');
+    cm.ws.close();
+    await stop();
+    await start();
+  }
 
   console.log('security');
   const bad = await get('/%E0%A4%A');

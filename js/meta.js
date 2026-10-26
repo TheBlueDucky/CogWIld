@@ -253,7 +253,7 @@
       $('panelBody').parentElement.scrollTop = 0;
       const titles = {
         challenges: '🎯 Daily challenges', shop: '🛒 Shop', stats: '📊 Stats', settings: '⚙ Settings', howto: '❓ How to play', ach: '🎖 Achievements', news: '📰 What\'s new',
-        event: '🎉 Seasonal event', replays: '🎬 Replays', gallery: '🖼 Mech gallery', profile: '👤 Profile', friends: '👥 Friends', road: '🛤 Trophy road', pass: '🎟 Cog Pass', clubs: '🛡 Clubs', top: '📈 Leaderboard', player: '👤 Player', ranks: '⭐ Level and ranks', arenas: '🎮 Pick a mode and arena',
+        event: '🎉 Seasonal event', replays: '🎬 Replays', gallery: '🖼 Mech gallery', cup: '🏆 Weekend Cup', profile: '👤 Profile', friends: '👥 Friends', road: '🛤 Trophy road', pass: '🎟 Cog Pass', clubs: '🛡 Clubs', top: '📈 Leaderboard', player: '👤 Player', ranks: '⭐ Level and ranks', arenas: '🎮 Pick a mode and arena',
       };
       $('panelTitle').textContent = titles[kind];
       this.renderPanel();
@@ -347,6 +347,8 @@
         this.game.account.passPanel(body);
       } else if (k === 'event') {
         this.game.account.eventPanel(body);
+      } else if (k === 'cup') {
+        this.game.account.cupPanel(body);
       } else if (k === 'gallery') {
         this.game.gallery.panel(body);
       } else if (k === 'replays') {
@@ -672,6 +674,7 @@
       }).join('');
       const f = CW.FEATURED.today(), fm = CW.MODES[f.mode], fa = CW.ARENAS[f.arena];
       const kind = this.settings.mmEvent, w = E.week(), wm = CW.MODES[w.mode];
+      const cu = E.cup(), cm = CW.MODES[cu.mode], my = g.account.cupInfo && g.account.cupInfo.me;
       const canRanked = g.account.canRanked(), rk = g.account.me && g.account.me.rp != null ? E.RANKED.rank(g.account.me.rp) : null;
       const lv = g.level();
       const gad = Object.entries(CW.GADGETS).map(([id, gd]) => {
@@ -681,6 +684,7 @@
       body.innerHTML = `<div class="event-cards">
           <button class="feat-card week-card ${kind === 'weekly' ? 'on' : ''}" id="weekPick"><span>${w.icon}</span><div><b>This week: ${w.name}</b><small>${wm.icon} ${wm.name} · ${w.desc} · +50% coins · ends in ${CW.timeLeft(w.endsAt - Date.now())}</small></div><em>${kind === 'weekly' ? '✔ Picked' : 'Play it'}</em></button>
           <button class="feat-card ranked-card ${kind === 'ranked' ? 'on' : ''} ${canRanked ? '' : 'locked'}" id="rankedPick"><span>🏅</span><div><b>Ranked${rk ? ` · ${rk.icon} ${rk.name}` : ''}</b><small>${canRanked ? `3v3 in ${E.RANKED.modes.map((x) => CW.MODES[x].name).join(', ')}. Win ranked points; they reset each season.` : `Unlocks at 🏆 ${E.RANKED.unlockAt} trophies (your best).`}</small></div><em>${kind === 'ranked' ? '✔ Picked' : canRanked ? 'Play it' : '🔒'}</em></button>
+          <button class="feat-card cup-card ${kind === 'cup' ? 'on' : ''} ${cu.live ? '' : 'locked'}" id="cupPick"><span>🏆</span><div><b>Weekend Cup</b><small>${cu.live ? `${cm.icon} ${cm.name} · best 10 matches count${my ? ` · you: ${my.score} pts, #${my.rank}` : ''} · ends in ${CW.timeLeft(cu.end - Date.now())}` : `Every weekend, Friday 18:00 to Sunday 24:00 UTC · next in ${CW.timeLeft(cu.next - Date.now())}`}</small></div><em>${kind === 'cup' ? '✔ Picked' : cu.live ? 'Play it' : 'Info'}</em></button>
         </div>
         <button class="feat-card ${!kind && f.mode === curM && f.arena === curA ? 'on' : ''}" id="featPick"><span>⭐</span><div><b>Featured today: ${fm.icon} ${fm.name} on ${fa.icon} ${fa.name}</b><small>${CW.FEATURED.COIN_MULT}× coins and +50% trophies · ends in ${g.featuredLeft()}</small></div><em>${f.mode === curM && f.arena === curA ? '✔ Picked' : 'Play it'}</em></button>
         <div class="small">Pick a mode and an arena, then press <b>PLAY</b>. You're matched with players who picked the same; after 30 seconds bots fill the empty seats.</div>
@@ -700,6 +704,11 @@
         g.audio.click(1.2);
       }));
       $('weekPick').onclick = () => { this.settings.mmEvent = 'weekly'; this.save(); g.renderArenaCard(); this.closePanel(); g.audio.click(1.3); };
+      $('cupPick').onclick = () => {
+        if (!cu.live) return this.openPanel('cup');
+        if (!g.account.loggedIn) return g.account.openLogin('Log in to play the Weekend Cup');
+        this.settings.mmEvent = 'cup'; this.save(); g.renderArenaCard(); this.closePanel(); g.audio.click(1.3);
+      };
       $('rankedPick').onclick = () => {
         if (!canRanked) return g.toast(g.account.loggedIn ? `🏅 Ranked unlocks at ${E.RANKED.unlockAt} trophies` : `Log in and reach ${E.RANKED.unlockAt} trophies to play Ranked`);
         this.settings.mmEvent = 'ranked'; this.save(); g.renderArenaCard(); this.closePanel(); g.audio.click(1.3);
@@ -795,6 +804,7 @@
       $('btnAch').onclick = () => g.meta.openPanel('ach');
       $('btnReplays').onclick = () => g.meta.openPanel('replays');
       $('btnGallery').onclick = () => g.gallery.open();
+      $('cupChip').onclick = () => g.meta.openPanel('cup');
       $('btnNews').onclick = () => g.meta.openPanel('news');
       $('btnRanks').onclick = () => g.meta.openPanel('ranks');
       $('coinChip').onclick = () => g.meta.openPanel('shop');

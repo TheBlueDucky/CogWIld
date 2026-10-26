@@ -80,6 +80,7 @@
       { id: 'ev_love', name: 'Love Trail', colors: [0xff4d6d, 0xffb3c6, 0xffffff], price: 500, event: 'love' },
       { id: 'ev_bloom', name: 'Spring Breeze', colors: [0xffc8dd, 0xffafcc, 0xcdb4db, 0xb9fbc0], price: 500, event: 'spring' },
       { id: 'ev_wave', name: 'Ocean Wave', colors: [0x00b4d8, 0x90e0ef, 0xffffff], price: 500, event: 'summer' },
+      { id: 'cup_champ', name: 'Champion', colors: [0xffd700, 0xfff3b0, 0xffffff, 0xffb000], price: 800, event: 'cup' }, // Weekend Cup top 3 only
     ],
     // finishes: how your whole mech's paint looks in matches, the Workshop and the lobby (js/parts.js CW.finishMat)
     finishes: [
@@ -342,7 +343,37 @@
     return [{ step: 1, at: 150, coins: 250 }, { step: 2, at: 400, paint: e.paint }, { step: 3, at: 800, trail: e.trail }, { step: 4, at: 1300, wreck: e.wreck }];
   }
 
-  const api = { EVENTS, EVENT_PTS, event, nextEvent, eventRewards, TALK_QUICK, xpFor, levelOf, domainsAt, PARTS, mechPower, BUDGET, RUSH_BUDGET, MAX_PARTS, GRID, mechProblem, CHALLENGES, DAILY_CHALLENGES, dailyChallenges, ACH, SHOP, AVATAR_COUNT, FREE_AVATARS, item, dealPrice, dailyDeals, ROAD, giftAmount, EARN, EARN_PER_DAY, MATCH_GAP, day, nextMidnight, seeded, hash, season, PASS, passRewards, WEEKLY, week, RANKED };
+  // ---------------- Weekend Cup: Friday 18:00 → Monday 00:00 UTC, one mode, your best 10 matches count ----------------
+  // Accounts only. Every cup match gives points for your place (the server's checked result); your score is the sum of
+  // your 10 best matches, so playing more can only help, but a few great matches beat lots of bad ones. After the
+  // weekend everyone who played claims a reward by their final place; the top 3 also get the Champion trail.
+  const CUP = {
+    modes: ['clash', 'koth', 'gold', 'bounty', 'race'],
+    best: 10, minGames: 3,
+    rewards: [{ upTo: 1, coins: 2500, trail: 'cup_champ' }, { upTo: 3, coins: 1500, trail: 'cup_champ' }, { upTo: 10, coins: 800 }, { upTo: 50, coins: 400 }, { upTo: 1e9, coins: 200 }],
+    tryReward: 50, // fewer than minGames matches
+  };
+  // points for one match: 1st of 8 → 12, last → 2; two places (team matches) → win 10, loss 3
+  function cupPoints(place, n) {
+    if (n <= 2) return place === 1 ? 10 : 3;
+    return Math.max(1, Math.round(2 + (10 * (n - place)) / (n - 1)));
+  }
+  // the cup of this weekend (live) or the last one (ended), and when the next starts
+  function cup(now) {
+    const t = now || Date.now(), d = new Date(t);
+    let start = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - ((d.getUTCDay() + 2) % 7), 18); // Friday 18:00
+    if (start > t) start -= 7 * DAY;
+    const end = start + 2 * DAY + 6 * 3600e3, id = 'cup' + new Date(start).toISOString().slice(0, 10);
+    return { id, start, end, next: start + 7 * DAY, live: t < end, mode: CUP.modes[hash(id) % CUP.modes.length] };
+  }
+  // your score: the sum of your best `best` matches
+  function cupScore(pts) { return (pts || []).slice().sort((a, b) => b - a).slice(0, CUP.best).reduce((s, x) => s + x, 0); }
+  function cupReward(rank, games) {
+    if (games < CUP.minGames) return { coins: CUP.tryReward };
+    return Object.assign({}, CUP.rewards.find((r) => rank <= r.upTo));
+  }
+
+  const api = { CUP, cup, cupPoints, cupScore, cupReward, EVENTS, EVENT_PTS, event, nextEvent, eventRewards, TALK_QUICK, xpFor, levelOf, domainsAt, PARTS, mechPower, BUDGET, RUSH_BUDGET, MAX_PARTS, GRID, mechProblem, CHALLENGES, DAILY_CHALLENGES, dailyChallenges, ACH, SHOP, AVATAR_COUNT, FREE_AVATARS, item, dealPrice, dailyDeals, ROAD, giftAmount, EARN, EARN_PER_DAY, MATCH_GAP, day, nextMidnight, seeded, hash, season, PASS, passRewards, WEEKLY, week, RANKED };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.CW = root.CW || {}; root.CW.ECON = api; root.CW.SHOP = SHOP; root.CW.ROAD = ROAD; }
 })(this);

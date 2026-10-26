@@ -190,6 +190,8 @@
         case 'note': this.onNote(m); break;
         case 'trophies': this.onTrophies(m); break;
         case 'ranked': this.lastRanked = m; this.resultsLine(); break;
+        case 'cupResult': this.lastCup = m; this.resultsLine(); break;
+        case 'cupInfo': this.cupInfo = m; g.renderArenaCard(); if (!$('panel').classList.contains('hidden') && g.meta.panel === 'cup') g.meta.renderPanel(); break;
         case 'top': if (m.kind === 'ranked') this.topRanked = m; else this.top = m; this.rerender(); break;
         case 'profile': this.viewing = m.p; if (this.game.meta.panel === 'player') this.game.meta.renderPanel(); else this.game.meta.openPanel('player'); break;
       }
@@ -561,6 +563,11 @@
       const el = $('resTrophy');
       if (!el) return;
       const g = this.game;
+      const cr = this.lastCup;
+      if (cr && g.state === 'results' && g.net.room && g.net.room.settings.cup) {
+        el.innerHTML = `<span class="tro-pop up">🏆 +${cr.pts} cup points</span> <span class="small">Weekend Cup: ${cr.score} points (best ${CW.ECON.CUP.best} matches) · #${cr.rank} · ${cr.games} match${cr.games === 1 ? '' : 'es'} played</span>`;
+        return;
+      }
       const rk = this.lastRanked;
       if (rk && g.state === 'results' && g.net.room && g.net.room.settings.ranked) {
         el.innerHTML = `<span class="tro-pop ${rk.d > 0 ? 'up' : rk.d < 0 ? 'down' : ''}">🏅 ${rk.d > 0 ? '+' : ''}${rk.d} RP</span> <span class="small">${rk.rp} ranked points · ${rk.rank.icon} ${rk.rank.name}${rk.streak > 1 ? ` · 🔥 ${rk.streak} wins in a row` : ''}</span>`;
@@ -578,6 +585,7 @@
       const g = this.game;
       if (!g.net.active) this.lastTro = null;
       if (!g.net.active) this.lastRanked = null;
+      if (!g.net.active) this.lastCup = null;
       this.resultsLine();
       if (!this.loggedIn && g.net.room && g.net.room.auto) $('resTrophy').innerHTML = '<span class="small">🏆 Log in to earn trophies</span>';
     }
@@ -630,6 +638,11 @@
         g.workshop.buildPaint();
       }
       if (m.src === 'match' && m.pts && g.state === 'results') $('resPass').textContent = `🎟 +${m.pts} Cog Pass points` + (m.evPts ? ` · ${(CW.ECON.event() || {}).icon || '⭐'} +${m.evPts} event points` : '');
+      if (m.cupClaim) {
+        g.audio.fanfare();
+        g.toast(`🏆 Weekend Cup reward (#${m.rank}): ${this.rewardText(Object.assign({ coins: m.reward.coins }, ...m.reward.got.map((x) => ({ [x.kind]: x.id }))))}!`);
+        g.workshop.buildPaint();
+      }
       if (m.evStep) {
         const ev = CW.ECON.event();
         const what = this.rewardText(Object.assign({ coins: m.reward.coins }, ...m.reward.got.map((x) => ({ [x.kind]: x.id }))));
@@ -641,6 +654,37 @@
       if (g.state === 'menu') g.meta.renderMenu();
       if (!$('panel').classList.contains('hidden') && ['shop', 'road', 'pass', 'profile', 'event'].includes(g.meta.panel)) g.meta.renderPanel();
       $('pCoins').textContent = g.profile.coins;
+    }
+
+    // ======================= Weekend Cup (js/economy.js CUP; the server scores it) =======================
+    // the cup's board, your place and rewards waiting: asked for when the menu shows (at most once a minute)
+    askCup(force) {
+      if (!this.loggedIn && !force) return;
+      if (!force && Date.now() - (this.cupAskT || 0) < 60000) return;
+      this.cupAskT = Date.now();
+      this.net.connect().then(() => this.net.send({ t: 'cupInfo' })).catch(() => {});
+    }
+    cupPanel(body) {
+      const g = this.game, E = CW.ECON, esc = CW.esc, cu = E.cup(), cm = CW.MODES[cu.mode], info = this.cupInfo;
+      if (!info || info.cup.id !== cu.id) this.askCup(true);
+      const me = info && info.me, claims = (info && info.claims) || [];
+      const claimHtml = claims.map((c) => `<div class="cup-claim"><div><b>🎁 ${new Date(c.id.slice(3)).toLocaleDateString([], { month: 'short', day: 'numeric' })} cup: you finished #${c.rank} of ${c.of}</b><div class="small">${c.score} points in ${c.games} match${c.games === 1 ? '' : 'es'}${c.games < E.CUP.minGames ? ` (play ${E.CUP.minGames}+ for the full reward)` : ''} · ${esc(this.rewardText(c.reward))}</div></div><button class="ws-btn on" data-cupclaim="${c.id}">Claim!</button></div>`).join('');
+      const rows = info ? info.top.map((p, i) => `<div class="fr-row lb-row ${this.me && p.name === this.me.name ? 'me' : ''}"><span class="lb-rank">${['🥇', '🥈', '🥉'][i] || '#' + (i + 1)}</span><span class="av">${CW.face(p)}</span><b class="fr-name">${esc(p.name)}</b><span class="small">${p.games} match${p.games === 1 ? '' : 'es'}</span><b class="lb-tro">🏆 ${p.score}</b></div>`).join('') : '<div class="small">Loading…</div>';
+      body.innerHTML = `<div class="cup-head"><span class="cup-big">🏆</span><div style="flex:1"><b>${cu.live ? `Weekend Cup · ${cm.icon} ${cm.name}` : 'Weekend Cup'}</b>
+          <div class="small">${cu.live ? `On now: ends in <b>${CW.timeLeft(cu.end - Date.now())}</b>. Pick it in PLAY (mode and arena) and play cup matches.` : `Every weekend from Friday 18:00 to Sunday 24:00 (UTC). The next one starts in <b>${CW.timeLeft(cu.next - Date.now())}</b>.`}</div></div>
+          ${cu.live && this.loggedIn ? `<button class="btn primary" id="cupPlay">${g.settings.mmEvent === 'cup' ? '✔ Picked' : 'Play it'}</button>` : ''}</div>
+        ${this.loggedIn ? '' : '<div class="small" style="margin-top:8px">👤 The Weekend Cup is for players with an account. <button class="ws-btn" id="cupLogin">Log in</button></div>'}
+        ${claimHtml}
+        ${me ? `<div class="cup-me"><div><b>#${me.rank}</b><span>your place of ${info.total}</span></div><div><b>${me.score}</b><span>points (best ${E.CUP.best})</span></div><div><b>${me.games}</b><span>matches played</span></div></div>
+          <div class="cup-pts small">Your best: ${me.pts.map((x) => `<i>${x}</i>`).join('')}</div>` : ''}
+        <h3>How it works</h3>
+        <div class="cup-rules"><span>🎮 One mode all weekend, any arena, bots fill empty seats</span><span>🥇 Points for your place: 1st 12 · last 2 (team win 10, loss 3)</span><span>📈 Only your best ${E.CUP.best} matches add up: more tries only help</span>
+          <span>🎁 After the weekend: 1st 2500 🪙 · top 3 1500 🪙 · top 10 800 🪙 · top 50 400 🪙 · everyone 200 🪙 (play ${E.CUP.minGames}+ matches)</span><span>✨ Top 3 also get the <b>Champion</b> trail (never sold)</span></div>
+        <h3>${cu.live ? 'Leaderboard' : 'Last cup'}${info ? ` <span class="small">${info.total} player${info.total === 1 ? '' : 's'}</span>` : ''}</h3>
+        ${rows || '<div class="small">Nobody has played yet. Be the first!</div>'}`;
+      if ($('cupPlay')) $('cupPlay').onclick = () => { g.settings.mmEvent = 'cup'; g.saveProfile(); g.renderArenaCard(); g.meta.closePanel(); };
+      if ($('cupLogin')) $('cupLogin').onclick = () => this.openLogin('Log in to play the Weekend Cup');
+      body.querySelectorAll('[data-cupclaim]').forEach((b) => (b.onclick = () => { b.disabled = true; this.net.send({ t: 'cupClaim', id: b.dataset.cupclaim }); }));
     }
 
     // ======================= seasonal events (js/economy.js EVENTS; the server counts the points) =======================
