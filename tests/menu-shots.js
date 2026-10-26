@@ -18,7 +18,7 @@ app.whenReady().then(async () => {
     const shot = async (name) => fs.writeFileSync(path.join(OUT, `${name}-${w}.png`), (await win.webContents.capturePage()).toPNG());
     const G = '(window.game || CW.game)';
     await win.loadURL('http://localhost:8781/');
-    await js(`localStorage.setItem('cogwild.profile', JSON.stringify({ xp: 99999999, coins: 900, settings: { tutorialDone: true, music: 0, sfx: 0 } })); location.reload();`);
+    await js(`localStorage.clear(); localStorage.setItem('cogwild.profile', JSON.stringify({ xp: 99999999, coins: 900, settings: { tutorialDone: true, music: 0, sfx: 0 } })); location.reload();`);
     await wait(3500);
     const name = 'ms' + w + Math.floor(Math.random() * 100000);
     await js(`${G}.net.connect().then(() => ${G}.net.send({ t: 'acctRegister', name: '${name}', pass: 'shotpass1' }))`);
