@@ -7,6 +7,8 @@ const path = require('path');
 const crypto = require('crypto');
 const FEATURED = require('../js/featured.js');
 const E = require('../js/economy.js');
+// the seasonal event running now (EVENT_DATE=2026-12-20 pretends another day: only for tests)
+const eventNow = () => E.event(process.env.EVENT_DATE ? Date.parse(process.env.EVENT_DATE) : Date.now());
 const mailer = require('./mailer');
 const google = require('./google');
 const filter = require('./filter'); // bad words (names are refused, descriptions get ****)
@@ -217,7 +219,7 @@ class Accounts {
     const t = m.t;
     if (this.talk && this.talk.handle(c, m)) return true; // chat and voice (server/talk.js)
     if (this.pics && this.pics.handle(c, m)) return true; // profile and club pictures (server/pics.js)
-    if (!/^(acct|friend|party|invite|top|profile|save|status|earn|gift|buy|roadClaim|passClaim|club|guest|email|google)/.test(t)) return false;
+    if (!/^(acct|friend|party|invite|top|profile|save|status|earn|gift|buy|roadClaim|passClaim|eventClaim|club|guest|email|google)/.test(t)) return false;
     const fn = {
       acctRegister: () => this.register(c, m), acctSignup: () => this.signup(c, m), acctLogin: () => this.login(c, m), acctAuth: () => this.auth(c, m),
       acctLogout: () => this.logout(c), acctPass: () => this.changePass(c, m), acctDelete: () => this.remove(c, m), acctRename: () => this.rename(c, m),
@@ -227,7 +229,7 @@ class Accounts {
       clubCreate: () => this.clubCreate(c, m), clubJoin: () => this.clubJoin(c, m), clubLeave: () => this.clubLeave(c), clubKick: () => this.clubKick(c, m),
       clubList: () => this.clubList(c, m), clubInfo: () => this.clubInfo(c, m), clubChat: () => this.clubChat(c, m), clubEdit: () => this.clubEdit(c, m),
       guest: () => this.guestHello(c, m), earn: () => this.earn(c, m),
-      emailStart: () => this.emailStart(c, m), emailCode: () => this.emailCode(c, m), emailName: () => this.emailName(c, m), googleLogin: () => this.googleLogin(c, m), googleStart: () => this.googleStart(c, m), acctResetPass: () => this.resetPass(c, m), gift: () => this.gift(c), buy: () => this.buy(c, m), roadClaim: () => this.roadClaim(c, m), passClaim: () => this.passClaim(c, m),
+      emailStart: () => this.emailStart(c, m), emailCode: () => this.emailCode(c, m), emailName: () => this.emailName(c, m), googleLogin: () => this.googleLogin(c, m), googleStart: () => this.googleStart(c, m), acctResetPass: () => this.resetPass(c, m), gift: () => this.gift(c), buy: () => this.buy(c, m), roadClaim: () => this.roadClaim(c, m), passClaim: () => this.passClaim(c, m), eventClaim: () => this.eventClaim(c, m),
       invite: () => this.inviteRoom(c, m), top: () => this.top(c, m), status: () => { c.busy = !!m.busy; if (c.user) this.friendsChanged(c.user); },
     }[t];
     if (!fn) return true;
@@ -974,7 +976,9 @@ class Accounts {
   }
   walletView(u) {
     const w = this.wallet(u);
-    return { coins: w.coins, xp: w.xp, owned: w.owned, gift: w.gift, road: w.road, pass: w.pass, ch: w.ch.got, ach: w.ach, season: E.season(), fresh: w.imp === false };
+    const ev = eventNow();
+    return { coins: w.coins, xp: w.xp, owned: w.owned, gift: w.gift, road: w.road, pass: w.pass, ch: w.ch.got, ach: w.ach, season: E.season(), fresh: w.imp === false,
+      ev: ev ? (w.ev && w.ev.k === ev.key ? { k: w.ev.k, pts: w.ev.pts, claimed: w.ev.claimed } : { k: ev.key, pts: 0, claimed: [] }) : null };
   }
   // the backup stored with the account carries the server's coins, XP and unlocks, never the device's
   withWallet(u, save) {
@@ -1015,7 +1019,7 @@ class Accounts {
   grant(w, r) {
     let coins = r.coins | 0;
     const got = [];
-    for (const [one, kind] of [['paint', 'paints'], ['trail', 'trails'], ['avatar', 'avatars']]) {
+    for (const [one, kind] of [['paint', 'paints'], ['trail', 'trails'], ['avatar', 'avatars'], ['wreck', 'wrecks'], ['finish', 'finishes']]) {
       const id = r[one] || r[kind];
       if (!id) continue;
       const it = E.item(kind, id);
@@ -1038,7 +1042,7 @@ class Accounts {
     if (src === 'match') {
       // one match at a time: a match reward can't be bigger than what that much playing time can earn
       const gap = (now - (w.earn.last || 0)) / 1000;
-      if (gap >= E.MATCH_GAP) {
+      if (gap >= (+process.env.MATCH_GAP_SECS || E.MATCH_GAP)) { // MATCH_GAP_SECS: only for tests
         n = Math.min(ask, E.EARN.match, 60 + gap * 8);
         xp = Math.min(Math.max(0, Math.floor(+m.xp || 0)), 1500, 60 + gap * 10);
         pts = Math.max(0, Math.min(E.PASS.match, m.pp | 0));
@@ -1064,13 +1068,33 @@ class Accounts {
       w.earn.off += n;
       w.earn.offXp += xp;
     } else return;
+    // seasonal event points (the same match / challenge rules as above, so they can't be farmed faster)
+    const ev = eventNow();
+    let evPts = 0;
+    if (ev && ((src === 'match' && pts > 0) || (src === 'challenge' && pts > 0))) {
+      if (!w.ev || w.ev.k !== ev.key) w.ev = { k: ev.key, pts: 0, claimed: [] };
+      evPts = src === 'match' ? E.EVENT_PTS.match : E.EVENT_PTS.challenge;
+      w.ev.pts += evPts;
+    }
     n = Math.max(0, Math.min(Math.floor(n), E.EARN_PER_DAY - w.earn.total));
     w.coins += n;
     w.xp += Math.floor(xp);
     w.earn.total += n;
     w.pass.pts += pts;
     if (c.user) { const lv = E.levelOf(w.xp); if (u.lv !== lv) { u.lv = lv; this.friendsChanged(c.user); } }
-    this.sendWallet(c, u, { earned: n, src, pts, xp: Math.floor(xp), key: m.key });
+    this.sendWallet(c, u, { earned: n, src, pts, xp: Math.floor(xp), key: m.key, evPts });
+  }
+  // the seasonal event track: a step's reward once its points are reached (only while that event runs)
+  eventClaim(c, m) {
+    const u = this.owner(c);
+    if (!u) return;
+    const w = this.wallet(u);
+    const ev = eventNow();
+    if (!ev || !w.ev || w.ev.k !== ev.key) return this.sendWallet(c, u);
+    const r = E.eventRewards(ev.id)[(m.step | 0) - 1];
+    if (!r || w.ev.pts < r.at || w.ev.claimed.includes(r.step)) return this.sendWallet(c, u);
+    w.ev.claimed.push(r.step);
+    this.sendWallet(c, u, { evStep: r.step, reward: this.grant(w, r) });
   }
   gift(c) {
     const u = this.owner(c);
@@ -1090,7 +1114,7 @@ class Accounts {
     if (!u) return;
     const w = this.wallet(u);
     const kind = String(m.kind || ''), it = E.item(kind, String(m.id || ''));
-    if (!it || it.pass || it.price <= 0) return this.err(c, "That isn't for sale");
+    if (!it || it.pass || it.event || it.price <= 0) return this.err(c, "That isn't for sale");
     if (w.owned[kind].includes(it.id)) return this.sendWallet(c, u);
     const deal = E.dailyDeals(E.day(), (k, id) => w.owned[k].includes(id)).some((d) => d.kind === kind && d.it.id === it.id);
     const price = deal ? E.dealPrice(it) : it.price;

@@ -292,6 +292,7 @@
       $('btnFriends').onclick = () => (this.loggedIn ? g.meta.openPanel('friends') : this.openLogin('Log in to add friends and make a party'));
       $('btnRoad').onclick = () => g.meta.openPanel('road');
       $('btnPass').onclick = () => g.meta.openPanel('pass');
+      $('btnEvent').onclick = () => g.meta.openPanel('event');
       $('btnClubs').onclick = () => (this.loggedIn ? (g.meta.openPanel('clubs'), this.net.send({ t: 'clubInfo' })) : this.openLogin('Log in to join a club'));
       $('roadBar').onclick = () => (this.loggedIn ? g.meta.openPanel('road') : this.openLogin('Log in to earn trophies and unlock the Trophy Road'));
       $('btnTop').onclick = () => { g.meta.openPanel('top'); this.net.send({ t: 'top' }); };
@@ -463,6 +464,20 @@
       $('pbFill').style.width = (tier >= E.PASS.tiers ? 100 : Math.round(((pts % E.PASS.perTier) / E.PASS.perTier) * 100)) + '%';
       $('badgePass').textContent = pass;
       $('badgePass').classList.toggle('hidden', !pass);
+      // the seasonal event bar (only while one runs)
+      const ev = E.event();
+      $('btnEvent').classList.toggle('hidden', !ev);
+      if (ev) {
+        const evPts = this.eventPts(), steps = E.eventRewards(ev.id), last = steps[steps.length - 1].at;
+        $('btnEvent').style.setProperty('--ev', ev.color);
+        $('evIco').textContent = ev.icon;
+        $('evName').textContent = ev.name;
+        $('evInfo').textContent = `${Math.min(evPts, last)} / ${last} ⭐ · ends in ${CW.timeLeft(ev.end - Date.now())}`;
+        $('evFill').style.width = Math.min(100, Math.round((evPts / last) * 100)) + '%';
+        const ready = this.eventReady();
+        $('badgeEvent').textContent = ready;
+        $('badgeEvent').classList.toggle('hidden', !ready);
+      }
       const road = this.roadReady();
       $('badgeRoad').textContent = road;
       $('badgeRoad').classList.toggle('hidden', !road);
@@ -613,11 +628,55 @@
         g.toast(batch ? `🎁 Cog Pass: ${batch} rewards claimed!` : `🎁 ${m.road ? 'Trophy Road' : 'Cog Pass'}: ${what || 'claimed'}!`);
         g.workshop.buildPaint();
       }
-      if (m.src === 'match' && m.pts && g.state === 'results') $('resPass').textContent = `🎟 +${m.pts} Cog Pass points`;
+      if (m.src === 'match' && m.pts && g.state === 'results') $('resPass').textContent = `🎟 +${m.pts} Cog Pass points` + (m.evPts ? ` · ${(CW.ECON.event() || {}).icon || '⭐'} +${m.evPts} event points` : '');
+      if (m.evStep) {
+        const ev = CW.ECON.event();
+        const what = this.rewardText(Object.assign({ coins: m.reward.coins }, ...m.reward.got.map((x) => ({ [x.kind]: x.id }))));
+        g.audio.fanfare();
+        g.toast(`${ev ? ev.icon + ' ' + ev.name : '🎁 Event'}: ${what || 'claimed'}!`);
+        g.workshop.buildPaint();
+      }
       this.renderChips();
       if (g.state === 'menu') g.meta.renderMenu();
-      if (!$('panel').classList.contains('hidden') && ['shop', 'road', 'pass', 'profile'].includes(g.meta.panel)) g.meta.renderPanel();
+      if (!$('panel').classList.contains('hidden') && ['shop', 'road', 'pass', 'profile', 'event'].includes(g.meta.panel)) g.meta.renderPanel();
       $('pCoins').textContent = g.profile.coins;
+    }
+
+    // ======================= seasonal events (js/economy.js EVENTS; the server counts the points) =======================
+    eventPts() { const ev = CW.ECON.event(), e = this.wallet && this.wallet.ev; return ev && e && e.k === ev.key ? e.pts : 0; }
+    eventClaimed() { const ev = CW.ECON.event(), e = this.wallet && this.wallet.ev; return ev && e && e.k === ev.key ? e.claimed : []; }
+    eventReady() {
+      const ev = CW.ECON.event();
+      if (!ev || !this.wallet) return 0;
+      const pts = this.eventPts(), got = this.eventClaimed();
+      return CW.ECON.eventRewards(ev.id).filter((r) => r.at <= pts && !got.includes(r.step)).length;
+    }
+    eventPanel(body) {
+      const E = CW.ECON, g = this.game, ev = E.event(), esc = CW.esc;
+      const cal = E.EVENTS.map((e) => {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return `<span class="${ev && ev.id === e.id ? 'now' : ''}">${e.icon} <b>${e.name}</b><br><small>${months[e.from[0] - 1]} ${e.from[1]} – ${months[e.to[0] - 1]} ${e.to[1]}</small></span>`;
+      }).join('');
+      if (!ev) {
+        const nx = E.nextEvent();
+        body.innerHTML = `<div class="ev-head" style="--ev:${nx ? nx.color : '#5ce1ff'}"><span class="ev-big">${nx ? nx.icon : '📅'}</span><div><b>${nx ? 'Coming soon: ' + nx.name : 'Seasonal events'}</b><div class="small">${nx ? `Starts in ${CW.timeLeft(nx.start - Date.now())}. ${esc(nx.desc)}` : ''}</div></div></div>
+          <h3>📅 Every year</h3><div class="ev-cal">${cal}</div>`;
+        return;
+      }
+      const pts = this.eventPts(), got = this.eventClaimed(), steps = E.eventRewards(ev.id), last = steps[steps.length - 1].at;
+      const look = (r) => r.paint ? g.meta.shopLook('paints', E.item('paints', r.paint)) : r.trail ? g.meta.shopLook('trails', E.item('trails', r.trail)) : r.wreck ? g.meta.shopLook('wrecks', E.item('wrecks', r.wreck)) : '<div class="swatch" style="display:grid;place-items:center;font-size:30px">🪙</div>';
+      body.innerHTML = `<div style="--ev:${ev.color}">
+        <div class="ev-head"><span class="ev-big">${ev.icon}</span><div style="flex:1"><b>${ev.name}</b><div class="small">${esc(ev.desc)} Ends in <b>${CW.timeLeft(ev.end - Date.now())}</b>.</div>
+          <div class="ev-bar"><i style="width:${Math.min(100, Math.round((pts / last) * 100))}%"></i></div><div class="small">${Math.min(pts, last)} / ${last} ⭐ event points · every match +${E.EVENT_PTS.match} ⭐ · every daily challenge +${E.EVENT_PTS.challenge} ⭐</div></div></div>
+        ${this.wallet ? '' : '<div class="small" style="margin-top:8px">🌐 Event points need an internet connection.</div>'}
+        <div class="ev-steps">${steps.map((r) => {
+          const done = got.includes(r.step), ready = !done && pts >= r.at;
+          const name = r.coins ? `${r.coins} coins` : this.rewardText(r);
+          return `<div class="ev-step ${done ? 'got' : ''} ${ready ? 'ready' : ''}">${look(r)}<b>${esc(name)}</b><span class="small">${r.at} ⭐</span>${done ? '<span class="owned">✔ Claimed</span>' : ready ? `<button class="ws-btn on" data-evstep="${r.step}">Claim!</button>` : `<span class="small">${r.at - pts} ⭐ to go</span>`}</div>`;
+        }).join('')}</div>
+        <div class="small" style="margin-top:10px">These items are never sold in the Shop: get them before the event ends!</div>
+        <h3>📅 Every year</h3><div class="ev-cal">${cal}</div></div>`;
+      body.querySelectorAll('[data-evstep]').forEach((b) => (b.onclick = () => { b.disabled = true; this.net.send({ t: 'eventClaim', step: +b.dataset.evstep }); }));
     }
 
     // ======================= Cog Pass: 30 free tiers each 4-week season (js/economy.js) =======================
@@ -748,6 +807,8 @@
       if (paint) parts.push(`🎨 ${paint.name} paint`);
       if (trail) parts.push(`✨ ${trail.name} trail`);
       if (avatar) parts.push(`${CW.avatar(avatar.idx)} ${avatar.name} avatar`);
+      const wreck = (r.wreck || r.wrecks) && CW.SHOP.wrecks.find((x) => x.id === (r.wreck || r.wrecks));
+      if (wreck) parts.push(`${wreck.icon} ${wreck.name} wreck effect`);
       if (r.coins) parts.push(`🪙 ${r.coins}`);
       return parts.join(' + ');
     }

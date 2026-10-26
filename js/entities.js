@@ -1056,6 +1056,40 @@
         this.burst(at, { n: 1, color: this.colorKey(0xbfefff), speed: 0, life: 0.2, size: 3 });
         this.shockwave(at);
         this.game.audio.noise(0.5, 0.5, 4000);
+      } else if (kind.startsWith('ev_')) {
+        // seasonal event wrecks: a cloud of little pictures flying out (bats, snowflakes, hearts, petals, water drops)
+        const ev = { ev_bats: ['🦇', 0x7b2cbf, 0xff7518], ev_snow: ['❄', 0xffffff, 0xbfe9ff], ev_hearts: ['💖', 0xff4d6d, 0xffb3c6], ev_petals: ['🌸', 0xffb7d5, 0xffffff], ev_splash: ['💧', 0x00b4d8, 0x90e0ef] }[kind];
+        if (!ev) return;
+        this.emojiMats = this.emojiMats || {};
+        if (!this.emojiMats[kind]) {
+          const cv = document.createElement('canvas');
+          cv.width = cv.height = 64;
+          const ctx = cv.getContext('2d');
+          ctx.font = '52px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(ev[0], 32, 36);
+          this.emojiMats[kind] = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false });
+        }
+        const fly = kind === 'ev_bats', fall = kind === 'ev_snow' || kind === 'ev_petals', drop = kind === 'ev_splash';
+        for (let i = 0; i < 22; i++) {
+          const sp = new THREE.Sprite(this.emojiMats[kind]);
+          sp.position.copy(at); sp.position.y += 1.2;
+          const v = new V3(R() - 0.5, fly ? 0.5 + R() : drop ? 1.4 + R() : 0.3 + R() * 0.9, R() - 0.5).normalize().multiplyScalar(fly ? 9 + R() * 6 : 5 + R() * 6);
+          const sz = (fly ? 1.1 : 0.7) + R() * 0.5, ph = R() * 6;
+          this.anim(sp, 1.6 + R() * 0.8, (k) => {
+            sp.position.addScaledVector(v, 0.016);
+            if (fall) { v.multiplyScalar(0.96); v.y -= 0.05; sp.position.x += Math.sin(k * 9 + ph) * 0.04; }
+            else if (drop) v.y -= 0.35;
+            else if (fly) v.y += 0.04;
+            else v.multiplyScalar(0.97), (v.y += 0.06);
+            const flap = fly ? 0.65 + Math.abs(Math.sin(k * 40 + ph)) * 0.35 : 1;
+            sp.scale.set(sz * flap * (k > 0.75 ? (1 - k) * 4 : 1), sz * (k > 0.75 ? (1 - k) * 4 : 1), 1);
+          });
+        }
+        this.burst(V(0, 1, 0), { n: 26, color: this.colorKey(ev[1]), speed: 11, up: 6, life: 0.9, size: 0.15, grav: drop ? 14 : 4 });
+        this.burst(V(0, 1, 0), { n: 18, color: this.colorKey(ev[2]), speed: 8, life: 0.7, size: 0.12 });
+        if (drop) this.shockwave(at);
+        this.chunks(at, 6, ev[1], 0.35);
       } else if (kind === 'blackhole') {
         const hole = new THREE.Mesh(this.holeGeo || (this.holeGeo = new THREE.SphereGeometry(1, 20, 14)), new THREE.MeshBasicMaterial({ color: 0x07020f }));
         hole.position.copy(at); hole.position.y += 1.5;

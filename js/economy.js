@@ -47,6 +47,12 @@
       { id: 'p_rose', name: 'Rose Gold', color: 0xe8a39b, price: 400, pass: true },
       { id: 'p_cobalt', name: 'Cobalt', color: 0x0047ab, price: 400, pass: true },
       { id: 'p_ember', name: 'Ember Red', color: 0x9d0208, price: 400, pass: true },
+      // seasonal events only (never sold)
+      { id: 'ev_pumpkin', name: 'Pumpkin Spice', color: 0xff7518, price: 400, event: 'halloween' },
+      { id: 'ev_frost', name: 'Frosty Blue', color: 0xa8e6ff, price: 400, event: 'winter' },
+      { id: 'ev_rose', name: 'Valentine Red', color: 0xe5383b, price: 400, event: 'love' },
+      { id: 'ev_blossom', name: 'Cherry Blossom', color: 0xffb7d5, price: 400, event: 'spring' },
+      { id: 'ev_tropic', name: 'Tropical', color: 0x00c2a8, price: 400, event: 'summer' },
     ],
     trails: [
       { id: 'spark', name: 'Sparks', colors: [0xffe066], price: 0 },
@@ -68,6 +74,12 @@
       { id: 'p_sakura', name: 'Petals', colors: [0xffb7c5, 0xffe5ec, 0xff8fab], price: 500, pass: true },
       { id: 'p_matrix', name: 'Code Rain', colors: [0x00ff41, 0x008f11, 0x003b00], price: 500, pass: true },
       { id: 'p_inferno', name: 'Inferno', colors: [0xff0000, 0xff7b00, 0xffd000, 0x1a1a1a], price: 500, pass: true },
+      // seasonal events only (never sold)
+      { id: 'ev_spooky', name: 'Spooky Mist', colors: [0xff7518, 0x7b2cbf, 0x1a1a1a], price: 500, event: 'halloween' },
+      { id: 'ev_snowflake', name: 'Snowflakes', colors: [0xffffff, 0xbfe9ff, 0x8ecae6], price: 500, event: 'winter' },
+      { id: 'ev_love', name: 'Love Trail', colors: [0xff4d6d, 0xffb3c6, 0xffffff], price: 500, event: 'love' },
+      { id: 'ev_bloom', name: 'Spring Breeze', colors: [0xffc8dd, 0xffafcc, 0xcdb4db, 0xb9fbc0], price: 500, event: 'spring' },
+      { id: 'ev_wave', name: 'Ocean Wave', colors: [0x00b4d8, 0x90e0ef, 0xffffff], price: 500, event: 'summer' },
     ],
     // finishes: how your whole mech's paint looks in matches, the Workshop and the lobby (js/parts.js CW.finishMat)
     finishes: [
@@ -85,6 +97,12 @@
       { id: 'fireworks', name: 'Fireworks', icon: '🎆', desc: 'A fireworks show over every wreck', price: 700 },
       { id: 'lightning', name: 'Thunderstrike', icon: '⚡', desc: 'Lightning strikes the wreck from the sky', price: 800 },
       { id: 'blackhole', name: 'Black Hole', icon: '🕳', desc: 'The wreck is sucked into a black hole', price: 1100 },
+      // seasonal events only (never sold): `event: <event id>`
+      { id: 'ev_bats', name: 'Bat Swarm', icon: '🦇', desc: 'Wrecks burst into a swarm of bats', price: 600, event: 'halloween' },
+      { id: 'ev_snow', name: 'Snow Globe', icon: '❄', desc: 'Wrecks burst into a snowstorm', price: 600, event: 'winter' },
+      { id: 'ev_hearts', name: 'Heart Burst', icon: '💘', desc: 'Wrecks burst into hearts', price: 600, event: 'love' },
+      { id: 'ev_petals', name: 'Petal Storm', icon: '🌸', desc: 'Wrecks burst into blossom petals', price: 600, event: 'spring' },
+      { id: 'ev_splash', name: 'Big Splash', icon: '🌊', desc: 'Wrecks burst into a splash of water', price: 600, event: 'summer' },
     ],
     // premium avatars (CW.AVATARS index 24+), shown on your profile, in rooms and on the leaderboard
     avatars: [
@@ -107,7 +125,7 @@
   function dailyDeals(dayStr, owns) {
     const rnd = seeded('deal' + dayStr);
     const pool = [];
-    for (const kind of ['paints', 'trails', 'avatars', 'finishes', 'wrecks']) for (const it of SHOP[kind]) if (!it.pass && it.price > 0 && !owns(kind, it.id)) pool.push({ kind, it });
+    for (const kind of ['paints', 'trails', 'avatars', 'finishes', 'wrecks']) for (const it of SHOP[kind]) if (!it.pass && !it.event && it.price > 0 && !owns(kind, it.id)) pool.push({ kind, it });
     pool.sort((a, b) => (a.kind + a.it.id < b.kind + b.it.id ? -1 : 1));
     const out = [];
     while (out.length < 3 && pool.length) out.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]);
@@ -120,7 +138,7 @@
     const marks = [10, 25, 50, 75, 100];
     const add = (to, step) => { while (marks[marks.length - 1] + step <= to) marks.push(marks[marks.length - 1] + step); };
     add(500, 25); add(1500, 50); add(3000, 100); add(6000, 250); add(10000, 500);
-    const byPrice = (list) => list.filter((it) => it.price > 0 && !it.pass).slice().sort((x, y) => x.price - y.price);
+    const byPrice = (list) => list.filter((it) => it.price > 0 && !it.pass && !it.event).slice().sort((x, y) => x.price - y.price);
     const items = { paint: byPrice(SHOP.paints).map((x) => x.id), trail: byPrice(SHOP.trails).map((x) => x.id), avatar: byPrice(SHOP.avatars).map((x) => x.id) };
     const order = ['paint', 'trail', 'avatar'];
     let k = 0;
@@ -286,7 +304,45 @@
   // ready-made chat lines (quick chat): friends, party and club chat, and everything for "Quick chat only" players
   const TALK_QUICK = ['👋 Hi!', 'GG!', 'Want to play?', 'Party up! 🎉', 'Nice one! 🏆', 'Thanks! 🙏', 'One more?', 'Be right back', 'Yes 👍', 'No 👎', "Let's go! 🔥", 'Good night 🌙'];
 
-  const api = { TALK_QUICK, xpFor, levelOf, domainsAt, PARTS, mechPower, BUDGET, RUSH_BUDGET, MAX_PARTS, GRID, mechProblem, CHALLENGES, DAILY_CHALLENGES, dailyChallenges, ACH, SHOP, AVATAR_COUNT, FREE_AVATARS, item, dealPrice, dailyDeals, ROAD, giftAmount, EARN, EARN_PER_DAY, MATCH_GAP, day, nextMidnight, seeded, hash, season, PASS, passRewards, WEEKLY, week, RANKED };
+  // ---------------- seasonal events: a theme for each special time of the year (UTC dates, every year) ----------------
+  // While one runs the menu and the arenas are decorated, every match and daily challenge gives event points (the
+  // server counts them), and an event track pays coins and three exclusive items that are never sold.
+  const EVENTS = [
+    { id: 'halloween', name: 'Haunted Harvest', icon: '🎃', color: '#ff8a1f', from: [10, 20], to: [11, 3], desc: 'Pumpkins glow in every arena, the nights get spooky and bats fill the sky.', paint: 'ev_pumpkin', trail: 'ev_spooky', wreck: 'ev_bats' },
+    { id: 'winter', name: 'Winter Wonderland', icon: '🎄', color: '#7fd7ff', from: [12, 10], to: [1, 6], desc: 'Snow everywhere, presents, snowmen and trees full of lights. Happy holidays!', paint: 'ev_frost', trail: 'ev_snowflake', wreck: 'ev_snow' },
+    { id: 'love', name: 'Mech Hearts', icon: '💘', color: '#ff5d9e', from: [2, 7], to: [2, 16], desc: 'Hearts float over the arenas and heart balloons are everywhere.', paint: 'ev_rose', trail: 'ev_love', wreck: 'ev_hearts' },
+    { id: 'spring', name: 'Spring Bloom', icon: '🌸', color: '#ff9fd0', from: [3, 20], to: [4, 20], desc: 'Blossom petals drift on the wind and flowers bloom in every arena.', paint: 'ev_blossom', trail: 'ev_bloom', wreck: 'ev_petals' },
+    { id: 'summer', name: 'Summer Splash', icon: '🏖', color: '#ffd23f', from: [7, 1], to: [8, 31], desc: 'Sunny days, beach umbrellas and beach balls. Hit the water!', paint: 'ev_tropic', trail: 'ev_wave', wreck: 'ev_splash' },
+  ];
+  const EVENT_PTS = { match: 40, challenge: 20 };
+  // the event running now (or null): { ...event, key: 'halloween2026', start, end }
+  function event(now) {
+    const t = new Date(now || Date.now());
+    const y = t.getUTCFullYear();
+    for (const e of EVENTS) {
+      for (const sy of [y, y - 1]) { // an event that starts in December ends in January
+        const start = Date.UTC(sy, e.from[0] - 1, e.from[1]);
+        const ey = e.to[0] < e.from[0] ? sy + 1 : sy;
+        const end = Date.UTC(ey, e.to[0] - 1, e.to[1] + 1); // through the whole last day
+        if (t.getTime() >= start && t.getTime() < end) return Object.assign({}, e, { key: e.id + sy, start, end });
+      }
+    }
+    return null;
+  }
+  // the next one to come (for "coming soon")
+  function nextEvent(now) {
+    const t = now || Date.now();
+    for (let d = 1; d < 400; d++) { const e = event(t + d * DAY); if (e) return e; }
+    return null;
+  }
+  // the event track: points needed and what each step pays
+  function eventRewards(id) {
+    const e = EVENTS.find((x) => x.id === id);
+    if (!e) return [];
+    return [{ step: 1, at: 150, coins: 250 }, { step: 2, at: 400, paint: e.paint }, { step: 3, at: 800, trail: e.trail }, { step: 4, at: 1300, wreck: e.wreck }];
+  }
+
+  const api = { EVENTS, EVENT_PTS, event, nextEvent, eventRewards, TALK_QUICK, xpFor, levelOf, domainsAt, PARTS, mechPower, BUDGET, RUSH_BUDGET, MAX_PARTS, GRID, mechProblem, CHALLENGES, DAILY_CHALLENGES, dailyChallenges, ACH, SHOP, AVATAR_COUNT, FREE_AVATARS, item, dealPrice, dailyDeals, ROAD, giftAmount, EARN, EARN_PER_DAY, MATCH_GAP, day, nextMidnight, seeded, hash, season, PASS, passRewards, WEEKLY, week, RANKED };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.CW = root.CW || {}; root.CW.ECON = api; root.CW.SHOP = SHOP; root.CW.ROAD = ROAD; }
 })(this);

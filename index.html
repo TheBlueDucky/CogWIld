@@ -1292,6 +1292,24 @@
   @keyframes finFlow { to { background-position: 200% 0; } }
   .swatch.wfx { background: radial-gradient(circle at 50% 55%, var(--wc, #ffb347) 0%, rgba(0, 0, 0, 0) 62%), #0d1226; }
   .wfx-confetti { --wc: #ff6fb5; } .wfx-pixel { --wc: #5ce1ff; } .wfx-fireworks { --wc: #ffd23f; } .wfx-lightning { --wc: #8fd8ff; } .wfx-blackhole { --wc: #9b5de5; }
+  .wfx-ev_bats { --wc: #7b2cbf; } .wfx-ev_snow { --wc: #dff4ff; } .wfx-ev_hearts { --wc: #ff4d6d; } .wfx-ev_petals { --wc: #ffb7d5; } .wfx-ev_splash { --wc: #00b4d8; }
+  /* seasonal events: the lobby bar (in the event's own color) and the event screen */
+  .event-bar { --ev: #ff8a1f; border-color: color-mix(in srgb, var(--ev) 55%, transparent) !important; }
+  .event-bar .pb-track i { background: var(--ev) !important; }
+  .event-bar b { color: var(--ev); }
+  .ev-head { display: flex; gap: 14px; align-items: center; padding: 12px 14px; border-radius: var(--rad); border: 1px solid color-mix(in srgb, var(--ev) 50%, transparent); background: color-mix(in srgb, var(--ev) 12%, transparent); }
+  .ev-head .ev-big { font-size: 46px; }
+  .ev-head b { font-size: 20px; color: var(--ev); }
+  .ev-bar { height: 10px; border-radius: 5px; background: rgba(255, 255, 255, .1); overflow: hidden; margin-top: 6px; }
+  .ev-bar i { display: block; height: 100%; background: var(--ev); }
+  .ev-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-top: 12px; }
+  .ev-step { padding: 10px; border-radius: var(--rad); border: 1px solid rgba(255, 255, 255, .12); background: rgba(255, 255, 255, .04); display: flex; flex-direction: column; gap: 6px; align-items: center; text-align: center; }
+  .ev-step.got { opacity: .6; }
+  .ev-step.ready { border-color: var(--ev); box-shadow: 0 0 0 1px var(--ev) inset; }
+  .ev-step .swatch { height: 54px; }
+  .ev-cal { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px; margin-top: 8px; }
+  .ev-cal span { padding: 6px 8px; border-radius: 8px; background: rgba(255, 255, 255, .04); font-size: 13px; }
+  .ev-cal span.now { outline: 1px solid var(--ev); }
   /* support / contact us (Settings › Support, top of Help) */
   .support-card { display: flex; gap: 12px; align-items: center; padding: 10px 12px; margin: 4px 0 10px; border-radius: var(--rad); background: rgba(92, 225, 255, .07); border: 1px solid rgba(92, 225, 255, .3); }
   .support-card .sup-ico { font-size: 30px; flex: none; }
@@ -1453,6 +1471,7 @@
           <button id="btnDaily" class="daily"></button>
         </div>
         <button id="btnPass" class="pass-bar" aria-label="Cog Pass: free rewards every season"><span class="pb-ico">🎟</span><span class="pb-main"><b>Cog Pass</b><small id="pbTier">Season 1</small></span><span class="pb-track"><i id="pbFill"></i></span><i id="badgePass" class="badge hidden">0</i></button>
+        <button id="btnEvent" class="pass-bar event-bar hidden" aria-label="Seasonal event: decorations and rewards"><span class="pb-ico" id="evIco">🎃</span><span class="pb-main"><b id="evName">Event</b><small id="evInfo"></small></span><span class="pb-track"><i id="evFill"></i></span><i id="badgeEvent" class="badge hidden">!</i></button>
         <div class="card quests-card" id="questsCard" aria-label="See all of today's challenges">
           <h3>🎯 Challenge <small id="questsMore">see all ›</small></h3>
           <div id="menuChallenges"></div>

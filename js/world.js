@@ -334,17 +334,21 @@
       this.buildTerrain();
       this.buildWater();
       this.buildDecor();
+      this.event = CW.ECON.event();
+      if (this.event) this.buildEventDecor(this.event.id);
       this.buildGrass();
       this.buildClouds();
       this.computeSpawns();
       this.buildMinimap();
       this.buildBoundary();
-      if (this.arena.particles) this.buildSnow();
+      this.particleKind = this.arena.particles || (this.event && { halloween: 'bats', winter: 'snow', love: 'hearts', spring: 'petals' }[this.event.id]);
+      if (this.particleKind) this.buildSnow();
     }
 
     dispose() {
       this.realScene.remove(this.scene);
       this.scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+      for (const mt of this.evMats || []) mt.dispose();
     }
 
     // is (x,z) on a bridge deck? (margin widens the test)
@@ -355,9 +359,11 @@
       });
     }
 
-    // falling snow around the camera
+    // particles around the camera: falling snow, rising embers, drifting dust, fireflies (arenas) and, for seasonal
+    // events, flapping bats, floating hearts and blossom petals (drawn from an emoji)
     buildSnow() {
-      const N = 1800, pts = new Float32Array(N * 3);
+      const kind = this.particleKind, EMO = { bats: '🦇', hearts: '💗', petals: '🌸' }[kind];
+      const N = EMO ? (kind === 'bats' ? 140 : 420) : 1800, pts = new Float32Array(N * 3);
       for (let i = 0; i < N; i++) { pts[i * 3] = (Math.random() - 0.5) * 120; pts[i * 3 + 1] = Math.random() * 60; pts[i * 3 + 2] = (Math.random() - 0.5) * 120; }
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.BufferAttribute(pts, 3));
@@ -370,16 +376,24 @@
       grd.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = grd;
       ctx.fillRect(0, 0, 32, 32);
-      this.snow = new THREE.Points(g, new THREE.PointsMaterial({ color: { snow: 0xffffff, embers: 0xff7a2a, dust: 0xe8c890, fireflies: 0xd8ff6a }[this.arena.particles], size: { snow: 0.45, embers: 0.3, dust: 0.35, fireflies: 0.4 }[this.arena.particles], map: new THREE.CanvasTexture(cv), transparent: true, opacity: 0.9, depthWrite: false }));
+      if (EMO) {
+        cv.width = cv.height = 64;
+        ctx.clearRect(0, 0, 64, 64);
+        ctx.font = '52px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(EMO, 32, 36);
+      }
+      this.snow = new THREE.Points(g, new THREE.PointsMaterial({ color: { snow: 0xffffff, embers: 0xff7a2a, dust: 0xe8c890, fireflies: 0xd8ff6a }[kind] || 0xffffff, size: { snow: 0.45, embers: 0.3, dust: 0.35, fireflies: 0.4, bats: 1.6, hearts: 0.8, petals: 0.55 }[kind], map: new THREE.CanvasTexture(cv), transparent: true, opacity: EMO ? 1 : 0.9, depthWrite: false, alphaTest: EMO ? 0.05 : 0 }));
       this.scene.add(this.snow);
     }
     updateSnow(dt, cam) {
       if (!this.snow || !cam) return;
       const p = this.snow.geometry.attributes.position;
       for (let i = 0; i < p.count; i++) {
-        const kind = this.arena.particles;
-        let y = p.getY(i) + dt * ({ snow: -4, embers: 3, dust: -0.4, fireflies: Math.sin(this.t + i) * 0.8 }[kind]); // snow falls, embers rise, dust drifts
-        let x = p.getX(i) + (kind === 'dust' ? dt * 7 : Math.sin(this.t * 0.7 + i) * dt * (kind === 'fireflies' ? 1.5 : 0.6));
+        const kind = this.particleKind;
+        // snow falls, embers and hearts rise, dust drifts, petals tumble down on the wind, bats swoop by
+        let y = p.getY(i) + dt * ({ snow: -4, embers: 3, dust: -0.4, fireflies: Math.sin(this.t + i) * 0.8, hearts: 1.1, petals: -1.4, bats: Math.sin(this.t * 2 + i) * 2.5 }[kind]);
+        let x = p.getX(i) + (kind === 'dust' ? dt * 7 : kind === 'bats' ? dt * (5 + (i % 5)) : kind === 'petals' ? dt * (2.5 + Math.sin(this.t + i) * 1.5) : Math.sin(this.t * 0.7 + i) * dt * (kind === 'fireflies' ? 1.5 : 0.6));
         if (x > 60) x -= 120;
         if (y < 0) y += 60;
         if (y > 60) y -= 60;
@@ -924,6 +938,192 @@
       }
     }
 
+    // ---- seasonal events (js/economy.js EVENTS): decorations in every arena while one runs ----
+    // Each kind of decoration is a few instanced meshes (one draw call per piece, whatever the count).
+    buildEventDecor(id) {
+      let seed = 900;
+      const rnd = () => hash(seed++, 313);
+      this.evDecor = { id, bob: [], at: [] }; // at: where things stand (tests look at them)
+      const g3 = THREE, m = new g3.Matrix4(), q = new g3.Quaternion(), s = new g3.Vector3(), p = new g3.Vector3(), up = new g3.Vector3(0, 1, 0), col = new g3.Color();
+      // several geometries -> one (positions + normals)
+      const join = (geos) => {
+        const pos = [], nor = [];
+        for (const g0 of geos) {
+          const g = g0.index ? g0.toNonIndexed() : g0;
+          if (!g.attributes.normal) g.computeVertexNormals();
+          pos.push(...g.attributes.position.array); nor.push(...g.attributes.normal.array);
+        }
+        const out = new g3.BufferGeometry();
+        out.setAttribute('position', new g3.Float32BufferAttribute(pos, 3));
+        out.setAttribute('normal', new g3.Float32BufferAttribute(nor, 3));
+        return out;
+      };
+      // a dry, fairly flat spot that isn't on a bridge (lo/hi: height range)
+      const spot = (lo = 2.2, hi = 24) => {
+        for (let t = 0; t < 60; t++) {
+          const x = (rnd() - 0.5) * 320, z = (rnd() - 0.5) * 320, h = CW.terrainHeight(x, z);
+          if (h < lo || h > hi || this.onBridge(x, z, 4)) continue;
+          const slope = Math.abs(CW.terrainHeight(x + 1.5, z) - CW.terrainHeight(x - 1.5, z)) + Math.abs(CW.terrainHeight(x, z + 1.5) - CW.terrainHeight(x, z - 1.5));
+          if (slope < 1.2) return { x, z, h };
+        }
+        return null;
+      };
+      // pieces: [[geometry, material, colors?]] placed n times; colors = a palette for instance colors
+      const place = (pieces, n, at, scale = () => 1) => {
+        const ims = pieces.map(([geo, mat, pal]) => { const im = new g3.InstancedMesh(geo, mat, n); if (pal) im.setColorAt(0, col.setHex(pal[0])); return im; });
+        let k = 0;
+        for (let i = 0; i < n * 2 && k < n; i++) {
+          const sp = at();
+          if (!sp) continue;
+          const sc = scale();
+          q.setFromAxisAngle(up, rnd() * 6.3); s.set(sc, sc, sc); p.set(sp.x, sp.h - 0.05, sp.z); m.compose(p, q, s);
+          this.evDecor.at.push(sp);
+          const c = Math.floor(rnd() * 99);
+          ims.forEach((im, j) => {
+            im.setMatrixAt(k, m);
+            const pal = pieces[j][2];
+            if (pal) im.setColorAt(k, col.setHex(pal[(c + j) % pal.length]));
+          });
+          k++;
+        }
+        for (const im of ims) {
+          im.count = k; im.castShadow = true; im.receiveShadow = true;
+          if (im.instanceColor) im.instanceColor.needsUpdate = true;
+          this.scene.add(im);
+        }
+        return ims;
+      };
+      // own materials (not the shared cache): instanced meshes with and without per-copy colors can't share one
+      const own = (mt) => { (this.evMats = this.evMats || []).push(mt); return mt; }; // freed in dispose()
+      const std = (c, extra) => own(new g3.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.75, metalness: 0 }, extra || {})));
+      const glow = (c) => own(new g3.MeshBasicMaterial({ color: c }));
+      if (id === 'halloween') {
+        // jack-o'-lanterns (their faces glow) and old gravestones
+        const body = new g3.SphereGeometry(0.9, 14, 10).scale(1, 0.72, 1).translate(0, 0.62, 0);
+        const ribs = join([0, 1, 2].map((r) => new g3.TorusGeometry(0.66, 0.06, 5, 18).rotateY(r * 1.05).scale(1.25, 1, 1.25).translate(0, 0.62, 0)));
+        const stem = new g3.CylinderGeometry(0.07, 0.11, 0.38, 6).rotateZ(0.25).translate(0.02, 1.32, 0);
+        const face = join([
+          new g3.ConeGeometry(0.16, 0.26, 3).rotateX(Math.PI / 2).rotateZ(Math.PI).translate(-0.3, 0.82, 0.84),
+          new g3.ConeGeometry(0.16, 0.26, 3).rotateX(Math.PI / 2).rotateZ(Math.PI).translate(0.3, 0.82, 0.84),
+          new g3.BoxGeometry(0.62, 0.14, 0.2).translate(0, 0.46, 0.82),
+          new g3.BoxGeometry(0.14, 0.12, 0.2).translate(-0.12, 0.56, 0.84),
+          new g3.BoxGeometry(0.14, 0.12, 0.2).translate(0.16, 0.36, 0.84),
+        ]);
+        place([[body, std(0xff7518, { emissive: 0x4a1800 })], [ribs, std(0xd95a0a)], [stem, std(0x4f6b22)], [face, glow(0xffd24a)]], 46, () => spot(), () => 0.8 + rnd() * 0.9);
+        const slab = join([new g3.BoxGeometry(1, 1.3, 0.28).translate(0, 0.65, 0), new g3.CylinderGeometry(0.5, 0.5, 0.28, 14, 1, false, 0, Math.PI).rotateX(Math.PI / 2).rotateZ(Math.PI / 2).translate(0, 1.3, 0)]);
+        const cross = join([new g3.BoxGeometry(0.18, 0.5, 0.06).translate(0, 1.0, 0.16), new g3.BoxGeometry(0.42, 0.14, 0.06).translate(0, 1.08, 0.16)]);
+        place([[slab, std(0x7d8590, { roughness: 1 })], [cross, std(0x4a5058)]], 26, () => spot(), () => 0.9 + rnd() * 0.5);
+      } else if (id === 'winter') {
+        // presents, snowmen and lights on the trees
+        const box = new g3.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
+        const ribbon = join([new g3.BoxGeometry(1.04, 1.04, 0.2).translate(0, 0.5, 0), new g3.BoxGeometry(0.2, 1.04, 1.04).translate(0, 0.5, 0),
+          new g3.TorusGeometry(0.17, 0.06, 6, 12).rotateY(0.8).translate(-0.14, 1.12, 0), new g3.TorusGeometry(0.17, 0.06, 6, 12).rotateY(-0.8).translate(0.14, 1.12, 0)]);
+        place([[box, std(0xffffff), [0xd62839, 0x2a9d8f, 0x3a86ff, 0x8338ec, 0xffbe0b, 0xe9ecef]], [ribbon, std(0xffffff, { metalness: 0.4, roughness: 0.4 }), [0xffd166, 0xf1faee, 0xff006e, 0xffd166]]], 44, () => spot(), () => 0.6 + rnd() * 0.8);
+        const snow = join([new g3.SphereGeometry(1, 14, 10).translate(0, 0.85, 0), new g3.SphereGeometry(0.72, 14, 10).translate(0, 2.2, 0), new g3.SphereGeometry(0.5, 14, 10).translate(0, 3.25, 0)]);
+        const coal = join([[-0.17, 3.38, 0.44], [0.17, 3.38, 0.44], [0, 2.45, 0.7], [0, 2.15, 0.72], [0, 1.85, 0.68]].map(([x, y, z]) => new g3.SphereGeometry(0.07, 6, 5).translate(x, y, z)));
+        const nose = new g3.ConeGeometry(0.08, 0.45, 8).rotateX(Math.PI / 2).translate(0, 3.25, 0.68);
+        const scarf = new g3.TorusGeometry(0.55, 0.13, 6, 16).rotateX(Math.PI / 2).translate(0, 2.78, 0);
+        const hat = join([new g3.CylinderGeometry(0.55, 0.55, 0.06, 16).translate(0, 3.66, 0), new g3.CylinderGeometry(0.36, 0.36, 0.55, 16).translate(0, 3.95, 0)]);
+        place([[snow, std(0xf4f8ff, { roughness: 0.9 })], [coal, std(0x1a1a1a)], [nose, std(0xff8c1a)], [scarf, std(0xffffff), [0xd62839, 0x2a9d8f, 0x3a86ff]], [hat, std(0x202020)]], 18, () => spot(), () => 0.85 + rnd() * 0.3);
+        // a spiral of bulbs around trees (hidden with their tree when it's in the camera's way: tree.extra)
+        const trees = this.trees.filter((t, i) => i % 3 === 0).slice(0, 70), N = 11;
+        const bulbs = new g3.InstancedMesh(new g3.SphereGeometry(0.2, 6, 5), glow(0xffffff), trees.length * N);
+        const pal = [0xff3b3b, 0x3bff7a, 0xffd23f, 0x4dabff, 0xff7ae0];
+        let k = 0;
+        for (const t of trees) {
+          this.evDecor.at.push({ x: t.x, z: t.z, h: CW.terrainHeight(t.x, t.z), tree: true });
+          const sc = t.r / 2;
+          t.extra = [];
+          for (let j = 0; j < N; j++) {
+            const f = j / N, a = j * 2.1 + t.x, r = (1.9 * (1 - f) + 0.35) * sc;
+            p.set(t.x + Math.cos(a) * r, CW.terrainHeight(t.x, t.z) + (2 + f * 4.6) * sc, t.z + Math.sin(a) * r);
+            m.makeTranslation(p.x, p.y, p.z);
+            bulbs.setMatrixAt(k, m);
+            bulbs.setColorAt(k, col.setHex(pal[(j + k) % pal.length]));
+            t.extra.push({ im: bulbs, idx: k, mat: m.clone() });
+            k++;
+          }
+        }
+        bulbs.count = k;
+        if (bulbs.instanceColor) bulbs.instanceColor.needsUpdate = true;
+        this.scene.add(bulbs);
+        this.evDecor.twinkle = { im: bulbs, pal, t: 0 };
+      } else if (id === 'love') {
+        // heart balloons on strings, gently bobbing
+        const sh = new g3.Shape();
+        sh.moveTo(0, -0.9);
+        sh.bezierCurveTo(-0.15, -0.55, -1.0, -0.2, -1.0, 0.35);
+        sh.bezierCurveTo(-1.0, 0.85, -0.35, 1.05, 0, 0.6);
+        sh.bezierCurveTo(0.35, 1.05, 1.0, 0.85, 1.0, 0.35);
+        sh.bezierCurveTo(1.0, -0.2, 0.15, -0.55, 0, -0.9);
+        const heart = new g3.ExtrudeGeometry(sh, { depth: 0.35, bevelEnabled: true, bevelThickness: 0.18, bevelSize: 0.14, bevelSegments: 3, curveSegments: 10 }).translate(0, 0, -0.17);
+        const string = new g3.CylinderGeometry(0.015, 0.015, 1, 4).translate(0, 0.5, 0);
+        const hearts = new g3.InstancedMesh(heart, std(0xffffff, { roughness: 0.35, metalness: 0.1, emissive: 0x330010 }), 36);
+        const strings = new g3.InstancedMesh(string, std(0xeeeeee), 36);
+        const pal = [0xff3b6b, 0xff6fa5, 0xe5383b, 0xffb3c6, 0xc9184a];
+        let k = 0;
+        for (let i = 0; i < 80 && k < 36; i++) {
+          const sp = spot();
+          if (!sp) continue;
+          const hgt = 4 + rnd() * 3, sc = 0.7 + rnd() * 0.5;
+          hearts.setColorAt(k, col.setHex(pal[k % pal.length]));
+          this.evDecor.bob.push({ x: sp.x, z: sp.z, y: sp.h + hgt, base: sp.h, sc, ph: rnd() * 6.3, k });
+          this.evDecor.at.push(sp);
+          k++;
+        }
+        hearts.count = strings.count = k;
+        if (hearts.instanceColor) hearts.instanceColor.needsUpdate = true;
+        hearts.castShadow = true;
+        this.scene.add(hearts, strings);
+        this.evDecor.balloons = { hearts, strings };
+        this.updateEventDecor(0);
+      } else if (id === 'spring') {
+        // flowering bushes
+        const bush = join([0, 1, 2, 3].map((i) => new g3.IcosahedronGeometry(0.8 - i * 0.08, 1).translate(Math.cos(i * 1.7) * 0.55, 0.6 + (i % 2) * 0.25, Math.sin(i * 1.7) * 0.55)));
+        const blooms = join(Array.from({ length: 14 }, (_, i) => {
+          const a = i * 2.4, y = 0.4 + (i % 4) * 0.25, r = 0.95 - (y - 0.4) * 0.35;
+          return new g3.IcosahedronGeometry(0.15, 0).translate(Math.cos(a) * r, y + 0.35, Math.sin(a) * r);
+        }));
+        place([[bush, std(0x4f9d3a, { roughness: 0.95 }), [0x4f9d3a, 0x3f8a2e, 0x5fb046]], [blooms, std(0xffffff, { emissive: 0x221122 }), [0xff9fd0, 0xffffff, 0xffd23f, 0xc77dff, 0xff6b6b]]], 60, () => spot(), () => 0.8 + rnd() * 0.8);
+      } else if (id === 'summer') {
+        // beach umbrellas, towels and beach balls near the water
+        const beach = () => spot(0.5, 5) || spot();
+        const pole = new g3.CylinderGeometry(0.06, 0.06, 3, 6).translate(0, 1.5, 0);
+        const canopy = new g3.ConeGeometry(2.1, 0.75, 10, 1, true).translate(0, 3.05, 0);
+        const towel = new g3.BoxGeometry(1.1, 0.04, 2).translate(1.4, 0.03, 0.4);
+        place([[pole, std(0xeeeeee)], [canopy, std(0xffffff, { side: g3.DoubleSide }), [0xff4d6d, 0x00b4d8, 0xffd23f, 0x8ac926, 0xff8c42]], [towel, std(0xffffff), [0x00b4d8, 0xff4d6d, 0xffd23f, 0xb5179e]]], 30, beach, () => 0.9 + rnd() * 0.3);
+        // a beach ball: six colored segments
+        const ball = new g3.SphereGeometry(0.5, 18, 12).translate(0, 0.5, 0), bp = ball.attributes.position, bc = [];
+        const segs = [[1, 0.3, 0.3], [1, 1, 1], [0.2, 0.5, 1], [1, 0.85, 0.2], [1, 1, 1], [0.3, 0.85, 0.4]];
+        for (let i = 0; i < bp.count; i++) { const sg = segs[Math.floor(((Math.atan2(bp.getZ(i), bp.getX(i)) + Math.PI) / (Math.PI * 2)) * 6) % 6]; bc.push(...sg); }
+        ball.setAttribute('color', new g3.Float32BufferAttribute(bc, 3));
+        place([[ball, std(0xffffff, { vertexColors: true, roughness: 0.4 })]], 30, beach, () => 0.8 + rnd() * 0.6);
+      }
+    }
+    updateEventDecor(dt) {
+      const d = this.evDecor;
+      if (!d) return;
+      if (d.balloons) {
+        const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), e = new THREE.Euler();
+        for (const b of d.bob) {
+          const y = b.y + Math.sin(this.t * 1.3 + b.ph) * 0.35;
+          e.set(Math.sin(this.t * 0.9 + b.ph) * 0.12, this.t * 0.4 + b.ph, Math.sin(this.t * 1.1 + b.ph) * 0.1);
+          m.compose(p.set(b.x, y, b.z), q.setFromEuler(e), s.set(b.sc, b.sc, b.sc));
+          d.balloons.hearts.setMatrixAt(b.k, m);
+          m.compose(p.set(b.x, b.base, b.z), q.identity(), s.set(1, y - b.base - 0.8 * b.sc, 1));
+          d.balloons.strings.setMatrixAt(b.k, m);
+        }
+        d.balloons.hearts.instanceMatrix.needsUpdate = d.balloons.strings.instanceMatrix.needsUpdate = true;
+      }
+      if (d.twinkle && (d.twinkle.t -= dt) <= 0) {
+        // a few bulbs change color twice a second
+        d.twinkle.t = 0.5;
+        const im = d.twinkle.im, c = new THREE.Color();
+        for (let i = 0; i < Math.min(40, im.count); i++) im.setColorAt(Math.floor(Math.random() * im.count), c.setHex(d.twinkle.pal[Math.floor(Math.random() * d.twinkle.pal.length)]));
+        if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      }
+    }
+
     // Scrap Yard: wrecked car hulks, tire stacks and two cranes over the rail
     buildScrap(rnd) {
       const rust = [0x8a4b2a, 0x6b7078, 0x3a6ea5, 0xa83232, 0xc9a227, 0x4a6b3a].map((c) => CW.mat(c, { metalness: 0.5, roughness: 0.7 }));
@@ -1040,6 +1240,7 @@
         if (hide !== t.hidden) {
           t.hidden = hide;
           t.ims.forEach((im, k) => { im.setMatrixAt(t.idx, hide ? zero : t.mats[k]); im.instanceMatrix.needsUpdate = true; });
+          if (t.extra) for (const e of t.extra) { e.im.setMatrixAt(e.idx, hide ? zero : e.mat); e.im.instanceMatrix.needsUpdate = true; }
           dirty = true;
         }
       }
@@ -1063,6 +1264,7 @@
     update(dt, cam) {
       this.t = (this.t || 0) + dt;
       this.updateSnow(dt, cam);
+      this.updateEventDecor(dt);
       if (this.waterBump) { this.waterBump.offset.x += dt * 0.02; this.waterBump.offset.y += dt * 0.013; }
       for (const c of this.clouds) {
         c.position.x += dt * 2.5;

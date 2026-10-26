@@ -62,7 +62,7 @@ function codeFor(email) {
 }
 
 function start() {
-  server = spawn(process.execPath, [path.join(__dirname, 'server.js')], { env: Object.assign({}, process.env, { PORT, DATA_DIR: DATA, SEARCH_SECS: '2', TROPHY_MIN_SECS: '0', SIGNUPS_PER_HOUR: '30',
+  server = spawn(process.execPath, [path.join(__dirname, 'server.js')], { env: Object.assign({}, process.env, { PORT, DATA_DIR: DATA, SEARCH_SECS: '2', TROPHY_MIN_SECS: '0', SIGNUPS_PER_HOUR: '30', EVENT_DATE: '2026-10-26T12:00:00Z', MATCH_GAP_SECS: '1',
     MAIL_SMTP_HOST: '127.0.0.1', MAIL_SMTP_PORT: String(SMTP_PORT), MAIL_SMTP_SECURE: 'none', MAIL_SMTP_USER: 'game@test.dev', MAIL_SMTP_PASS: 'mailpass123', MAIL_FROM: 'Cogwild <game@test.dev>',
     GOOGLE_CLIENT_ID: 'test-client', GOOGLE_CERTS_URL: `http://127.0.0.1:${CERTS_PORT}/certs` }), stdio: process.env.TEST_LOG ? 'inherit' : 'ignore' });
   return wait(700);
@@ -341,8 +341,10 @@ async function main() {
   ec.send({ t: 'earn', src: 'match', n: 500, pp: 40, xp: 300 });
   const w1 = await ec.next('wallet');
   check(w1.w.coins === 2950 && w1.w.pass.pts === 40 && w1.w.xp === 305, 'a match pays coins, XP and pass points');
+  check(w1.evPts === 40 && w1.w.ev && w1.w.ev.k === 'halloween2026' && w1.w.ev.pts === 40, `a match during Halloween gives 40 event points (${JSON.stringify(w1.w.ev)})`);
   ec.send({ t: 'earn', src: 'match', n: 500, pp: 40 });
-  check((await ec.next('wallet')).earned === 0, 'two match rewards in a row are refused');
+  const w1b = await ec.next('wallet');
+  check(w1b.earned === 0 && w1b.w.ev.pts === 40, 'two match rewards in a row are refused (no event points either)');
   ec.send({ t: 'earn', src: 'match', n: 999999 });
   const E0 = require('../js/economy.js');
   for (let i = 0; i < 3; i++) ec.send({ t: 'earn', src: 'challenge', n: 9999, key: 0 });
@@ -376,6 +378,24 @@ async function main() {
   ec.send({ t: 'passClaim', tier: 1 });
   const wp = await ec.next('wallet');
   check(wp.pass === 1 && wp.w.pass.claimed.includes(1), 'Cog Pass tier 1 can be claimed with enough points');
+  // the event track: points so far = 1 match + 2 challenges
+  const evp = wp.w.ev.pts;
+  check(evp === 40 + 2 * 20, `daily challenges give event points too (${evp})`);
+  ec.send({ t: 'eventClaim', step: 2 });
+  const we2 = await ec.next('wallet');
+  check(!we2.evStep && !we2.w.owned.paints.includes('ev_pumpkin'), 'an event reward needs its points');
+  ec.send({ t: 'buy', kind: 'paints', id: 'ev_pumpkin' });
+  check(/for sale/.test((await ec.next('acctErr')).msg), 'event items cannot be bought');
+  ec.send({ t: 'eventClaim', step: 1 });
+  check(!(await ec.next('wallet')).evStep, `step 1 needs 150 points (has ${evp})`);
+  // two more matches (this test server spaces match rewards 1 s apart instead of 20 s)
+  for (let i = 0; i < 2; i++) { await new Promise((r) => setTimeout(r, 1100)); ec.send({ t: 'earn', src: 'match', n: 50, pp: 10 }); await ec.next('wallet'); }
+  const coinsBefore = (await (ec.send({ t: 'eventClaim', step: 1 }), ec.next('wallet')));
+  check(coinsBefore.evStep === 1 && coinsBefore.reward && coinsBefore.reward.coins === 250 && coinsBefore.w.ev.claimed.join() === '1', `with 160 points step 1 pays 250 coins (${JSON.stringify(coinsBefore.reward)})`);
+  ec.send({ t: 'eventClaim', step: 1 });
+  check(!(await ec.next('wallet')).evStep, 'an event step pays only once');
+  ec.send({ t: 'eventClaim', step: 9 });
+  check(!(await ec.next('wallet')).evStep, 'a made-up event step pays nothing');
   ec.send({ t: 'save', data: { profile: { xp: 5, coins: 1000000, owned: { paints: ['chrome'] } } } });
   await ec.next('saved');
   ec.ws.close();

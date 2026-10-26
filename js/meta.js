@@ -253,7 +253,7 @@
       $('panelBody').parentElement.scrollTop = 0;
       const titles = {
         challenges: '🎯 Daily challenges', shop: '🛒 Shop', stats: '📊 Stats', settings: '⚙ Settings', howto: '❓ How to play', ach: '🎖 Achievements', news: '📰 What\'s new',
-        profile: '👤 Profile', friends: '👥 Friends', road: '🛤 Trophy road', pass: '🎟 Cog Pass', clubs: '🛡 Clubs', top: '📈 Leaderboard', player: '👤 Player', ranks: '⭐ Level and ranks', arenas: '🎮 Pick a mode and arena',
+        event: '🎉 Seasonal event', profile: '👤 Profile', friends: '👥 Friends', road: '🛤 Trophy road', pass: '🎟 Cog Pass', clubs: '🛡 Clubs', top: '📈 Leaderboard', player: '👤 Player', ranks: '⭐ Level and ranks', arenas: '🎮 Pick a mode and arena',
       };
       $('panelTitle').textContent = titles[kind];
       this.renderPanel();
@@ -317,7 +317,7 @@
         };
         const left = this.untilMidnight();
         // Cog Pass items aren't sold, but once you have them they show up here to equip
-        const sale = (kind) => CW.SHOP[kind].filter((it) => !it.pass || this.owns(kind, it.id));
+        const sale = (kind) => CW.SHOP[kind].filter((it) => (!it.pass && !it.event) || this.owns(kind, it.id));
         const giftReady = p.dailyClaimed !== E.day(), streak = p.dailyStreak || 1;
         body.innerHTML = `<div class="shop-coins">🪙 <b>${p.coins}</b><span class="small">Earn coins from matches, challenges, the daily gift and the Trophy Road.</span></div>
           <div class="shop-gift ${giftReady ? 'ready' : ''}"><span class="g-ico">🎁</span><div><b>Daily gift</b><br><span>${giftReady ? `Free coins! Come back every day for a bigger gift.` : `Next gift in ${left} · streak ${streak} day${streak > 1 ? 's' : ''}`}</span></div>${giftReady ? '<button class="ws-btn on" id="shopGift">Claim</button>' : ''}</div>
@@ -344,6 +344,8 @@
         });
       } else if (k === 'pass') {
         this.game.account.passPanel(body);
+      } else if (k === 'event') {
+        this.game.account.eventPanel(body);
       } else if (k === 'stats') {
         body.innerHTML = this.statsHtml();
       } else if (k === 'settings') {

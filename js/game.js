@@ -364,7 +364,7 @@
       this.state = 'menu';
       clearTimeout(this.vcAskT);
       this.vcAskT = setTimeout(() => this.voice && this.voice.maybeAsk(), 2500); // the first time: voice chat?
-      this.world.applyTime(this.menuTime || 'sunset', this);
+      this.world.applyTime(this.menuTime || ((CW.ECON.event() || {}).id === 'halloween' ? 'night' : 'sunset'), this);
       this.buildShowcase();
       $('menu').classList.remove('hidden');
       this.renderProfile();
@@ -790,6 +790,7 @@
       this.world.dispose();
       this.world = new CW.World(this.scene, id);
       this.world.setDetail(this.gfx || 'medium');
+      this.world.applyTime(this.timeOfDay || 'day', this); // a new world has no sun until a time is set
       this.showcaseSpot = null;
       if (this.showcase) { this.scene.remove(this.showcase); this.showcase = null; }
     }
@@ -808,7 +809,8 @@
       this.setArena(this.isPractice() ? 'canyon' : ar === 'random' || !CW.ARENAS[ar] ? ids[Math.floor(Math.random() * ids.length)] : ar);
       this.state = 'match';
       const tod = no ? no.tod : this.settings.timeOfDay || 'random';
-      this.timeOfDay = tod === 'random' || !CW.TIMES[tod] ? ['day', 'day', 'sunset', 'night'][Math.floor(Math.random() * 4)] : tod;
+      const spooky = (CW.ECON.event() || {}).id === 'halloween'; // Halloween: mostly sunsets and nights
+      this.timeOfDay = tod === 'random' || !CW.TIMES[tod] ? (spooky ? ['day', 'sunset', 'night', 'night'] : ['day', 'day', 'sunset', 'night'])[Math.floor(Math.random() * 4)] : tod;
       this.world.applyTime(this.timeOfDay, this);
       this.ended = false;
       this.endTimer = 0;
