@@ -660,9 +660,10 @@
         const m = CW.MODES[id], f = CW.FORMATS[CW.MM_FORMAT[id]];
         return `<button class="mode-opt ${id === curM ? 'on' : ''}" data-mode="${id}" style="--mc:${m.color}"><span>${m.icon}</span><b>${m.name}</b><small>${f.label}</small></button>`;
       }).join('');
+      const rotNow = CW.FEATURED.rotation().arenas;
       const arenas = ['random'].concat(Object.keys(CW.ARENAS)).map((id) => {
-        const a = g.arenaInfo(id);
-        return `<button class="arena-opt ${id === curA ? 'on' : ''}" data-arena="${id}"><span>${a.icon}</span><b>${a.name}</b><small>${a.desc}</small></button>`;
+        const a = g.arenaInfo(id), fresh = ['speedway', 'bay', 'moon'].includes(id) ? '<i class="new-tag">NEW</i>' : '';
+        return `<button class="arena-opt ${id === curA ? 'on' : ''} ${rotNow.includes(id) ? 'in-rot' : ''}" data-arena="${id}"><span>${a.icon}</span><b>${a.name}${fresh}</b><small>${a.desc}</small></button>`;
       }).join('');
       const f = CW.FEATURED.today(), fm = CW.MODES[f.mode], fa = CW.ARENAS[f.arena];
       const kind = this.settings.mmEvent, w = E.week(), wm = CW.MODES[w.mode];
@@ -681,6 +682,7 @@
         <h3>Mode</h3><div class="mode-row">${modes}</div>
         <div class="small" id="modeDesc">${CW.MODES[curM].desc}</div>
         <h3>Arena</h3><div class="arena-grid">${arenas}</div>
+        <div class="small rot-line">🔄 In rotation now (Any arena): ${CW.FEATURED.rotation().arenas.map((a) => `${CW.ARENAS[a].icon} ${CW.ARENAS[a].name}`).join(' · ')} <span class="muted">· changes in ${CW.timeLeft(CW.FEATURED.rotation().endsAt - Date.now())}</span></div>
         <h3>Gadget <span class="small">3 uses a match · G / 🧰</span></h3><div class="mode-row">${gad}</div>
         <div class="other-play">
           <button class="ws-btn" id="opRoom">🤝 Play with friends (private room)</button>

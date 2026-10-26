@@ -476,7 +476,7 @@
     featuredLeft() { const m = Math.max(1, Math.ceil((CW.FEATURED.today().endsAt - Date.now()) / 60000)); return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; }
     arenaChoice() { const a = this.settings.mmArena; return CW.ARENAS[a] ? a : 'random'; }
     modeChoice() { const m = this.settings.mmMode; return CW.MM_FORMAT[m] ? m : 'clash'; }
-    arenaInfo(id) { return CW.ARENAS[id] ? CW.ARENAS[id] : { id: 'random', icon: '🎲', name: 'Any arena', desc: 'The fastest match: join a search on any arena.' }; }
+    arenaInfo(id) { return CW.ARENAS[id] ? CW.ARENAS[id] : { id: 'random', icon: '🎲', name: 'Any arena', desc: 'The fastest match: one of the 5 arenas in rotation right now.' }; }
     renderArenaCard() {
       const a = this.arenaInfo(this.arenaChoice());
       const m = MODES[this.modeChoice()];

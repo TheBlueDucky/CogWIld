@@ -16,7 +16,7 @@ app.whenReady().then(async () => {
   await wait(4000);
   await js(`window.__csp = []; document.addEventListener('securitypolicyviolation', (e) => window.__csp.push(e.violatedDirective + ' ' + e.blockedURI)); window.__crashes = []; (() => { const g = window.game || CW.game; const orig = g.crash.bind(g); g.crash = (e) => { window.__crashes.push(String((e && e.stack) || e).slice(0, 400)); orig(e); document.getElementById('crash').classList.add('hidden'); g.crashShown = false; }; })(); true`);
   const modes = process.env.MODES ? process.env.MODES.split(',') : await js(`Object.keys(CW.MODES)`);
-  const arenas = await js(`Object.keys(CW.ARENAS)`);
+  const arenas = process.env.ARENAS ? process.env.ARENAS.split(',') : await js(`Object.keys(CW.ARENAS)`);
   console.log('modes', modes.join(','), '| arenas', arenas.join(','));
   const results = [];
   let ai = 0;

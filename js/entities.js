@@ -118,7 +118,7 @@
     physics(dt, inp) {
       const world = this.game.world;
       const mods = this.game.mods || {};
-      const g = CW.GRAV * (mods.grav || 1); // weekly events can change gravity and speed
+      const g = CW.GRAV * (mods.grav || 1) * (CW.arena.grav || 1); // weekly events can change gravity and speed; the moon has less
       const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
       const fx = -sy, fz = -cy;
       const bottom = this.pos.y - this.baseOff;
@@ -722,7 +722,7 @@
         this.vel.x += (tx - this.vel.x) * Math.min(1, k * dt);
         this.vel.z += (tz - this.vel.z) * Math.min(1, k * dt);
       }
-      this.vel.y -= CW.GRAV * ((this.game.mods && this.game.mods.grav) || 1) * dt;
+      this.vel.y -= CW.GRAV * ((this.game.mods && this.game.mods.grav) || 1) * (CW.arena.grav || 1) * dt;
       if (inWater) {
         this.vel.y += (CW.WATER_Y - 1.0 - this.pos.y) * 14 * dt;
         this.vel.y *= Math.exp(-3 * dt);

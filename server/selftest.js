@@ -280,6 +280,23 @@ async function main() {
   check(filled.room.bots.length === 8 - filled.room.players.length, `after the search, bots fill every empty seat (${filled.room.bots.length} bots)`);
   check(!!(await lone.next('autostart', null, 3000)), 'the host is told to start right away');
 
+  console.log('new arenas and older games');
+  const ALLA = require('../js/featured.js').ARENAS;
+  const n1 = await player(), o1 = await player(), o2 = await player(), n2 = await player();
+  for (const p of [n1, n2]) p.send({ t: 'hello', name: 'Newer', ver: VER, arenas: ALLA });
+  n1.send({ t: 'quick', mode: 'koth', arena: 'moon' });
+  const rn = await n1.next('room');
+  check(rn.room.settings.arena === 'moon' && rn.room.arenas.includes('moon'), 'a new game can search on a new arena');
+  o1.send({ t: 'quick', mode: 'koth', arena: 'random' });
+  const ro = await o1.next('room');
+  check(ro.room.code !== rn.room.code && !ro.room.arenas.includes('moon'), 'an older game never joins a search on an arena it does not have');
+  o2.send({ t: 'quick', mode: 'gold', arena: 'random' });
+  await o2.next('room');
+  n2.send({ t: 'quick', mode: 'gold', arena: 'random' });
+  const rmix = await n2.next('room');
+  check(rmix.room.players.length === 2 && rmix.room.arenas.length === 8 && !rmix.room.arenas.includes('bay'), `with an older game in the room, only the classic arenas can be picked (${rmix.room.arenas.length})`);
+  for (const p of [n1, o1, o2, n2]) p.ws.close();
+
   console.log('persistence');
   await wait(2000); // the database is written ~1.5 s after a change (Windows kills without SIGTERM)
   await stop();

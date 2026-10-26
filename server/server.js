@@ -14,6 +14,7 @@ const { Talk } = require('./talk');
 const { Pics } = require('./pics');
 const google = require('./google');
 const E = require('../js/economy.js');
+const FEATURED = require('../js/featured.js');
 const { Referee } = require('./referee');
 
 const PORT = parseInt(process.env.PORT || '8765', 10);
@@ -233,8 +234,16 @@ function cleanSettings(s) {
 }
 
 const secsTo = (t) => (t ? Math.max(0, Math.round((t - Date.now()) / 1000)) : 0);
+// arenas every player in the room has (the host's game only picks from these, so nobody builds a different map)
+function roomArenas(room) {
+  let out = null;
+  for (const id of room.players) { const k = clients.get(id), a = (k && k.arenas) || FEATURED.CLASSIC; out = out ? out.filter((x) => a.includes(x)) : a.slice(); }
+  return out && out.length ? out : FEATURED.CLASSIC;
+}
+const knowsArena = (c, a) => a === 'random' || ((c.arenas || FEATURED.CLASSIC).includes(a));
 function roomView(room) {
   return {
+    arenas: roomArenas(room),
     code: room.code, hostId: room.hostId, pub: room.pub, auto: room.auto, state: room.state, settings: room.settings,
     searchIn: room.auto && room.state === 'lobby' ? secsTo(room.searchEnds) : 0, searchFor: SEARCH / 1000, seats: seatsOf(room),
     players: [...room.players].map((id) => {
@@ -408,6 +417,8 @@ function handle(c, data) {
   switch (m.t) {
     case 'hello':
       if (!c.user) c.name = clean(m.name, 16) || 'Pilot' + c.id;
+      // the arenas this game knows (older games don't say: the classic eight)
+      c.arenas = Array.isArray(m.arenas) ? m.arenas.filter((a) => typeof a === 'string' && /^[a-z]{1,16}$/.test(a)).slice(0, 40) : FEATURED.CLASSIC;
       if (m.ver !== NET_VERSION) c.ws.send({ t: 'err', msg: 'Your game is out of date. Refresh the page to update.', fatal: true });
       break;
     // logged-in players always show their username
@@ -439,7 +450,7 @@ function handle(c, data) {
       const tro = troOf(c, ranked);
       const open = [...rooms.values()].filter((r) => r.pub && r.auto && r.state === 'lobby' && !r.autoAt && r.code !== c.room && troFits(r, tro)
         && r.settings.ranked === ranked && r.settings.event === event && (ranked || r.settings.mode === mode)
-        && (arena === 'random' || r.settings.arena === arena) && r.players.size + need <= seatsOf(r)).sort((a, b) => b.players.size - a.players.size)[0];
+        && (arena === 'random' || r.settings.arena === arena) && knowsArena(c, r.settings.arena) && r.players.size + need <= seatsOf(r)).sort((a, b) => b.players.size - a.players.size)[0];
       if (open) joinRoom(c, open);
       else createRoom(c, true, { mode, format: MM_FORMAT[mode], arena, tod: 'random', difficulty: 'normal', teams: 'split', event, ranked }, true);
       break;

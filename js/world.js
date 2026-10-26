@@ -221,6 +221,69 @@
     return out.copy(C(0x8c7b62)).lerp(C(0x6e5f4a), n * 0.8 + slope * 0.3); // packed dirt
   }
 
+  // ---------- Arena 9: Turbo Speedway (a banked oval, a jump on the back straight, grandstands) ----------
+  const SW = { L: 70, R: 60, W: 11 }; // straights run x = -L..L, turns of radius R, the track is 2W wide
+  // signed distance from the track's middle line (+ = outside the oval)
+  CW.speedwayOff = (x, z) => Math.hypot(x - Math.max(-SW.L, Math.min(SW.L, x)), z) - SW.R;
+  function speedwayHeight(x, z) {
+    let h = 3 + (fbm(x * 0.02 + 4, z * 0.02 - 8) - 0.5) * 3;
+    h += 7 * Math.exp(-(x * x + z * z) / (2 * 20 * 20)); // a hill in the infield
+    const d = CW.speedwayOff(x, z), dd = Math.max(-SW.W, Math.min(SW.W, d));
+    const turn = ss(SW.L - 5, SW.L + 18, Math.abs(x)); // 0 on the straights, 1 in the turns
+    const track = 3.2 + (turn * (dd + SW.W)) / (2 * SW.W) * 5.5; // banked turns: the outside is 5.5 m higher
+    const on = d > 0 ? ss(SW.W + 9, SW.W, d) : ss(SW.W + 3, SW.W, -d);
+    h = lerp(h, track, on);
+    if (z > 0 && Math.abs(d) < SW.W + 1) h += 3.4 * Math.exp(-(x * x) / (2 * 6 * 6)) * ss(SW.W + 1, SW.W - 2, Math.abs(d)); // the jump
+    const gz = Math.abs(z) - (SW.R + SW.W + 12); // grandstands along both straights: seats up, a steep back wall
+    if (gz > 0) h = Math.max(h, 3 + (gz < 23 ? gz * 0.6 : Math.max(0, 13.8 - (gz - 23) * 2.5)) * ss(84, 74, Math.abs(x)));
+    return h + edgeRise(x, z);
+  }
+  function speedwayColor(h, slope, n, out, x, z) {
+    if (x !== undefined) {
+      const d = Math.abs(CW.speedwayOff(x, z));
+      if (d < SW.W - 1) return out.copy(C(0x3a3d46)).lerp(C(0x4a4d57), n * 0.6); // asphalt
+      if (d < SW.W + 0.6) return out.setHex(Math.floor((x + z) / 3) % 2 ? 0xe63946 : 0xf1faee); // curbs
+      if (Math.abs(z) > SW.R + SW.W + 12 && Math.abs(z) < SW.R + SW.W + 35 && Math.abs(x) < 80 && h > 4) return out.setHex(Math.floor(h * 1.4) % 2 ? 0x5c6b8a : 0x8d99ae); // stands
+    }
+    if (slope > 1) return out.setHex(0x7d7468);
+    return out.copy(C(0x5cb85c)).lerp(C(0x3e8e41), n * 0.8 + slope * 0.3);
+  }
+
+  // ---------- Arena 10: Shipwreck Bay (a crescent island round a bay, islets, a wrecked ship, a lighthouse) ----------
+  const BAY = { x: 30, z: 0, r: 100 };
+  function bayHeight(x, z) {
+    const dx = x - BAY.x, dz = z - BAY.z, d = Math.hypot(dx, dz) || 1;
+    const ring = ss(46, 16, Math.abs(d - BAY.r)) * (1 - ss(0.55, 0.85, dx / d)); // open to the east
+    let h = -11 + ring * 21 + (fbm(x * 0.022 + 9, z * 0.022 + 2) - 0.5) * (4 + ring * 8);
+    for (const [ix, iz, r, top] of [[15, 0, 24, 9], [140, -125, 18, 8], [-128, 128, 20, 9], [150, 112, 16, 7]]) h = Math.max(h, lerp(-11, top, ss(r + 16, r * 0.4, Math.hypot(x - ix, z - iz))));
+    const dl = Math.hypot(x + 60, z + 45);
+    h += 14 * Math.exp(-(dl * dl) / (2 * 15 * 15)) * ring; // the lighthouse hill
+    return h + edgeRise(x, z);
+  }
+  function bayColor(h, slope, n, out) {
+    if (h < -1) return out.copy(C(0x9fe3d6)).lerp(C(0x1b6f8a), Math.min(1, -h / 10)); // turquoise shallows
+    if (h < 2.4) return out.copy(C(0xf6e3b4)).lerp(C(0xe9cf94), n); // beach
+    if (slope > 1) return out.setHex(n > 0.5 ? 0x8d8273 : 0x7a7064);
+    return out.copy(C(0x6cc04a)).lerp(C(0x2f8f3a), n * 0.8 + slope * 0.3);
+  }
+
+  // ---------- Arena 11: Moon Base (craters, low gravity, the Earth in a black sky) ----------
+  const CRATERS = [[0, 0, 44, 8], [95, -72, 30, 6], [-92, -80, 34, 7], [-100, 88, 26, 5], [82, 96, 28, 6], [10, -132, 18, 4], [-146, 0, 16, 4], [142, 8, 18, 4], [42, 46, 12, 3], [-42, 40, 11, 3], [-30, -36, 9, 2.5], [60, -12, 8, 2]];
+  function moonHeight(x, z) {
+    let h = 14 + (fbm(x * 0.015 + 31, z * 0.015 - 17) - 0.5) * 10;
+    for (const [cx, cz, r, rim] of CRATERS) {
+      const d = Math.hypot(x - cx, z - cz) / r;
+      if (d < 2.2) h += d < 1 ? rim * (2.4 * d * d - 1.4) : rim * Math.exp(-((d - 1) * (d - 1)) / 0.12);
+    }
+    h += 7 * Math.exp(-(x * x + z * z) / (2 * 6 * 6)); // the big crater's central peak
+    return Math.max(1.5, h) + edgeRise(x, z);
+  }
+  function moonColor(h, slope, n, out) {
+    if (slope > 0.9) return out.copy(C(0x8e8e94)).lerp(C(0xb4b4ba), n);
+    const mare = ss(0.45, 0.6, n); // darker "seas"
+    return out.copy(C(0xc9c9cf)).lerp(C(0x77777f), mare * 0.7 + ss(12, 4, h) * 0.3);
+  }
+
   CW.ARENAS = {
     canyon: {
       id: 'canyon', name: 'Canyon Lake', icon: '🏞', desc: 'Meadows, a lake, a canyon river and a mountain.',
@@ -280,6 +343,27 @@
       waterCenter: { x: 48, z: 22 }, crystals: { x: 0, z: 0 }, grass: false, particles: 'dust', scrap: true,
       tint: { sky: 0xd9b38c, fog: 0xb8a088 }, crystalColors: [[0xffb000, 0x8a4b00], [0x4cc9f0, 0x0b7a8c]],
       trees: { shape: 'pine', leaf: 0x556b2f, leaf2: 0x6b8e23, trunk: 0x5a3e2b, rock: 0x7a5c48, density: 0.2, count: 50 },
+    },
+    speedway: {
+      id: 'speedway', noBoats: true, name: 'Turbo Speedway', icon: '🏁', desc: 'A banked race oval with a big jump on the back straight, an infield hill and grandstands.',
+      height: speedwayHeight, color: speedwayColor, bridges: [],
+      waterCenter: { x: 0, z: 0 }, crystals: { x: 0, z: 0 }, grass: true, speedway: true,
+      trees: { shape: 'oak', leaf: 0x3d8b37, leaf2: 0x4fa64a, trunk: 0x6b4423, rock: 0x8d8d8d, density: 0.5, count: 70 },
+    },
+    bay: {
+      id: 'bay', name: 'Shipwreck Bay', icon: '🏴‍☠️', desc: 'A tropical island round a bay with a pirate wreck, islets to sail to and a lighthouse.',
+      height: bayHeight, color: bayColor,
+      bridges: [{ x: -22, z: 0, axis: 'x' }],
+      waterCenter: { x: 40, z: 0 }, crystals: { x: -60, z: -45 }, grass: true, shipwreck: true,
+      crystalColors: [[0x5cf2ff, 0x177f8a], [0xffd23f, 0xa06000]],
+      trees: { shape: 'palm', leaf: 0x2f9e44, leaf2: 0x8b5a2b, trunk: 0x9c6b3c, rock: 0x8d8273, density: 0.4, count: 220 },
+    },
+    moon: {
+      id: 'moon', noBoats: true, name: 'Moon Base', icon: '🌙', desc: 'Craters and low gravity: jump higher and fly further. The Earth hangs in a black sky.',
+      height: moonHeight, color: moonColor, bridges: [],
+      waterCenter: { x: 0, z: 0 }, crystals: { x: 95, z: -72 }, grass: false, space: true, grav: 0.5, moonbase: true,
+      crystalColors: [[0x7df9ff, 0x177f8a], [0xb06cff, 0x5a189a]],
+      trees: { shape: 'pine', leaf: 0x888888, leaf2: 0x999999, trunk: 0x777777, rock: 0x9a9aa2, count: 0 },
     },
   };
   // harmful liquids: damage per second to mech parts touching them and to pilots in them
@@ -341,7 +425,7 @@
       this.computeSpawns();
       this.buildMinimap();
       this.buildBoundary();
-      this.particleKind = this.arena.particles || (this.event && { halloween: 'bats', winter: 'snow', love: 'hearts', spring: 'petals' }[this.event.id]);
+      this.particleKind = this.arena.particles || (this.event && !this.arena.space && { halloween: 'bats', winter: 'snow', love: 'hearts', spring: 'petals' }[this.event.id]);
       if (this.particleKind) this.buildSnow();
     }
 
@@ -513,11 +597,18 @@
       this.sunSprite.scale.setScalar(t.discSize);
       this.stars.material.opacity = t.stars;
       this.stars.visible = t.stars > 0;
+      if (this.arena.space) {
+        this.skyUniforms.top.value.setHex(0x000002);
+        this.skyUniforms.bottom.value.setHex(name === 'night' ? 0x05060c : 0x0b0e1c);
+        this.stars.material.opacity = 1;
+        this.stars.visible = true;
+      }
       if (!this.arena.liquid) this.waterMat.color.setHex(t.water);
       for (const c of this.clouds) c.children.forEach((m) => { m.material.color.setHex(tint ? 0x4a3a36 : t.cloud); m.material.emissive.setHex(tint ? 0x1a0d0a : t.cloudE); });
       if (game) {
         game.skyColor.setHex(t.fog);
         if (tint) game.skyColor.lerp(new THREE.Color(tint.fog), 0.45);
+        if (this.arena.space) game.skyColor.setHex(0x0b0e1c);
         game.scene.fog.color.copy(game.skyColor);
         game.sun.color.setHex(t.sun);
         game.sun.intensity = t.sunI;
@@ -527,7 +618,7 @@
         game.headlight.intensity = name === 'night' ? 1.4 : name === 'sunset' ? 0.4 : 0;
         // reflections match the sky
         if (game.envRT) game.envRT.dispose();
-        const groundCol = { isles: 0xdfeaf2, volcano: 0x2a1f1f, desert: 0xd9b27a, swamp: 0x3b4a28, city: 0x2b2d42, jungle: 0x2f6b35 }[this.arena.id] || 0x4f7a3a;
+        const groundCol = { isles: 0xdfeaf2, volcano: 0x2a1f1f, desert: 0xd9b27a, swamp: 0x3b4a28, city: 0x2b2d42, jungle: 0x2f6b35, bay: 0x2fa39a, moon: 0x8a8a90, speedway: 0x3a3d46 }[this.arena.id] || 0x4f7a3a;
         game.envRT = CW.makeEnv(game.renderer, t.top, t.bottom, CW.shade(groundCol, name === 'night' ? -0.3 : 0));
         game.scene.environment = game.envRT.texture;
       }
@@ -538,6 +629,7 @@
       this.sky.position.copy(camPos);
       this.stars.position.copy(camPos);
       if (this.sunDir) this.sunSprite.position.copy(camPos).addScaledVector(this.sunDir, 600);
+      if (this.earth) this.earth.position.copy(camPos).add(this.earthDir);
     }
 
     // Grass tufts and flowers on the meadows
@@ -669,7 +761,7 @@
         const sz = CW.terrainHeight(x, z + 1) - CW.terrainHeight(x, z - 1);
         const slope = Math.hypot(sx, sz) / 2;
         const n = vnoise(x * 0.08, z * 0.08);
-        this.arena.color(h, slope, n, c);
+        this.arena.color(h, slope, n, c, x, z);
         colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
       }
       geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
@@ -719,6 +811,7 @@
       const water = new THREE.Mesh(geo, this.waterMat);
       water.position.y = CW.WATER_Y;
       water.renderOrder = 2;
+      water.visible = !this.arena.space; // no sea on the moon
       this.water = water;
       this.scene.add(water);
     }
@@ -924,6 +1017,9 @@
       const crystalMats = cc.map(([c, e]) => CW.mat(c, { emissive: e }));
       if (this.arena.neon) this.buildNeon(rnd);
       if (this.arena.scrap) this.buildScrap(rnd);
+      if (this.arena.speedway) this.buildSpeedway(rnd);
+      if (this.arena.shipwreck) this.buildShipwreck(rnd);
+      if (this.arena.moonbase) this.buildMoonBase(rnd);
       for (let i = 0; i < (this.arena.neon ? 0 : 26); i++) {
         const a = rnd() * Math.PI * 2, d = 10 + rnd() * 40;
         const x = this.arena.crystals.x + Math.cos(a) * d, z = this.arena.crystals.z + Math.sin(a) * d;
@@ -1124,6 +1220,178 @@
       }
     }
 
+    // the Earth in the moon's sky: blue oceans, green-brown land, white clouds, a thin glow
+    buildEarth() {
+      const cv = document.createElement('canvas');
+      cv.width = cv.height = 256;
+      const ctx = cv.getContext('2d');
+      const glow = ctx.createRadialGradient(128, 128, 96, 128, 128, 128);
+      glow.addColorStop(0, 'rgba(120,180,255,0.6)'); glow.addColorStop(1, 'rgba(120,180,255,0)');
+      ctx.fillStyle = glow; ctx.fillRect(0, 0, 256, 256);
+      ctx.save();
+      ctx.beginPath(); ctx.arc(128, 128, 100, 0, Math.PI * 2); ctx.clip();
+      ctx.fillStyle = '#1f5fbf'; ctx.fillRect(0, 0, 256, 256);
+      for (let i = 0; i < 2600; i++) {
+        const x = (i * 37) % 256, y = Math.floor(i / 7) % 256;
+        const v = fbm(x * 0.03, y * 0.03);
+        if (v > 0.58) { ctx.fillStyle = v > 0.68 ? '#9a8a5a' : '#3f8f3a'; ctx.fillRect(x - 3, y - 3, 7, 7); }
+      }
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      for (let i = 0; i < 40; i++) { ctx.beginPath(); ctx.ellipse(hash(i, 1) * 256, hash(i, 2) * 256, 8 + hash(i, 3) * 22, 3 + hash(i, 4) * 5, hash(i, 5) * 3, 0, Math.PI * 2); ctx.fill(); }
+      // night side
+      const sh = ctx.createLinearGradient(40, 0, 230, 0);
+      sh.addColorStop(0, 'rgba(0,0,10,0)'); sh.addColorStop(0.55, 'rgba(0,0,10,0.15)'); sh.addColorStop(1, 'rgba(0,0,10,0.85)');
+      ctx.fillStyle = sh; ctx.fillRect(0, 0, 256, 256);
+      ctx.restore();
+      this.earth = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), fog: false, depthWrite: false, transparent: true }));
+      this.earth.scale.setScalar(150);
+      this.earthDir = new THREE.Vector3(-0.55, 0.42, -0.72).normalize().multiplyScalar(620);
+      this.scene.add(this.earth);
+    }
+
+    // Turbo Speedway: tire walls round the turns, the start/finish gantry, light towers
+    buildSpeedway(rnd) {
+      const tire = new THREE.TorusGeometry(0.75, 0.32, 8, 14).rotateX(Math.PI / 2);
+      const tires = new THREE.InstancedMesh(tire, CW.mat(0x1d1d1d, { roughness: 0.95 }), 400);
+      const m = new THREE.Matrix4();
+      let n = 0;
+      for (const side of [-1, 1]) for (let a = -Math.PI / 2; a <= Math.PI / 2 && n < 390; a += 0.06) {
+        // a low wall of tires just inside each turn
+        const x = side * (70 + Math.cos(a) * 45), z = Math.sin(a) * 45;
+        for (let k = 0; k < 2; k++) { m.makeTranslation(x, CW.terrainHeight(x, z) + 0.32 + k * 0.62, z); tires.setMatrixAt(n++, m); }
+      }
+      tires.count = n; tires.castShadow = true;
+      this.scene.add(tires);
+      // the gantry over the start line (south straight)
+      const steel = CW.mat(0xd0d4dc, { metalness: 0.6, roughness: 0.4 });
+      const g = new THREE.Group();
+      for (const z of [-46, -74]) { const p = new THREE.Mesh(new THREE.BoxGeometry(1, 9, 1), steel); p.position.set(0, 4.5, z); g.add(p); }
+      const cv = document.createElement('canvas');
+      cv.width = 256; cv.height = 32;
+      const ctx = cv.getContext('2d');
+      for (let i = 0; i < 32; i++) for (let j = 0; j < 4; j++) { ctx.fillStyle = (i + j) % 2 ? '#111' : '#fff'; ctx.fillRect(i * 8, j * 8, 8, 8); }
+      const chk = new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(cv), roughness: 0.6 });
+      const beam = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2, 30), [chk, chk, steel, steel, steel, steel]); // checkered on both sides
+      beam.position.set(0, 9, -60);
+      g.add(beam);
+      g.position.y = CW.terrainHeight(0, -60) - 0.2;
+      g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+      this.scene.add(g);
+      // light towers behind the stands
+      for (const x of [-60, -20, 20, 60]) for (const zs of [-1, 1]) {
+        const z = zs * 108, y = CW.terrainHeight(x, z);
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 16, 6), steel);
+        pole.position.set(x, y + 8, z);
+        const lamp = new THREE.Mesh(new THREE.BoxGeometry(4, 1.6, 0.6), CW.matBasic(0xfff6d5));
+        lamp.position.set(x, y + 16.5, z - zs * 0.4);
+        this.scene.add(pole, lamp);
+      }
+    }
+
+    // Shipwreck Bay: a wrecked pirate ship on its side in the shallows, crates on the beach, a lighthouse on the hill
+    buildShipwreck(rnd) {
+      const wood = CW.mat(0x6b4226, { roughness: 0.9 }), dark = CW.mat(0x3e2a1a, { roughness: 0.95 }), sail = CW.mat(0xe9e2cf, { side: THREE.DoubleSide, roughness: 1 });
+      const ship = new THREE.Group();
+      const hull = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 2.4, 26, 10, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).rotateX(Math.PI), wood);
+      hull.scale.set(1, 1.1, 1);
+      ship.add(hull);
+      const deck = new THREE.Mesh(new THREE.BoxGeometry(26, 0.4, 8), dark);
+      deck.position.y = 0.1;
+      ship.add(deck);
+      for (const [x, h] of [[-6, 15], [5, 11]]) {
+        const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.36, h, 6), dark);
+        mast.position.set(x, h / 2, 0);
+        const s = new THREE.Mesh(new THREE.PlaneGeometry(7, h * 0.5, 4, 3), sail);
+        const p = s.geometry.attributes.position;
+        for (let i = 0; i < p.count; i++) if (hash(i, x | 0) > 0.6) p.setZ(i, (hash(i + 3, 7) - 0.5) * 1.5); // torn and flapping
+        s.position.set(x + 0.3, h * 0.6, 0);
+        s.rotation.y = Math.PI / 2;
+        ship.add(mast, s);
+      }
+      ship.position.set(62, -1.2, -38);
+      ship.rotation.set(0.05, 0.7, 0.42); // keeled over in the shallows
+      ship.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+      this.scene.add(ship);
+      // treasure crates on the beaches
+      const crate = new THREE.BoxGeometry(1.4, 1.4, 1.4);
+      for (let i = 0; i < 40; i++) {
+        const a = rnd() * 6.3, r = 70 + rnd() * 50, x = BAY.x + Math.cos(a) * r, z = BAY.z + Math.sin(a) * r, h = CW.terrainHeight(x, z);
+        if (h < 0.4 || h > 3) continue;
+        const c = new THREE.Mesh(crate, i % 4 ? wood : CW.mat(0xc9a227, { metalness: 0.5, roughness: 0.5 }));
+        c.position.set(x, h + 0.6, z);
+        c.rotation.set(0, rnd() * 3, (rnd() - 0.5) * 0.3);
+        c.castShadow = true;
+        this.scene.add(c);
+      }
+      // the lighthouse: striped tower, glowing lamp
+      const lx = -60, lz = -45, ly = CW.terrainHeight(lx, lz);
+      const lh = new THREE.Group();
+      for (let i = 0; i < 6; i++) {
+        const seg = new THREE.Mesh(new THREE.CylinderGeometry(2.3 - (i + 1) * 0.15, 2.3 - i * 0.15, 2.4, 14), CW.mat(i % 2 ? 0xd62828 : 0xf8f9fa));
+        seg.position.y = 1.2 + i * 2.4;
+        lh.add(seg);
+      }
+      const lamp = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 1.6, 12), CW.matBasic(0xfff3b0));
+      lamp.position.y = 15.2;
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(1.7, 1.8, 12), CW.mat(0x2b2d42));
+      roof.position.y = 16.9;
+      lh.add(lamp, roof);
+      lh.position.set(lx, ly - 0.3, lz);
+      lh.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+      this.scene.add(lh);
+    }
+
+    // Moon Base: glass domes, a lander and radio masts (and the Earth in the sky: buildSky)
+    buildMoonBase(rnd) {
+      const glass = new THREE.MeshStandardMaterial({ color: 0x9fd8ff, transparent: true, opacity: 0.35, metalness: 0.2, roughness: 0.05, depthWrite: false });
+      const white = CW.mat(0xe9ecef, { metalness: 0.3, roughness: 0.5 }), gold = CW.mat(0xd4a017, { metalness: 0.8, roughness: 0.3 });
+      for (const [x, z, r] of [[-50, 110, 9], [-34, 122, 6], [-66, 124, 5], [110, -20, 7], [25, 95, 6]]) {
+        const y = CW.terrainHeight(x, z);
+        const dome = new THREE.Mesh(new THREE.SphereGeometry(r, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), glass);
+        dome.position.set(x, y - 0.2, z);
+        const ring = new THREE.Mesh(new THREE.CylinderGeometry(r + 0.4, r + 0.6, 1, 20), white);
+        ring.position.set(x, y + 0.2, z);
+        const lightM = CW.matBasic(0x7df9ff);
+        const glow = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 6), lightM);
+        glow.position.set(x, y + r * 0.6, z);
+        ring.castShadow = true;
+        this.scene.add(dome, ring, glow);
+      }
+      // a lander on four legs
+      const lx = 70, lz = 60, ly = CW.terrainHeight(lx, lz);
+      const lander = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.8, 2.6, 8), gold);
+      body.position.y = 3.2;
+      const top = new THREE.Mesh(new THREE.BoxGeometry(2.8, 2, 2.8), white);
+      top.position.y = 5.4;
+      lander.add(body, top);
+      for (let i = 0; i < 4; i++) {
+        const a = i * Math.PI / 2 + Math.PI / 4;
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 4, 5), white);
+        leg.position.set(Math.cos(a) * 2.8, 1.6, Math.sin(a) * 2.8);
+        leg.rotation.set(Math.sin(a) * 0.45, 0, -Math.cos(a) * 0.45);
+        const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.15, 10), white);
+        foot.position.set(Math.cos(a) * 3.6, 0.1, Math.sin(a) * 3.6);
+        lander.add(leg, foot);
+      }
+      lander.position.set(lx, ly, lz);
+      lander.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+      this.scene.add(lander);
+      // radio masts with blinking tips
+      this.blinkers = [];
+      for (const [x, z] of [[-20, 128], [120, -40], [-120, -30], [40, -110]]) {
+        const y = CW.terrainHeight(x, z);
+        const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.3, 12, 5), white);
+        mast.position.set(x, y + 6, z);
+        const dish = new THREE.Mesh(new THREE.SphereGeometry(1.6, 12, 6, 0, Math.PI * 2, 0, Math.PI / 3), white);
+        dish.position.set(x, y + 9, z); dish.rotation.x = -1;
+        const tip = new THREE.Mesh(new THREE.SphereGeometry(0.3, 6, 5), new THREE.MeshBasicMaterial({ color: 0xff3b3b }));
+        tip.position.set(x, y + 12.2, z);
+        this.blinkers.push(tip);
+        this.scene.add(mast, dish, tip);
+      }
+    }
+
     // Scrap Yard: wrecked car hulks, tire stacks and two cranes over the rail
     buildScrap(rnd) {
       const rust = [0x8a4b2a, 0x6b7078, 0x3a6ea5, 0xa83232, 0xc9a227, 0x4a6b3a].map((c) => CW.mat(c, { metalness: 0.5, roughness: 0.7 }));
@@ -1205,6 +1473,8 @@
 
     buildClouds() {
       this.clouds = [];
+      if (this.arena.space) { this.buildEarth(); return; } // no clouds on the moon
+
       const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x666666 });
       const geo = new THREE.IcosahedronGeometry(1, 1);
       for (let i = 0; i < 16; i++) {
@@ -1265,6 +1535,7 @@
       this.t = (this.t || 0) + dt;
       this.updateSnow(dt, cam);
       this.updateEventDecor(dt);
+      if (this.blinkers) for (const b of this.blinkers) b.visible = Math.floor(this.t * 1.5) % 2 === 0;
       if (this.waterBump) { this.waterBump.offset.x += dt * 0.02; this.waterBump.offset.y += dt * 0.013; }
       for (const c of this.clouds) {
         c.position.x += dt * 2.5;
@@ -1326,7 +1597,7 @@
           if (this.onBridge(x, z, 1)) col = [181, 101, 29];
           else if (h < 0) col = [46 + h * 2, 140 + h * 3, 220 + h * 2];
           else {
-            const c = this.arena.color(h, 0, 0.5, tmpC);
+            const c = this.arena.color(h, 0, 0.5, tmpC, x, z);
             col = [c.r * 230, c.g * 230, c.b * 230];
           }
           const k = (j * N + i) * 4;

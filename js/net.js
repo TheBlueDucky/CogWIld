@@ -65,7 +65,7 @@
         try { ws = new WebSocket(this.url()); } catch (e) { this.setStatus('offline'); reject(e); return; }
         this.ws = ws;
         const timeout = setTimeout(() => ws.close(), 9000);
-        ws.onopen = () => this.send({ t: 'hello', name: this.name || (this.name = this.myName()), ver: NET_VERSION });
+        ws.onopen = () => this.send({ t: 'hello', name: this.name || (this.name = this.myName()), ver: NET_VERSION, arenas: Object.keys(CW.ARENAS) });
         ws.onmessage = (e) => {
           let m;
           try { m = JSON.parse(e.data); } catch (err) { return; }
@@ -478,9 +478,13 @@
     }
     resolveSettings() {
       const s = this.room.settings;
-      const ids = Object.keys(CW.ARENAS);
+      // only arenas every player's game has (older apps lack the new ones); "any arena" = the current rotation
+      const ids = (this.room.arenas || Object.keys(CW.ARENAS)).filter((a) => CW.ARENAS[a]);
+      if (!ids.length) ids.push('canyon');
+      const rot = CW.FEATURED.rotation().arenas.filter((a) => ids.includes(a));
+      const pool = rot.length ? rot : ids;
       return {
-        arena: CW.ARENAS[s.arena] ? s.arena : ids[Math.floor(Math.random() * ids.length)],
+        arena: ids.includes(s.arena) ? s.arena : pool[Math.floor(Math.random() * pool.length)],
         tod: s.tod === 'random' || !s.tod ? ['day', 'day', 'sunset', 'night'][Math.floor(Math.random() * 4)] : s.tod,
         difficulty: s.difficulty || 'normal',
         teams: s.teams || 'split',
