@@ -253,7 +253,7 @@
       $('panelBody').parentElement.scrollTop = 0;
       const titles = {
         challenges: '🎯 Daily challenges', shop: '🛒 Shop', stats: '📊 Stats', settings: '⚙ Settings', howto: '❓ How to play', ach: '🎖 Achievements', news: '📰 What\'s new',
-        event: '🎉 Seasonal event', profile: '👤 Profile', friends: '👥 Friends', road: '🛤 Trophy road', pass: '🎟 Cog Pass', clubs: '🛡 Clubs', top: '📈 Leaderboard', player: '👤 Player', ranks: '⭐ Level and ranks', arenas: '🎮 Pick a mode and arena',
+        event: '🎉 Seasonal event', replays: '🎬 Replays', profile: '👤 Profile', friends: '👥 Friends', road: '🛤 Trophy road', pass: '🎟 Cog Pass', clubs: '🛡 Clubs', top: '📈 Leaderboard', player: '👤 Player', ranks: '⭐ Level and ranks', arenas: '🎮 Pick a mode and arena',
       };
       $('panelTitle').textContent = titles[kind];
       this.renderPanel();
@@ -346,6 +346,8 @@
         this.game.account.passPanel(body);
       } else if (k === 'event') {
         this.game.account.eventPanel(body);
+      } else if (k === 'replays') {
+        this.game.replays.panel(body);
       } else if (k === 'stats') {
         body.innerHTML = this.statsHtml();
       } else if (k === 'settings') {
@@ -788,6 +790,7 @@
       $('btnSettings').onclick = () => g.meta.openPanel('settings');
       $('btnHowto').onclick = () => g.meta.openPanel('howto');
       $('btnAch').onclick = () => g.meta.openPanel('ach');
+      $('btnReplays').onclick = () => g.meta.openPanel('replays');
       $('btnNews').onclick = () => g.meta.openPanel('news');
       $('btnRanks').onclick = () => g.meta.openPanel('ranks');
       $('coinChip').onclick = () => g.meta.openPanel('shop');

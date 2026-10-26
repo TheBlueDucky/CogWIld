@@ -1293,6 +1293,35 @@
   .swatch.wfx { background: radial-gradient(circle at 50% 55%, var(--wc, #ffb347) 0%, rgba(0, 0, 0, 0) 62%), #0d1226; }
   .wfx-confetti { --wc: #ff6fb5; } .wfx-pixel { --wc: #5ce1ff; } .wfx-fireworks { --wc: #ffd23f; } .wfx-lightning { --wc: #8fd8ff; } .wfx-blackhole { --wc: #9b5de5; }
   .wfx-ev_bats { --wc: #7b2cbf; } .wfx-ev_snow { --wc: #dff4ff; } .wfx-ev_hearts { --wc: #ff4d6d; } .wfx-ev_petals { --wc: #ffb7d5; } .wfx-ev_splash { --wc: #00b4d8; }
+  /* replays: the viewer's controls (zoomed like the HUD, over the touch layer) and the list */
+  #replayUi { position: absolute; inset: 0; z-index: 6; pointer-events: none; zoom: var(--z); }
+  #replayUi > * { pointer-events: auto; }
+  #replayUi.hidden { display: none; }
+  .rp-top { position: absolute; top: 10px; left: 12px; right: 12px; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 8px 12px; border-radius: var(--rad); background: rgba(18, 26, 51, .72); border: 1px solid rgba(255, 255, 255, .1); }
+  .rp-top b { font-size: 17px; }
+  #rpFeed { position: absolute; top: 76px; right: 12px; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; pointer-events: none; }
+  .rp-dock { position: absolute; left: 12px; right: 12px; bottom: 10px; padding: 8px 12px; border-radius: var(--rad); background: rgba(18, 26, 51, .78); border: 1px solid rgba(255, 255, 255, .1); display: flex; flex-direction: column; gap: 6px; }
+  .rp-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .rp-line .ws-btn { padding: 6px 10px; }
+  #rpTime { font-variant-numeric: tabular-nums; min-width: 92px; }
+  .rp-track { position: relative; flex: 1; min-width: 160px; height: 22px; display: flex; align-items: center; }
+  .rp-track input { width: 100%; margin: 0; position: relative; z-index: 1; accent-color: var(--hl); }
+  #rpMarks { position: absolute; left: 8px; right: 8px; top: 0; bottom: 0; pointer-events: none; }
+  #rpMarks i { position: absolute; top: 2px; width: 2px; height: 6px; margin-left: -1px; background: #ff6b6b; border-radius: 1px; }
+  .rp-gap { flex: 1; }
+  #rpWho { min-width: 90px; text-align: center; }
+  .rp-keys { opacity: .7; }
+  #rpShow { position: absolute; right: 12px; bottom: 10px; display: none; }
+  #replayUi.rp-hidden > *:not(#rpShow) { display: none; }
+  #replayUi.rp-hidden #rpShow { display: block; }
+  .touch .rp-keys { display: none; }
+  .rp-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+  .rp-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--rad); border: 1px solid rgba(255, 255, 255, .1); background: rgba(255, 255, 255, .04); }
+  .rp-row.star { border-color: rgba(255, 210, 63, .5); }
+  .rp-row .rp-ico { font-size: 26px; }
+  .rp-row .rp-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .rp-row .rp-info small { opacity: .75; }
+  .rp-row .ws-btn.sure { border-color: #ff6b6b; color: #ff6b6b; }
   /* arena rotation + new arenas (PLAY panel) */
   .rot-line { margin-top: 8px; }
   .arena-opt.in-rot { box-shadow: inset 3px 0 0 var(--hl); }
@@ -1451,6 +1480,7 @@
       <button id="btnWorkshop" class="side-btn"><span>🔧</span>Workshop</button>
       <button id="btnChallenges" class="side-btn"><span>🎯</span>Challenges<i id="badgeChallenges" class="badge hidden">0</i></button>
       <button id="btnAch" class="side-btn"><span>🎖</span>Achievements</button>
+      <button id="btnReplays" class="side-btn"><span>🎬</span>Replays</button>
       <button id="btnHowto" class="side-btn"><span>❓</span>Help</button>
     </div>
     <div class="lobby-side right">
@@ -1687,9 +1717,33 @@
     <div id="confetti"></div>
     <div class="menu-btns res-btns">
       <button id="resAgain" class="btn big go">Play again</button>
+      <button id="resReplay" class="btn">🎬 Replay</button>
       <button id="resWorkshop" class="btn">🔧 Workshop</button>
       <button id="resMenu" class="btn">Menu</button>
     </div>
+  </div>
+
+  <!-- REPLAY viewer (js/replay.js) -->
+  <div id="replayUi" class="hidden">
+    <div class="rp-top"><div><b id="rpTitle"></b><div id="rpSub" class="small"></div></div><button id="rpExit" class="ws-btn">✕ Exit</button></div>
+    <div id="rpFeed"></div>
+    <div class="rp-dock">
+      <div class="rp-line"><span id="rpTime">0:00 / 0:00</span><div class="rp-track"><div id="rpMarks"></div><input id="rpSeek" type="range" min="0" max="1000" value="0" aria-label="Timeline"></div></div>
+      <div class="rp-line">
+        <button id="rpBack" class="ws-btn" aria-label="Back 10 seconds">⏪ 10</button>
+        <button id="rpPlay" class="ws-btn on" aria-label="Play or pause">⏸</button>
+        <button id="rpFwd" class="ws-btn" aria-label="Forward 10 seconds">10 ⏩</button>
+        <button id="rpSpeed" class="ws-btn" aria-label="Speed">1×</button>
+        <span class="rp-gap"></span>
+        <button id="rpPrev" class="ws-btn" aria-label="Previous mech">◀</button>
+        <b id="rpWho"></b>
+        <button id="rpNext" class="ws-btn" aria-label="Next mech">▶</button>
+        <button id="rpCam" class="ws-btn" aria-label="Camera">🎥 Follow</button>
+        <button id="rpHide" class="ws-btn" aria-label="Hide the controls">👁</button>
+      </div>
+      <div class="small rp-keys">Space play/pause · ←/→ 5 s · ↑/↓ speed · Tab next mech · C camera (drag to look around, WASD to fly) · H hide</div>
+    </div>
+    <button id="rpShow" class="ws-btn" aria-label="Show the controls">👁 Controls</button>
   </div>
 
   <!-- PAUSE -->
@@ -1857,6 +1911,7 @@
 <script src="js/touch.js?v=31"></script>
 <script src="js/supers.js?v=31"></script>
 <script src="js/gadgets.js?v=31"></script>
+<script src="js/replay.js?v=31"></script>
 <script src="js/pics.js?v=31"></script>
 <script src="js/talk.js?v=31"></script>
 <script src="js/voice.js?v=31"></script>

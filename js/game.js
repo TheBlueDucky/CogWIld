@@ -206,6 +206,7 @@
       this.touch = new CW.Touch(this);
       this.supers = new CW.Supers(this);
       this.gadgets = new CW.Gadgets(this);
+      this.replays = new CW.Replays(this); // records every match; the 🎬 Replays viewer
       this.bindInput();
       this.bindMenus();
       this.bindShowcase();
@@ -344,6 +345,7 @@
     // ---------------- screens ----------------
     hideAll() {
       if (this.tutorial && this.tutorial.active && this.state === 'match') { this.tutorial.active = false; $('tut').classList.add('hidden'); }
+      if (this.replays && this.replays.on) this.replays.close(true);
       for (const id of ['menu', 'modes', 'picker', 'hud', 'results', 'pause', 'panel', 'online', 'lobby', 'search']) $(id).classList.add('hidden');
       this.workshop.close();
     }
@@ -576,6 +578,7 @@
       $('resAgain').onclick = afterBreak(() => (this.net.room ? this.net.showLobby() : this.isPractice() ? this.openWorkshop() : this.choose(this.modeId, this.formatId)));
       $('resWorkshop').onclick = afterBreak(() => this.openWorkshop());
       $('resMenu').onclick = afterBreak(() => this.showMenu());
+      $('resReplay').onclick = async () => { const id = await this.lastReplay; if (id) this.replays.watch(id); else this.toast('No replay of this match (too short?)'); };
       $('versionText').textContent = `Cogwild ${CW.VERSION} · play online with friends or vs bots`;
       // the apps don't need a link to themselves (and only the website serves the downloads)
       // in the apps, legal pages open on the website (in the phone's / PC's browser)
@@ -671,6 +674,7 @@
     closeTop() {
       const open = (id) => $(id) && !$(id).classList.contains('hidden');
       if (open('vcAsk')) return this.voice.closeAsk();
+      if (this.state === 'replay' && !open('panel') && !this.talk.isOpen) { this.replays.close(); return true; }
       if (CW.closePicCrop && CW.closePicCrop()) return true;
       if (open('confirm')) { this.meta.closeConfirm(); return true; }
       if (open('modal')) { this.closeModal(); return true; }
@@ -763,6 +767,7 @@
 
     // ---------------- match setup ----------------
     endMatch() {
+      if (this.replays) this.replays.recorder.finish(null); // left before the end: kept if it was long enough
       if (this.state === 'match') CW.Platform.gameplayStop();
       if (this.obj) { this.obj.dispose(); this.obj = null; }
       this.clips.stop();
@@ -1655,6 +1660,7 @@
     who(c, you) { return c ? (c.isPlayer ? you : c.name) : 'The arena'; }
 
     onMechDestroyed(mech, who) {
+      this.replays.recorder.wreck(mech);
       if (who && who.isPlayer && mech.combatant !== who) { this.killMarker = 0.6; this.cam.shake = Math.min(1.5, this.cam.shake + 0.5); this.buzz(30); }
       if (mech.combatant.isPlayer) this.buzz([70, 40, 90], 0.5);
       this.net.mechDestroyed(mech, who);
@@ -1947,6 +1953,7 @@
 
     showResults() {
       this.state = 'results';
+      this.lastReplay = null;
       const p = this.player;
       const nTeams = this.teamCount;
       const sv = this.survival;
@@ -2027,6 +2034,9 @@
         $('resPlace').textContent = `Survival · ${fmt.name} · cleared ${sv.cleared} wave${sv.cleared === 1 ? '' : 's'}${newBest ? ' · 🏆 NEW BEST!' : ` · best ${st.bestWave}`}`;
         if (newBest) this.confetti();
       }
+      // the replay of this match (🎬 Replay on this screen)
+      const rTitle = $('resTitle').textContent;
+      this.lastReplay = this.replays.recorder.finish(`${rTitle.charAt(0) + rTitle.slice(1).toLowerCase()} · #${p.place} of ${nTeams}`);
       $('resStats').innerHTML = `
         <div><b>${p.wrecks}</b><span>Mechs wrecked</span></div>
         <div><b>${p.kills}</b><span>Eliminations</span></div>
@@ -2111,6 +2121,7 @@
 
     // ---------------- HUD ----------------
     feed(msg, cls) {
+      if (this.replays) this.replays.recorder.feed(msg, cls);
       const el = document.createElement('div');
       el.className = 'feed-item ' + (cls || '');
       el.textContent = msg;
@@ -2689,6 +2700,7 @@
           if (r.t <= 0) { this.respawns.splice(i, 1); r.fn(); }
         }
         this.updatePlayer(dt);
+        this.replays.recorder.tick(dt);
         const pm = this.player && this.player.mech;
         if (pm && pm.alive && pm.occupied) this.audio.engine(Math.hypot(pm.vel.x, pm.vel.y, pm.vel.z), pm.input.throttle, pm.medium);
         else this.audio.engineOff();
@@ -2716,6 +2728,9 @@
         this.audio.engineOff();
         this.fx.update(dt);
         this.menuCamera();
+      } else if (this.state === 'replay') {
+        this.replays.update(dt);
+        this.fx.update(dt);
       } else if (this.state !== 'match') {
         this.menuCamera();
         this.updateStage(dt);
