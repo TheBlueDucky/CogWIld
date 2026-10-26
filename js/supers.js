@@ -54,6 +54,7 @@
       if (g.net.active && !g.net.owns(c)) return false;
       c.superCharge = 0;
       c.superLock = g.time + 2.5;
+      if (c.ai) c.ai.superWait = 0;
       const type = this.type(c);
       const emp = this.effect(c, type, true);
       if (g.net.active) g.net.events.push({ k: 'super', c: c.netId, type, emp });
@@ -118,6 +119,28 @@
       return [];
     }
 
+    // when a bot fires its super: the dome when hurt in a fight, the ram when lined up with a target close by,
+    // missiles when a target is in range, the EMP when it catches two enemies (or one, after waiting a while)
+    botWants(c, dt) {
+      const g = this.game, m = c.mech, ai = c.ai, tp = ai.target && ai.target.pos;
+      if (!tp) return false;
+      ai.superWait = (ai.superWait || 0) + dt;
+      const d = tp.distanceTo(m.pos), hp = m.integrity(), type = this.type(c);
+      if (type === 'dome') return (hp < 0.5 && d < 40) || hp < 0.3;
+      if (type === 'ram') {
+        const want = Math.atan2(-(tp.x - m.pos.x), -(tp.z - m.pos.z));
+        let off = (want - m.yaw) % (Math.PI * 2);
+        if (off > Math.PI) off -= Math.PI * 2;
+        if (off < -Math.PI) off += Math.PI * 2;
+        return d < 30 && Math.abs(off) < 0.35;
+      }
+      if (type === 'emp') {
+        const n = g.combatants.filter((o) => o !== c && o.alive && o.mech && o.mech.alive && !CW.sameTeam(o, c) && o.mech.pos.distanceTo(m.pos) < EMP_RADIUS * 0.85).length;
+        return n >= 2 || (n >= 1 && (hp < 0.5 || ai.superWait > 6));
+      }
+      return d < 55;
+    }
+
     // a dome that follows the mech, or a flat shockwave ring that grows to `reach`
     ring(m, color, life, dome, reach) {
       const g = this.game;
@@ -150,11 +173,8 @@
           const before = c.superCharge || 0;
           c.superCharge = Math.min(1, before + dt * PASSIVE * this.rate());
           if (c.isPlayer && before < 1 && c.superCharge >= 1) this.readyPing();
-          // bots use theirs when someone is close
-          if (!c.isPlayer && !c.human && c.superCharge >= 1 && c.ai && c.ai.target) {
-            const t = c.ai.target.mech && c.ai.target.mech.alive ? c.ai.target.mech.pos : null;
-            if (t && t.distanceTo(c.mech.pos) < (this.type(c) === 'emp' ? EMP_RADIUS * 0.8 : 35)) this.activate(c);
-          }
+          // bots use theirs at a good moment
+          if (!c.isPlayer && !c.human && c.superCharge >= 1 && c.ai && c.ai.target && this.botWants(c, dt)) this.activate(c);
         }
       }
       for (let i = this.fx.length - 1; i >= 0; i--) {

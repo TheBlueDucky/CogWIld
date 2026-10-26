@@ -892,6 +892,7 @@
             const bot = this.addCombatant({ name: lobbyNames[botIdx] || BOT_NAMES[botIdx % BOT_NAMES.length], isPlayer: false, color, bp, ai: preset.ai, team });
             const diff = { easy: { aim: 2.4, dmg: 0.65 }, normal: { aim: 1, dmg: 1 }, hard: { aim: 0.6, dmg: 1.2 } }[diffId] || { aim: 1, dmg: 1 };
             bot.ai.jitter *= diff.aim;
+            bot.ai.smarts = { easy: 0.35, normal: 0.7, hard: 1 }[diffId] || 0.7; // dodging and tricks
             bot.mech.baseDmg = diff.dmg;
             bot.baseDmg = diff.dmg; // remembered for respawns
             botIdx++;
@@ -1115,7 +1116,7 @@
         name: o.name, isPlayer: o.isPlayer, color: o.color, team: o.team, kills: 0, wrecks: 0, superCharge: 0, alive: true, place: 0, pilotHp: 60, mech: null, pilot: null,
         // online: which player's game runs it (bots: the host), its id in network messages, and how many mechs it has had
         owner: o.owner ?? this.net.id, human: o.human ?? !!o.isPlayer, netId: o.netId ?? this.netSeq, life: 0,
-        ai: { style: o.ai || 'ground', retarget: 0, target: null, stuck: 0, wander: 0, wanderYaw: 0, last: new V3(), pref: 18 + Math.random() * 14, alt: 8 + Math.random() * 8, jitter: 1.1 + Math.random() * 1.0, t: Math.random() * 10, waypoint: null },
+        ai: { style: o.ai || 'ground', retarget: 0, target: null, stuck: 0, wander: 0, wanderYaw: 0, last: new V3(), pref: 18 + Math.random() * 14, alt: 8 + Math.random() * 8, jitter: 1.1 + Math.random() * 1.0, t: Math.random() * 10, waypoint: null, flair: Math.random(), orbitDir: Math.random() < 0.5 ? 1 : -1 },
       };
       this.netSeq = Math.max(this.netSeq, c.netId + 1);
       this.net.byId.set(c.netId, c);
@@ -1493,7 +1494,26 @@
         const routing = goal !== tp;
         const dx = goal.x - m.pos.x, dz = goal.z - m.pos.z;
         let desiredYaw = Math.atan2(-dx, -dz);
+        const onLand = m.medium === 'land' && ai.style !== 'heli' && ai.style !== 'plane';
+        const sm = ai.smarts || 0.7, hp = m.integrity();
+        // a fight: circle the target at its favorite distance (spiraling in or out) instead of parking in front of it,
+        // and turn the other way now and then
+        ai.orbiting = ai.fleeing = false;
+        if (!routing && ai.style !== 'rammer' && ai.style !== 'plane' && dist > 6 && dist < ai.pref + 14) {
+          if ((ai.orbitT = (ai.orbitT || 0) - dt) <= 0) { ai.orbitT = 3 + Math.random() * 5; if (Math.random() < 0.5) ai.orbitDir = -ai.orbitDir; }
+          const inward = clamp((dist - ai.pref) / 14, -0.6, 0.6);
+          desiredYaw += ai.orbitDir * (Math.PI / 2 - inward * 1.3);
+          ai.orbiting = true;
+        }
+        // badly hurt with an enemy close: drive away (still shooting back) until it's safer
+        if (!routing && hp < 0.28 && dist < 32 && ai.style !== 'rammer') { desiredYaw = Math.atan2(dx, dz); ai.fleeing = true; ai.orbiting = false; }
         if (ai.wander > 0) { ai.wander -= dt; desiredYaw = ai.wanderYaw; }
+        // look ahead (a few times a second): turn early around walls, cliffs, the arena edge and (for cars) water
+        ai.blocked = false;
+        if (onLand && !(ai.reverseT > 0)) {
+          if ((ai.whiskT = (ai.whiskT || 0) - dt) <= 0) { ai.whiskT = 0.15; ai.avoid = this.botClearYaw(m, desiredYaw, landOnly, ai); }
+          desiredYaw += ai.avoid || 0;
+        }
         const fx = -Math.sin(m.yaw), fz = -Math.cos(m.yaw);
         const ax = m.pos.x + fx * 10, az = m.pos.z + fz * 10;
         const ahead = this.world.groundAt(ax, az, m.pos.y);
@@ -1505,6 +1525,7 @@
         inp.turn = clamp(-err * 2.2, -1, 1);
         if (ai.style === 'plane') inp.throttle = 1;
         else if (ai.wander > 0 || routing) inp.throttle = Math.abs(err) < 1.2 ? 1 : 0.3;
+        else if (ai.orbiting || ai.fleeing) inp.throttle = Math.abs(err) < 1.2 ? 0.9 : 0.35;
         else {
           inp.throttle = dist > ai.pref + 6 ? 1 : dist < ai.pref - 8 ? -0.6 : Math.sin(ai.t * 0.9) * 0.5;
           if (Math.abs(err) > 1.3) inp.throttle *= 0.3;
@@ -1525,10 +1546,31 @@
           if (dist > ai.pref + 25 && Math.abs(err) < 0.4) inp.dash = 1;
           else if (m.legs > 0 && dist < ai.pref + 5) inp.dash = Math.random() < 0.5 ? 2 : -2;
         }
+        // just got hit: dodge (sidestep with legs, a burst forward and the other way round on wheels)
+        if (ai.lastHp !== undefined && ai.lastHp - hp > 0.025) ai.hitT = 0.7;
+        ai.lastHp = hp;
+        ai.hitT = Math.max(0, (ai.hitT || 0) - dt);
+        if (ai.hitT > 0 && m.dashCd <= 0 && !inp.dash && Math.random() < dt * 4 * sm) {
+          if (m.legs > 0) inp.dash = Math.random() < 0.5 ? 2 : -2;
+          else { inp.dash = 1; ai.orbitDir = -ai.orbitDir; }
+          ai.hitT = 0;
+        }
+        if (ai.fleeing && m.dashCd <= 0 && Math.abs(err) < 0.4) inp.dash = 1; // getting away
+        // a wall ahead with no way around: walkers jump it (Jump Jets bots use their gadget, see gadgets.js)
+        if (ai.blocked && m.legs > 0 && m.medium === 'land') inp.upPressed = true;
+        // tricks: a victory donut after a wreck when nobody's close, and walkers hop around now and then
+        if (ai.celebrate > 0) {
+          ai.celebrate -= dt;
+          if (dist > 30 && onLand) { inp.throttle = 1; inp.turn = ai.orbitDir; if (m.legs > 0 && Math.random() < dt * 3) inp.upPressed = true; }
+        }
+        if (m.legs > 0 && onLand && ai.orbiting && Math.random() < dt * 0.5 * ai.flair * sm) inp.upPressed = true;
+        // backing out: stuck against something, reverse with the wheel turned, then go again
+        if (ai.reverseT > 0) { ai.reverseT -= dt; inp.throttle = -1; inp.turn = ai.revTurn; }
         const moved = m.pos.distanceTo(ai.last);
         ai.last.copy(m.pos);
         const beached = waterOnly && m.medium === 'land';
         if (!beached && Math.abs(inp.throttle) > 0.5 && moved < 1.5 * dt) ai.stuck += dt; else ai.stuck = Math.max(0, ai.stuck - dt);
+        if (ai.stuck > 1.1 && onLand && !(ai.reverseT > 0) && ai.t - (ai.revAt || -99) > 5) { ai.stuck = 0; ai.reverseT = 0.9 + Math.random() * 0.6; ai.revTurn = Math.random() < 0.5 ? 1 : -1; ai.revAt = ai.t; }
         if (ai.stuck > 2.2) { ai.stuck = 0; ai.wander = 2.5; ai.wanderYaw = m.yaw + Math.PI * (0.5 + Math.random()); ai.stuckCount = (ai.stuckCount || 0) + 1; }
         // bots get the same unstuck hop as players when they're really trapped
         const helpless = m.medium === 'water' && m.swim === 0 && m.buoy < m.mass * 0.65;
@@ -1563,6 +1605,31 @@
         }
       }
     }
+    // Which way a bot on the ground can drive: 0 when straight ahead (toward `yaw`) is clear, otherwise the smallest
+    // turn that is. Checks two points ahead for a wall (ground rising too fast), a cliff, the arena edge and, for cars
+    // that can't swim, water or lava. ai.wallAhead / ai.blocked tell the bot it could jump instead.
+    botClearYaw(m, yaw, landOnly, ai) {
+      const w = this.world, h0 = w.groundAt(m.pos.x, m.pos.z, m.pos.y), lim = CW.ARENA_HALF - 6;
+      const liquid = w.arena.liquid;
+      const blocked = (a) => {
+        for (const d of [m.radius + 3, m.radius + 8]) {
+          const x = m.pos.x - Math.sin(a) * d, z = m.pos.z - Math.cos(a) * d;
+          if (Math.abs(x) > lim || Math.abs(z) > lim) return 'edge';
+          const g = w.groundAt(x, z, m.pos.y);
+          if (g - h0 > 1.1 + d * 0.28) return 'wall';
+          if ((landOnly || liquid) && g < CW.WATER_Y - 0.3 && h0 > CW.WATER_Y - 0.3) return 'water';
+          if (h0 - g > 3 + d * 0.5) return 'cliff';
+        }
+        return null;
+      };
+      const ahead = blocked(yaw);
+      ai.wallAhead = ahead === 'wall';
+      if (!ahead) return 0;
+      const side = ai.avoidSide || 1;
+      for (const o of [0.45, 0.9, 1.4, 2]) for (const s of [side, -side]) if (!blocked(yaw + o * s)) { ai.avoidSide = s; return o * s; }
+      ai.blocked = true;
+      return 0;
+    }
     // Bots aim like people, not like an aimbot: they react a moment late, lead moving targets only
     // partly, their aim drifts around the target (worse far away) and they shoot in bursts.
     botAim(ai, tg, tp, dist, dt, travel) {
@@ -1593,6 +1660,7 @@
       this.net.mechDestroyed(mech, who);
       const c = mech.combatant;
       if (who && !CW.sameTeam(who, c)) who.wrecks++;
+      if (who && who.ai && !who.isPlayer && !who.human && Math.random() < 0.3 + who.ai.flair * 0.6 * (who.ai.smarts || 0.7)) who.ai.celebrate = 1.2 + Math.random();
       if (this.isPractice()) {
         if (c.dummyIndex !== undefined) {
           c.alive = false;

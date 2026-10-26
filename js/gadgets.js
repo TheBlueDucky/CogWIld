@@ -120,11 +120,13 @@
         if (c.gadgetCd > 0) c.gadgetCd = Math.max(0, c.gadgetCd - dt);
         if (!live || c.isPlayer || c.human || !c.alive || !c.mech || !c.mech.alive || (g.net.active && !g.net.owns(c))) continue;
         if (this.left(c) <= 0 || c.gadgetCd > 0 || Math.random() > dt * 2) continue;
-        // bots: repair when hurt, mine and smoke when an enemy is close, jump when stuck
-        const m = c.mech, t = c.ai && c.ai.target, near = t && t.pos && t.pos.distanceTo(m.pos) < 25;
+        // bots: repair when hurt (sooner when nobody's close), a mine behind them when chased, smoke to get away,
+        // Jump Jets over a wall in the way or out of a tight spot
+        const m = c.mech, ai = c.ai || {}, t = ai.target, near = t && t.pos && t.pos.distanceTo(m.pos) < 25;
         const type = this.type(c);
-        const hurt = m.core.hp / m.core.maxHp < 0.45 || m.integrity() < 0.5;
-        if ((type === 'repair' && hurt) || (type === 'mine' && near) || (type === 'smoke' && hurt && near) || (type === 'jump' && c.ai && c.ai.stuck > 1)) this.use(c);
+        const hp = m.integrity(), hurt = m.core.hp / m.core.maxHp < 0.45 || hp < 0.5;
+        const behind = near && (t.pos.x - m.pos.x) * -Math.sin(m.yaw) + (t.pos.z - m.pos.z) * -Math.cos(m.yaw) < 0;
+        if ((type === 'repair' && hurt && (!near || hp < 0.3)) || (type === 'mine' && near && (behind || Math.random() < 0.3)) || (type === 'smoke' && hurt && near) || (type === 'jump' && (ai.stuck > 1 || ai.blocked || ai.reverseT > 0))) this.use(c);
       }
       for (const mine of this.mines.slice()) {
         mine.life -= dt;
