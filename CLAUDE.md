@@ -5,7 +5,7 @@ You build a mech from parts in the Workshop, then fight online (bots fill empty 
 It runs in the browser (three.js r128, no build step), as a Windows app (Electron) and an Android app (Capacitor),
 and on game portals (itch.io, CrazyGames, Poki). The online server is zero-dependency Node.js.
 
-**Live:** https://cogwild.duckdns.org (download page `/download`) · **Current version:** v1.8.4 · **Online protocol:** `cogwild-net-10`
+**Live:** https://cogwild.duckdns.org (download page `/download`) · **Code:** https://github.com/TheBlueDucky/CogWIld (public; commits as theblueduckymc@gmail.com) · **Current version:** v1.9.0 · **Online protocol:** `cogwild-net-10`
 The user is not a programmer: explain things in plain words, test everything yourself, and show screenshots as proof.
 
 ## How the user wants things done
@@ -67,17 +67,22 @@ The user is not a programmer: explain things in plain words, test everything you
 | `js/voice.js` | voice chat (WebRTC audio, through the server's TURN relay): only joined in a party (or a room when hearing "my match"), mic opened only while unmuted/undeafened; push-to-talk B, mute M, deafen N (any can be "No key"), devices, the first-time "Use voice chat?" question |
 | `js/pics.js` | picking your own / your club's picture: square cropper (shown as a circle), sends a 256×256 JPEG |
 | `js/meta.js` | shop, challenges, settings, panels, the PLAY panel (modes/arenas/weekly/ranked/gadgets), What's new |
-| `js/supers.js`, `js/gadgets.js` | supers (X) and gadgets (G, 3 uses) |
+| `js/supers.js`, `js/gadgets.js` | supers (X) and gadgets (G, 3 uses); bots pick their moment (`Supers.botWants`) |
+| `js/replay.js` | match replays: `Recorder` (10 Hz frames: positions, aim/fire, part bits, wrecks, supers, gadgets, feed) into IndexedDB `cogwild-replays` (last 12 + starred), the viewer (state `'replay'`, own part meshes, fx-only shots, follow/orbit/free camera, timeline, speeds, .cwreplay files) |
+| `js/gallery.js` | the mech gallery screen (cards drawn by a small renderer, turning 3D close-up, like/copy/try/report, 🌍 Share); "Try it" = test drive with `game.galleryTry`, `leaveTest()` comes back |
+| `js/i18n.js`, `js/lang/*.js` | languages: `KEYS` (English with `{n}` for numbers, no leading emoji) + one array per language in the same order; translates text nodes/aria-label/placeholder as the DOM changes; skips `[translate=no]`, `#chat`, `.fr-name`, gallery names; `ar`/`he` add `html.rtl`. Built by `tools/i18n` (see "v1.9 systems") |
 | `js/touch.js` | phone controls (right-thumb arc, up/down by the stick, Exit needs a hold) |
 | `server/server.js` | HTTP + WebSocket server, rooms, matchmaking (`quick`, kinds weekly/ranked), result checks, mech checks, spectating, security headers/CSP |
 | `server/filter.js` | chat filter: bad words (English + Hebrew, also disguised) -> ****, links/emails/phone numbers/social handles -> [hidden]; used for typed chat and club descriptions, refuses usernames and club names |
 | `server/pics.js` | own profile + club pictures: square JPEGs ≤64 KB in DATA_DIR/pics, served at `/pic/u/<name>.jpg`, `/pic/c/<id>.jpg` (`pv` = version) |
+| `server/gallery.js` | shared mechs in `db.gallery` (legal mechs, filtered names, 12 per account, likes/copies once each, 3 reports hide one) |
+| `server/admin.js`, `admin.html`, `js/admin.js` | the moderation page `/admin` (needs `ADMIN_TOKEN`, made by `deploy/set-admin.ps1`): reports, mute, ban, forced quick chat, dismiss, hide/show/delete mechs; 5 wrong keys lock it 15 min |
 | `server/talk.js` | typed chat (DMs in `db.dms`, club chat in `db.clubChat`, both deleted after 7 days; party lines in memory; DMs between friends or club-mates), Quick chat only (`u.cm`), block (`u.blocked`), reports (`db.reports`), voice peers + signaling, TURN logins |
 | `auth.html`, `js/auth-done.js` | the page Google sends players back to (`/auth/google/done`); posts the token to `/auth/google/finish` |
 | `server/accounts.js` | accounts + JSON DB (`db.users`, `db.guests`, `db.clubs`), wallet (coins/XP/unlocks/pass), email/Google login, friends, parties, clubs, trophies, Ranked |
 | `server/referee.js` | checks every match message: hits only from whoever controls the shooter, damage capped by the mech's weapons, speed and "ignores damage" notes |
 | `server/mailer.js`, `server/google.js` | SMTP login codes; Google ID token checks |
-| `server/selftest.js` | ~142 server checks (fake SMTP + fake Google keys), incl. chat, voice set-up and browser Google sign-in |
+| `server/selftest.js` | ~230 server checks (fake SMTP + fake Google keys), incl. chat, voice set-up and browser Google sign-in |
 | `tests/` | muted Electron game tests + live checks, see `tests/README.md` |
 | `deploy/` | `setup.sh` (installs on the VM), `setup-turn.sh` (voice relay, coturn), `upload.ps1`, `backup-offsite.sh`, `watchdog.sh`, `set-login.ps1` (email codes), `set-google.ps1` (Google client ID) |
 | `build-apps.ps1`, `build-itch.ps1` | Windows exe, Microsoft Store appx (`-StoreId/-StorePublisher`), Linux tar.gz (x64+arm64), macOS zips (Intel+Apple Silicon, unsigned, packed on Windows by `desktop/pack-unix.py` from Electron's official Mac zip), Android apk/aab (`-Upload` puts the downloads on the server); portal zips + `dist\itch\` upload folder (`-Portal all`) |
@@ -108,6 +113,21 @@ The user is not a programmer: explain things in plain words, test everything you
 - **Modes/content:** 8 modes (Rush Build, Workshop Clash, KOTH, Gold Rush, Bounty Hunt, Combat Race, Survival, Boss),
   8 arenas, supers, gadgets, daily featured event, weekly events with modifiers, Ranked (100+ best trophies),
   Cog Pass (30 tiers per 4-week season), Trophy Road, 6 daily challenges, achievements.
+
+## v1.9 systems (Oct 2026)
+- **Seasonal events** (`ECON.EVENTS`, `event(now)`): Halloween 20 Oct–3 Nov, Winter 10 Dec–6 Jan, Valentine's 7–16 Feb, Spring 20 Mar–20 Apr,
+  Summer Jul–Aug. World decorations (`World.buildEventDecor`, instanced), event particles, Halloween nights; server counts event points
+  (`w.ev`), 4-step track (`eventClaim`); event items have `event:` and are never sold / never on the Road or in deals. `EVENT_DATE` env = tests.
+- **Weekend Cup** (`ECON.cup()`): Fri 18:00 → Mon 00:00 UTC, one mode, `cupPoints(place, n)`, best 10 count, `db.cups` (last 4), queue kind
+  `'cup'` (accounts only), `cupResult`/`cupInfo`/`cupClaim`; top 3 get the `cup_champ` trail. `CUP_DATE` env = tests.
+- **Arenas + rotation**: `speedway`, `bay`, `moon` (`grav: 0.5`, `space: true`). `FEATURED.rotation()` = 5 arenas per 3 hours for Any arena.
+  Games send `arenas` in `hello`; older games = `FEATURED.CLASSIC`; the server only matches games into rooms whose arena they have and sends
+  `room.arenas` (what everyone has); the host picks only from those. New arena ids therefore need no NET_VERSION bump.
+- **Bots**: look-ahead steering (`botClearYaw`), circling, fleeing when hurt, reversing out, dodge dashes, victory donuts (`ai.smarts` by difficulty).
+- **Kids safety**: 3 different chat reporters in 24 h → typed chat muted 24 h automatically (`u.muteUntil`, `autoMuted`); `banUntil` refuses login.
+- **Languages**: texts live in `tools/i18n/` (`i18n_keys.py` + one `i18n_<id>.py` list per language, same order, same `{n}` count, and the
+  engine `i18n_engine.js`). After editing: `python tools/i18n/i18n_check.py es fr …` then `python tools/i18n/i18n_build.py` (writes js/i18n.js and
+  js/lang/*.js). `tests/i18n-extract.js` lists what the game shows. Long Help/News texts stay English.
 
 ## Server (Oracle Cloud)
 - VM **DuckysSrv**, **il-jerusalem-1** (home region: Always Free A1 + the free 200 GB boot volume; moved from paid
@@ -159,6 +179,7 @@ apps would break with the new server; they then get an "update" prompt.
 - The server's sign-up limit is 5 accounts per network per hour (tests reuse accounts for that reason).
 
 ## Waiting on the user
+- Moderation page: run `deploy\set-admin.ps1` once (makes the moderator key, copies it to the clipboard, opens /admin).
 - Email sending: run `deploy\set-login.ps1` (Gmail app password or other SMTP; optional Google OAuth client ID).
   Steps are in `LAUNCH.md` > "Turn on email login".
 - Minecraft players who joined by the old IP 150.136.43.207 need the new one (84.13.68.152); that address is gone.

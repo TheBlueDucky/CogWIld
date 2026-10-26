@@ -6,7 +6,7 @@ All game tests run **muted**, in hidden (offscreen) Electron windows. Never test
 ```bash
 node --experimental-websocket server/selftest.js
 ```
-Starts its own throwaway server, a fake mail server and a fake Google key set, and runs ~142 checks:
+Starts its own throwaway server, a fake mail server and a fake Google key set, and runs ~230 checks:
 accounts, cloud saves, friends, parties, matchmaking, economy/wallet, guests, email + Google login, clubs,
 weekly events, Ranked, security, fair play (results checks, host migration, referee), spectating.
 
@@ -50,3 +50,12 @@ node --experimental-websocket tests/live-smoke.js     # sign up, cloud save, fri
 node --experimental-websocket tests/live-signup.js    # one-step sign up + log in with email
 ```
 And `desktop/node_modules/.bin/electron tests/live-voice.js`: two hidden, muted players chat and connect voice through the live relay (fake microphone), then delete their accounts.
+| `events-test.js` | seasonal events: dates, every event's decorations and particles on every arena, event wreck effects, the lobby bar and event screen, event items never sold |
+| `bots-test.js` | 7 bots fight on every arena (no drawing, sped up): distance driven, time stuck, rescues, dashes, supers, gadgets (`SECS=60`, `ARENAS=…`) |
+| `arenas-test.js` | new arenas build with spawns, a mech drives on them, wide + ground shots (`ARENAS=speedway,bay,moon`, `TOD=night`) |
+| `replay-test.js` | a match is recorded and kept, the Replays list, playback, 2×, timeline, cameras, pause, hide, phone size, the results-screen Replay, delete |
+| `gallery-test.js` | share, browse, filters, search, close-up, like, copy, try and back, Esc order, phone size (needs a fresh server) |
+| `cup-test.js` | the Weekend Cup: chip, PLAY card, cup screen, a real online cup match and its points (server with `CUP_DATE=2026-10-31T12:00:00Z`) |
+| `admin-test.js` | the moderation page: a report shows, mute from the page (server with `ADMIN_TOKEN` = 64 × "a") |
+| `lang-test.js` | every language: lobby, PLAY panel, Settings, Workshop and a match translated, right to left for Arabic/Hebrew, back to English (`LANGS=es,hi`) |
+| `i18n-extract.js` | not a test: lists every text the game shows (for the translations in `tools/i18n`) |

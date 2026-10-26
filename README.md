@@ -13,9 +13,14 @@ Then open http://localhost:8765. This runs the game **and** the online server, s
 `py serve.py` still works for single-player only. To put the game on the internet, see [deploy/README.md](deploy/README.md).
 
 ## Features
-- **Workshop**: snap-together building with 25 textured metal parts, mirror mode, undo/redo, paint, blueprints with share codes, Test Drive
-- **7 modes**: Rush Build, Workshop Clash, King of the Hill, Gold Rush (each in 1v1, 3v3, 2v2v2v2 or 8-player free-for-all), Combat Race (6 racers), Survival and Boss Battle (solo or with 2 bot teammates)
-- **7 arenas**: Canyon Lake, Frost Isles, Volcano Rift (lava), Desert Mesa, Toxic Swamp (sludge), Neon City and Jungle Temple, each in Day, Sunset or Night
+- **Workshop**: snap-together building with 35+ parts (wheels, big wheels, legs, floats, rotors, jets, car body parts, weapons), mirror mode, undo/redo, paint, blueprints with share codes, Test Drive; 500 Bolts per mech
+- **8 modes**: Rush Build, Workshop Clash, King of the Hill, Gold Rush, Bounty Hunt (1v1, 3v3, 2v2v2v2 or 8-player free-for-all), Combat Race, Survival and Boss Battle
+- **11 arenas**: Canyon Lake, Frost Isles, Volcano Rift, Desert Mesa, Toxic Swamp, Neon City, Jungle Temple, Scrap Yard, Turbo Speedway, Shipwreck Bay and Moon Base (low gravity), each by day, sunset or night; "Any arena" plays the 5 arenas in rotation (every 3 hours)
+- **Replays**: every match is recorded on your device; watch with speeds, a timeline and follow / orbit / free cameras
+- **Mech gallery**: share your mechs, browse trending / top / new, like, try and copy others'
+- **Weekend Cup** (Friday to Sunday), **Ranked**, weekly events, a daily featured event, **seasonal events** (Halloween, Christmas, Valentine's, spring, summer)
+- **13 languages**: English, Spanish, Portuguese, French, German, Italian, Russian, Turkish, Hindi, Arabic, Hebrew, Chinese, Japanese
+- **Safety**: Quick chat only for kids, a word filter, block and report, and a moderation page for the owner (`/admin`)
 - **Fair play**: safe spawns, spawn shield, unstuck key (F), pilots thrown clear of lava
 - **Loot chests** on the map, supply drops, and a free reward chest after every match
 - **First-person Camera part**, dash, power-ups, pilot on foot, spike rams, sudden death
