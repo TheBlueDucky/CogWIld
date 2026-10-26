@@ -29,7 +29,9 @@ if (-not $SkipApps) {
 
 Write-Host '==> 4. Website + game server'
 $pack = Join-Path $env:TEMP 'cogwild-upload.tgz'
-tar --force-local -czf $pack index.html auth.html favicon.svg js fonts img server deploy privacy.html terms.html credits.html download.html admin.html manifest.webmanifest sw.js
+# Git's GNU tar needs --force-local for C:\ paths; Windows' own tar.exe refuses that flag (and doesn't need it)
+$tarFlags = @(); if ((tar --version 2>$null | Out-String) -match 'GNU') { $tarFlags = @('--force-local') }
+tar @tarFlags -czf $pack index.html auth.html favicon.svg js fonts img server deploy privacy.html terms.html credits.html download.html admin.html manifest.webmanifest sw.js
 if ($LASTEXITCODE) { throw 'Packing the website failed' }
 $ssh = @('-i', $Key, '-o', 'StrictHostKeyChecking=accept-new')
 scp @ssh $pack "ubuntu@${Ip}:/tmp/cogwild.tgz"
