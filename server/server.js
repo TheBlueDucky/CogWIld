@@ -13,6 +13,7 @@ const { Accounts } = require('./accounts');
 const { Talk } = require('./talk');
 const { Pics } = require('./pics');
 const { Gallery } = require('./gallery');
+const { Admin } = require('./admin');
 const google = require('./google');
 const E = require('../js/economy.js');
 const FEATURED = require('../js/featured.js');
@@ -93,6 +94,8 @@ function serveStatic(req, res) {
     return res.end();
   }
   if (url === '/auth/google/done') url = '/auth.html';
+  // the moderation page and its API (server/admin.js; needs ADMIN_TOKEN)
+  if (url === '/admin' || url.startsWith('/admin/')) return admin.http(req, res, url, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim());
   if (url.startsWith('/pic/') && accounts.pics.serve(url, res, SECURITY)) return;
   if (url === '/health') {
     res.writeHead(200, Object.assign({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, SECURITY));
@@ -403,6 +406,7 @@ accounts.talk = new Talk(accounts, { clients, rooms });
 // players' own profile pictures and club pictures (server/pics.js)
 accounts.pics = new Pics(accounts, path.join(process.env.DATA_DIR || path.resolve(__dirname, '..', 'data'), 'pics'));
 accounts.gallery = new Gallery(accounts);
+const admin = new Admin(accounts, { clients, rooms }, ROOT, SECURITY);
 
 // mech parts from players: only short part names and small whole-number positions are relayed
 const coord = (v) => Math.max(-64, Math.min(64, v | 0));

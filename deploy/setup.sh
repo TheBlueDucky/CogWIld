@@ -58,7 +58,7 @@ mkdir -p "$APP"
 rm -rf "$APP/js" "$APP/server"
 rm -rf "$APP/fonts" "$APP/img"
 cp -r "$SRC/index.html" "$SRC/favicon.svg" "$SRC/js" "$SRC/fonts" "$SRC/img" "$SRC/server" "$APP/"
-for f in auth.html privacy.html terms.html credits.html download.html manifest.webmanifest sw.js; do [ -f "$SRC/$f" ] && cp "$SRC/$f" "$APP/"; done
+for f in auth.html privacy.html terms.html credits.html download.html admin.html manifest.webmanifest sw.js; do [ -f "$SRC/$f" ] && cp "$SRC/$f" "$APP/"; done
 # accounts live in $APP/data (kept across updates, backed up daily into data/backups); app downloads in $APP/downloads
 mkdir -p "$APP/data" "$APP/downloads"
 chown -R cogwild:cogwild "$APP"

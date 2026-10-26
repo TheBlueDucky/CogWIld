@@ -62,7 +62,7 @@ function codeFor(email) {
 }
 
 function start(extra) {
-  server = spawn(process.execPath, [path.join(__dirname, 'server.js')], { env: Object.assign({}, process.env, { PORT, DATA_DIR: DATA, SEARCH_SECS: '2', TROPHY_MIN_SECS: '0', SIGNUPS_PER_HOUR: '30', EVENT_DATE: '2026-10-26T12:00:00Z', MATCH_GAP_SECS: '1', CUP_DATE: '2026-10-31T12:00:00Z',
+  server = spawn(process.execPath, [path.join(__dirname, 'server.js')], { env: Object.assign({}, process.env, { PORT, DATA_DIR: DATA, SEARCH_SECS: '2', TROPHY_MIN_SECS: '0', SIGNUPS_PER_HOUR: '30', EVENT_DATE: '2026-10-26T12:00:00Z', MATCH_GAP_SECS: '1', ADMIN_TOKEN: 'a'.repeat(64), CUP_DATE: '2026-10-31T12:00:00Z',
     MAIL_SMTP_HOST: '127.0.0.1', MAIL_SMTP_PORT: String(SMTP_PORT), MAIL_SMTP_SECURE: 'none', MAIL_SMTP_USER: 'game@test.dev', MAIL_SMTP_PASS: 'mailpass123', MAIL_FROM: 'Cogwild <game@test.dev>',
     GOOGLE_CLIENT_ID: 'test-client', GOOGLE_CERTS_URL: `http://127.0.0.1:${CERTS_PORT}/certs` }, extra || {}), stdio: process.env.TEST_LOG ? 'inherit' : 'ignore' });
   return wait(700);
@@ -736,7 +736,61 @@ async function main() {
     gc.send({ t: 'galDelete', id: pub2.item.id });
     gb.send({ t: 'galDelete', id: pub2.item.id });
     check((await gb.next('galDeleted')).id === pub2.item.id, 'the maker removes their mech (others cannot)');
-    for (const p of [ga, gb, gc, gd, gg]) p.ws.close();
+    // ---- moderation (server/admin.js) and the safety rules ----
+    const adm = (p, tok = 'a'.repeat(64)) => new Promise((res) => {
+      const req = require('http').request({ host: '127.0.0.1', port: PORT, path: p, headers: tok ? { 'X-Admin-Token': tok } : {} }, (r) => { let b = ''; r.on('data', (d) => (b += d)); r.on('end', () => { let j = null; try { j = JSON.parse(b); } catch (e) { /* html */ } res({ status: r.statusCode, j, b }); }); });
+      req.on('error', () => res({ status: 0 }));
+      req.end();
+    });
+    const page = await adm('/admin', null);
+    check(page.status === 200 && /Cogwild moderation/.test(page.b) && /script src="\/js\/admin.js"/.test(page.b), 'the moderation page is served (no secrets in it)');
+    check((await adm('/admin/api/overview', null)).status === 401 && (await adm('/admin/api/overview', 'b'.repeat(64))).status === 401, 'its data needs the moderator key');
+    const ov = await adm('/admin/api/overview');
+    check(ov.status === 200 && ov.j.hidden.some((x) => x.n === 'Buggy Boo' && x.hidden) && ov.j.reports.some((r) => r.where === 'gallery' && r.gid === pub.item.id), 'the overview lists the reported mech and its reports');
+    // GalA and GalB become friends, so they can message each other
+    ga.send({ t: 'friendAdd', name: 'GalB' }); await gb.next('note', (m) => m.kind === 'friendReq');
+    gb.send({ t: 'friendAccept', name: 'GalA' }); await ga.next('friends', (m) => m.list.length === 1);
+    const mu = await adm('/admin/api/act?do=mute&name=GalA&hours=24');
+    check(mu.j.ok && mu.j.player.muteUntil > Date.now(), 'mute GalA for a day');
+    ga.send({ t: 'dmSend', to: 'GalB', x: 'hello there' });
+    check(/moderator/.test((await ga.next('acctErr')).msg), 'a muted player cannot type messages');
+    ga.send({ t: 'dmSend', to: 'GalB', q: 1 });
+    check(!!(await gb.next('dm')), '...but quick messages still work');
+    await adm('/admin/api/act?do=unmute&name=GalA');
+    await wait(600); // the chat's speed limit
+    ga.send({ t: 'dmSend', to: 'GalB', x: 'hi again' });
+    check((await gb.next('dm')).msg.x === 'hi again', 'unmuted: typing works again');
+    await adm('/admin/api/act?do=quick&name=GalA');
+    ga.send({ t: 'chatMode', mode: 'free' });
+    check(/moderator/.test((await ga.next('acctErr')).msg), "a moderator's Quick chat only can't be switched off by the player");
+    await adm('/admin/api/act?do=free&name=GalA');
+    // ban: signed out now, can't log in, unban lets them back
+    const bn = await adm('/admin/api/act?do=ban&name=GalD&hours=168');
+    check(bn.j.ok && /suspended/.test((await gd.next('acctOut')).reason), 'a ban signs the player out right away');
+    const gd2 = await player();
+    gd2.send({ t: 'acctLogin', name: 'GalD', pass: 'galpass1' });
+    check(/suspended until/.test((await gd2.next('acctOut')).reason), 'a banned player cannot log in');
+    await adm('/admin/api/act?do=unban&name=GalD');
+    gd2.send({ t: 'acctLogin', name: 'GalD', pass: 'galpass1' });
+    check((await gd2.next('acctOk')).me.name === 'GalD', 'unbanned: logging in works again');
+    // the safety net: 3 different players report someone's chat within a day
+    for (const p of [gb, gc, gd2]) { p.send({ t: 'report', name: 'GalA', why: 'rude', where: 'chat' }); await p.next('note'); }
+    await wait(600);
+    ga.send({ t: 'dmSend', to: 'GalB', x: 'bad words here' });
+    check(/moderator/.test((await ga.next('acctErr')).msg), '3 chat reports in a day turn their typed chat off for 24 hours by itself');
+    const pl = await adm('/admin/api/player?name=gala');
+    check(pl.j.autoMuted && pl.j.against.length >= 3 && pl.j.mechs.length === 1, 'the player page shows the auto-mute, the reports and their mechs');
+    const rid = (await adm('/admin/api/overview')).j.reports.find((r) => r.who === 'GalA').i;
+    await adm('/admin/api/act?do=dismiss&i=' + rid);
+    check(!(await adm('/admin/api/overview')).j.reports.some((r) => r.i === rid), 'dismiss takes a report off the list');
+    check((await adm('/admin/api/act?do=show&id=' + pub.item.id)).j.ok, 'show a hidden mech again');
+    gg.send({ t: 'galList', sort: 'new' });
+    check((await gg.next('galItems')).items.some((x) => x.id === pub.item.id), '...and everyone sees it');
+    check((await adm('/admin/api/act?do=delmech&id=' + pub.item.id)).j.ok && !(await adm('/admin/api/overview')).j.hidden.some((x) => x.id === pub.item.id), 'delete a mech');
+    // wrong keys lock the page for a while
+    for (let i = 0; i < 4; i++) await adm('/admin/api/overview', 'c'.repeat(64));
+    check((await adm('/admin/api/overview')).status === 429, '5 wrong keys lock it for 15 minutes (even the right key)');
+    for (const p of [ga, gb, gc, gd, gd2, gg]) p.ws.close();
   }
 
   console.log('weekly event + ranked');

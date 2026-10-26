@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Cogwild moderation</title>
+<link rel="icon" href="/favicon.svg">
+<style>
+  :root { --bg1: #121a33; --bg2: #1a2342; --hl: #5ce1ff; --muted2: #9fb3d9; --line: rgba(255, 255, 255, .12); --bad: #ff6b6b; --ok: #7bd389; --rad: 10px; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg1); color: #e9eefc; font: 15px/1.45 system-ui, 'Segoe UI', sans-serif; }
+  header { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 12px 18px; background: var(--bg2); border-bottom: 1px solid var(--line); }
+  h1 { font-size: 19px; margin: 0; font-weight: 700; color: var(--muted2); }
+  main { max-width: 1050px; margin: 0 auto; padding: 16px; }
+  button, input, select { font: inherit; color: inherit; }
+  button { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); background: transparent; cursor: pointer; }
+  button:hover { border-color: var(--hl); }
+  button.on { border-color: var(--hl); color: var(--hl); }
+  button.bad { border-color: rgba(255, 107, 107, .5); color: var(--bad); }
+  button.good { border-color: rgba(123, 211, 137, .5); color: var(--ok); }
+  input, select { padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: rgba(0, 0, 0, .25); }
+  .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .card { padding: 12px 14px; border-radius: var(--rad); border: 1px solid var(--line); background: rgba(255, 255, 255, .03); margin-bottom: 10px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .small { font-size: 13px; color: var(--muted2); }
+  .lines { margin: 8px 0; padding: 8px 10px; border-left: 3px solid var(--bad); background: rgba(255, 107, 107, .06); border-radius: 6px; }
+  .lines div { margin: 2px 0; overflow-wrap: anywhere; }
+  .name { color: var(--hl); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+  .stats { display: flex; gap: 16px; flex-wrap: wrap; }
+  .hidden { display: none !important; }
+  #msg { min-height: 22px; margin: 8px 0; }
+  #msg.err { color: var(--bad); }
+  .tag { display: inline-block; padding: 1px 7px; border-radius: 6px; font-size: 12px; background: rgba(255, 255, 255, .08); }
+  .tag.bad { background: rgba(255, 107, 107, .15); color: var(--bad); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🛡 Cogwild moderation</h1>
+  <div class="row" id="keyRow">
+    <input id="key" type="password" placeholder="Moderator key" autocomplete="off" size="28" aria-label="Moderator key">
+    <label class="small"><input type="checkbox" id="remember" checked> remember on this computer</label>
+    <button id="open" class="on">Open</button>
+  </div>
+  <div class="row hidden" id="outRow"><span class="small" id="stats"></span><button id="refresh">↻ Refresh</button><button id="forget">Forget the key</button></div>
+</header>
+<main>
+  <div id="msg"></div>
+  <div id="app" class="hidden">
+    <div class="tabs">
+      <button data-tab="reports" class="on">🚩 Reports</button>
+      <button data-tab="mechs">🖼 Reported mechs</button>
+      <button data-tab="people">🔇 Muted and banned</button>
+      <button data-tab="find">🔍 Find a player</button>
+    </div>
+    <div id="view"></div>
+  </div>
+  <div class="card small">
+    How it works: players report others from a name in the chat or a mech in the gallery. When 3 different players report someone's chat within a day,
+    their typed chat turns off for 24 hours by itself until you look. <b>Mute</b> turns off typed chat (quick chat still works). <b>Ban</b> signs the
+    account out and stops it logging in. <b>Quick chat only</b> makes the account use ready-made lines (the player can't switch it back).
+  </div>
+</main>
+<script src="/js/admin.js"></script>
+</body>
+</html>

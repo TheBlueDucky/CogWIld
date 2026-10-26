@@ -155,6 +155,12 @@ class Accounts {
   }
   // sign in this socket as user k (one live session per player: the older one is signed out)
   attach(c, k, token) {
+    const banned = this.db.users[k] && (this.db.users[k].banUntil || 0) > Date.now();
+    if (banned) {
+      const until = this.db.users[k].banUntil;
+      this.send(c, { t: 'acctOut', reason: until - Date.now() > 3000 * 86400000 ? 'This account was suspended by a moderator' : `This account is suspended until ${new Date(until).toUTCString().slice(5, 22)} UTC` });
+      return;
+    }
     if (c.user && c.user !== k) this.detach(c); // switching accounts on one connection
     c.guest = null; // an account's wallet, not the device's guest one
     const old = this.online.get(k);
@@ -881,6 +887,7 @@ class Accounts {
   clubEdit(c, m) {
     const u = this.me(c), club = this.clubOf(u);
     if (!club || club.owner !== c.user) return;
+    if ((u.muteUntil || 0) > Date.now()) return this.err(c, "A moderator turned off your typed chat for a while, so the club's description can't change now");
     Object.assign(club, this.clubFields(m));
     this.dirty();
     this.clubChanged(club);

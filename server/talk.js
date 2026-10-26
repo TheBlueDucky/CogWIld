@@ -20,6 +20,7 @@ const DM_KEEP = 60; // messages kept per pair of players
 const LOG_KEEP = 40; // party and club lines kept
 const KEEP_MS = 7 * 86400000; // friends' and club messages are deleted after a week (party/match chat: when it ends)
 const REPORTS_KEEP = 2000;
+const AUTO_MUTE_REPORTS = 3; // different players reporting someone within a day
 const TURN_URLS = (process.env.TURN_URLS || '').split(',').map((s) => s.trim()).filter(Boolean);
 const TURN_SECRET = process.env.TURN_SECRET || '';
 const STUN = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
@@ -63,6 +64,7 @@ class Talk {
   send(c, m) { this.a.send(c, m); }
   err(c, msg) { this.a.err(c, msg); }
   quick(u) { return !!u && u.cm === 'quick'; }
+  muted(u) { return !!u && (u.muteUntil || 0) > Date.now(); }
   // either of the two blocked the other
   blocked(u, o) { return !!(u && o && ((u.blocked || []).includes(key(o.name)) || (o.blocked || []).includes(key(u.name)))); }
 
@@ -96,6 +98,7 @@ class Talk {
       msg = { f: u.name, a: u.av | 0, pv: u.pv | 0, q, at: now };
     } else {
       if (this.quick(u)) { this.err(c, 'Quick chat only is on (Settings > Chat)'); return null; }
+      if (this.muted(u)) { this.err(c, `A moderator turned off your typed chat until ${new Date(u.muteUntil).toUTCString().slice(5, 22)} UTC. Quick chat still works.`); return null; }
       const x = filter.clean(cleanText(m.x));
       if (!x) return null;
       msg = { f: u.name, a: u.av | 0, pv: u.pv | 0, x, at: now };
@@ -116,6 +119,7 @@ class Talk {
   setMode(c, m) {
     const u = this.a.me(c);
     if (!u) return;
+    if (u.cmBy === 'mod' && m.mode !== 'quick' && !m.byMod) { this.err(c, 'A moderator turned on Quick chat only for this account'); m = { mode: 'quick' }; }
     if (m.mode === 'quick') u.cm = 'quick'; else delete u.cm;
     this.a.dirty();
     if (u.cm) c.vc = null; // quick chat only: no voice chat
@@ -208,6 +212,13 @@ class Talk {
     const lines = said.filter((x) => key(x.f) === key(o.name) && x.x != null).slice(-10).map((x) => x.x);
     this.db.reports.push({ by: u.name, who: o.name, why: cleanText(m.why).slice(0, 60) || 'chat', where: cleanText(m.where).slice(0, 20), lines, at: now });
     this.db.reports = this.db.reports.slice(-REPORTS_KEEP);
+    // a safety net while nobody has looked yet: 3 different players in a day → their typed chat is off for 24 hours
+    const by = new Set(this.db.reports.filter((r) => key(r.who) === key(o.name) && now - r.at < 86400000 && r.where !== 'gallery').map((r) => key(r.by)));
+    if (by.size >= AUTO_MUTE_REPORTS && !this.muted(o)) {
+      o.muteUntil = now + 86400000;
+      o.autoMuted = true;
+      console.log(`auto-mute: ${o.name} (${by.size} reports in a day)`);
+    }
     this.a.dirty();
     console.log(`report: ${u.name} reported ${o.name} (${m.why})`);
     this.send(c, { t: 'note', kind: 'info', msg: `Thanks. We got your report about ${o.name}.` });

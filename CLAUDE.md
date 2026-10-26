@@ -122,7 +122,7 @@ The user is not a programmer: explain things in plain words, test everything you
 ### Deploy (website + server)
 ```bash
 K="/c/Users/tomer/OneDrive/Desktop/OracleServer/ssh-key-2026-10-21.key"; PACK=/tmp/cogwild-upload.tgz
-tar --force-local -czf "$PACK" index.html auth.html favicon.svg js fonts img server deploy privacy.html terms.html credits.html download.html manifest.webmanifest sw.js
+tar --force-local -czf "$PACK" index.html auth.html favicon.svg js fonts img server deploy privacy.html terms.html credits.html download.html admin.html manifest.webmanifest sw.js
 scp -q -i "$K" "$PACK" ubuntu@84.13.68.152:/tmp/cogwild.tgz
 ssh -i "$K" ubuntu@84.13.68.152 "sudo cp /opt/cogwild/data/db.json /opt/cogwild/data/backups/db-before-X.json; rm -rf ~/cogwild-src && mkdir -p ~/cogwild-src && tar -xzf /tmp/cogwild.tgz -C ~/cogwild-src && sed -i 's/\r$//' ~/cogwild-src/deploy/*.sh && sudo bash ~/cogwild-src/deploy/setup.sh cogwild.duckdns.org"
 ```

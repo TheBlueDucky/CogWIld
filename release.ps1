@@ -29,7 +29,7 @@ if (-not $SkipApps) {
 
 Write-Host '==> 4. Website + game server'
 $pack = Join-Path $env:TEMP 'cogwild-upload.tgz'
-tar --force-local -czf $pack index.html auth.html favicon.svg js fonts img server deploy privacy.html terms.html credits.html download.html manifest.webmanifest sw.js
+tar --force-local -czf $pack index.html auth.html favicon.svg js fonts img server deploy privacy.html terms.html credits.html download.html admin.html manifest.webmanifest sw.js
 if ($LASTEXITCODE) { throw 'Packing the website failed' }
 $ssh = @('-i', $Key, '-o', 'StrictHostKeyChecking=accept-new')
 scp @ssh $pack "ubuntu@${Ip}:/tmp/cogwild.tgz"

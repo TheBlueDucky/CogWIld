@@ -72,6 +72,7 @@ class Gallery {
     const u = this.a.me(c);
     if (!u) return this.err(c, 'Log in to share your mechs');
     const now = Date.now();
+    if ((u.muteUntil || 0) > now) return this.err(c, "A moderator turned off your typed chat for a while, so you can't share mechs now");
     if (now - (c.galAt || 0) < PUBLISH_GAP) return this.err(c, 'Wait a few seconds before sharing another mech');
     const bp = m.bp || {};
     const name = cleanName(bp.name);
