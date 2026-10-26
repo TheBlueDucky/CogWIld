@@ -125,6 +125,7 @@
     onMessage(m) {
       const g = this.game;
       if (g.talk.onMessage(m) || g.voice.onMessage(m)) return; // chat and voice chat
+      if (g.gallery && g.gallery.onMessage(m)) return; // the mech gallery
       switch (m.t) {
         case 'acctOk': this.onLogin(m); break;
         case 'acctCodeSent':

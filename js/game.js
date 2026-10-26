@@ -207,6 +207,7 @@
       this.supers = new CW.Supers(this);
       this.gadgets = new CW.Gadgets(this);
       this.replays = new CW.Replays(this); // records every match; the 🎬 Replays viewer
+      this.gallery = new CW.Gallery(this); // the 🖼 mech gallery
       this.bindInput();
       this.bindMenus();
       this.bindShowcase();
@@ -346,7 +347,7 @@
     hideAll() {
       if (this.tutorial && this.tutorial.active && this.state === 'match') { this.tutorial.active = false; $('tut').classList.add('hidden'); }
       if (this.replays && this.replays.on) this.replays.close(true);
-      for (const id of ['menu', 'modes', 'picker', 'hud', 'results', 'pause', 'panel', 'online', 'lobby', 'search']) $(id).classList.add('hidden');
+      for (const id of ['menu', 'modes', 'picker', 'hud', 'results', 'pause', 'panel', 'online', 'lobby', 'search', 'testBar']) $(id).classList.add('hidden');
       this.workshop.close();
     }
     // points at PLAY for a few seconds ("Play matches" in the Cog Pass)
@@ -394,6 +395,7 @@
       $('todRow').querySelectorAll('[data-diff]').forEach((b) => (b.onclick = () => { s.difficulty = b.dataset.diff; this.saveProfile(); this.renderModeOptions(); }));
     }
     openWorkshop() {
+      this.galleryTry = null;
       this.hideAll();
       this.endMatch();
       this.net.leaveQuiet();
@@ -604,8 +606,8 @@
         if (MODES[this.modeId].fromScratch) return this.startRushBuild();
         this.startMatch(CW.cloneBp(this.player.bp));
       };
-      $('pauseQuit').onclick = () => (this.net.active ? this.net.leaveRoom() : this.modeId === 'tutorial' ? this.tutorial.finish(false) : this.modeId === 'test' ? this.openWorkshop() : this.showMenu());
-      $('testBack').onclick = () => this.openWorkshop();
+      $('pauseQuit').onclick = () => (this.net.active ? this.net.leaveRoom() : this.modeId === 'tutorial' ? this.tutorial.finish(false) : this.modeId === 'test' ? this.leaveTest() : this.showMenu());
+      $('testBack').onclick = () => this.leaveTest();
       $('modalOk').onclick = () => {
         const cb = this.modalCb;
         this.closeModal();
@@ -680,6 +682,7 @@
       if (open('modal')) { this.closeModal(); return true; }
       if (open('acct')) { if (!this.account.loginRequired()) $('acct').classList.add('hidden'); return true; }
       if (this.talk.isOpen) { this.talk.close(); return true; }
+      if (open('panel') && this.meta.panel === 'gallery' && this.gallery.closeTop()) return true;
       if (open('panel')) { this.meta.closePanel(); return true; }
       if (this.state === 'picker' || this.state === 'online' || this.state === 'modes') { this.showMenu(); return true; }
       // the Workshop closes like any other menu (not while building in a Rush match: that would leave it)
@@ -712,7 +715,7 @@
         if (this.state === 'match' && ['Space', 'Tab', 'ShiftLeft'].includes(code)) e.preventDefault();
         if (e.code === 'Escape' && this.state === 'match' && this.spectator) { this.net.stopSpectating(); return; }
         if (e.code === 'Escape' && this.state === 'match') { if (this.paused) this.resume(); else this.pause(); }
-        if (code === 'KeyT' && this.state === 'match' && this.modeId === 'test') this.openWorkshop();
+        if (code === 'KeyT' && this.state === 'match' && this.modeId === 'test') this.leaveTest();
         if (this.state === 'match' && this.net.active && /^Digit[1-8]$/.test(e.code)) this.net.chat(+e.code.slice(5) - 1);
         if (code === 'F8' && (this.state === 'match' || this.state === 'results')) { e.preventDefault(); this.clips.saveClip(); }
         if (code === 'KeyV' && this.state === 'match') {
@@ -752,7 +755,7 @@
     // the match menu (Esc / ⏸): the match keeps going behind it, only your own controls rest
     pause() {
       this.paused = true;
-      $('pauseQuit').textContent = this.net.active ? 'Leave online match' : this.modeId === 'tutorial' ? 'Skip tutorial' : this.modeId === 'test' ? 'Back to Workshop' : 'Quit match';
+      $('pauseQuit').textContent = this.net.active ? 'Leave online match' : this.modeId === 'tutorial' ? 'Skip tutorial' : this.modeId === 'test' ? (this.galleryTry ? 'Back to the gallery' : 'Back to Workshop') : 'Quit match';
       $('pauseRestart').classList.toggle('hidden', this.net.active);
       $('pauseOnline').classList.toggle('hidden', !this.net.active);
       $('pause').classList.remove('hidden');
@@ -1071,6 +1074,14 @@
       this.tutorial.start();
     }
 
+    // the end of a test drive: back to the Workshop, or to the gallery mech you were trying
+    leaveTest() {
+      const id = this.galleryTry;
+      this.galleryTry = null;
+      if (!id) return this.openWorkshop();
+      this.showMenu();
+      this.gallery.open(id);
+    }
     startTestDrive(bp, kind) {
       this.modeId = kind || 'test';
       this.formatId = null;
@@ -2274,6 +2285,7 @@
         }
       }
       $('testBar').classList.toggle('hidden', this.modeId !== 'test');
+      $('testBack').textContent = this.galleryTry ? '← Back to the gallery (T)' : '← Back to Workshop (T)';
       $('camLost').classList.toggle('hidden', !this.cameraLost);
       const showSb = !!this.keys.Tab && !this.isPractice();
       $('scoreboard').classList.toggle('hidden', !showSb);

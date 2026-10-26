@@ -247,18 +247,19 @@
       this.panel = kind;
       $('panel').classList.remove('hidden');
       // the Shop, Cog Pass and Settings are whole screens of their own
-      $('panel').classList.toggle('full', ['shop', 'pass', 'settings'].includes(kind));
+      $('panel').classList.toggle('full', ['shop', 'pass', 'settings', 'gallery'].includes(kind));
       $('panel').dataset.kind = kind;
       $('panelBody').innerHTML = '';
       $('panelBody').parentElement.scrollTop = 0;
       const titles = {
         challenges: '🎯 Daily challenges', shop: '🛒 Shop', stats: '📊 Stats', settings: '⚙ Settings', howto: '❓ How to play', ach: '🎖 Achievements', news: '📰 What\'s new',
-        event: '🎉 Seasonal event', replays: '🎬 Replays', profile: '👤 Profile', friends: '👥 Friends', road: '🛤 Trophy road', pass: '🎟 Cog Pass', clubs: '🛡 Clubs', top: '📈 Leaderboard', player: '👤 Player', ranks: '⭐ Level and ranks', arenas: '🎮 Pick a mode and arena',
+        event: '🎉 Seasonal event', replays: '🎬 Replays', gallery: '🖼 Mech gallery', profile: '👤 Profile', friends: '👥 Friends', road: '🛤 Trophy road', pass: '🎟 Cog Pass', clubs: '🛡 Clubs', top: '📈 Leaderboard', player: '👤 Player', ranks: '⭐ Level and ranks', arenas: '🎮 Pick a mode and arena',
       };
       $('panelTitle').textContent = titles[kind];
       this.renderPanel();
     }
     closePanel() {
+      if (this.panel === 'gallery') { this.game.gallery.closeDetail(); this.game.gallery.closeShare(); }
       $('panel').classList.add('hidden');
       this.renderMenu();
     }
@@ -346,6 +347,8 @@
         this.game.account.passPanel(body);
       } else if (k === 'event') {
         this.game.account.eventPanel(body);
+      } else if (k === 'gallery') {
+        this.game.gallery.panel(body);
       } else if (k === 'replays') {
         this.game.replays.panel(body);
       } else if (k === 'stats') {
@@ -791,6 +794,7 @@
       $('btnHowto').onclick = () => g.meta.openPanel('howto');
       $('btnAch').onclick = () => g.meta.openPanel('ach');
       $('btnReplays').onclick = () => g.meta.openPanel('replays');
+      $('btnGallery').onclick = () => g.gallery.open();
       $('btnNews').onclick = () => g.meta.openPanel('news');
       $('btnRanks').onclick = () => g.meta.openPanel('ranks');
       $('coinChip').onclick = () => g.meta.openPanel('shop');

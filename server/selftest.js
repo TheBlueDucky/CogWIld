@@ -667,6 +667,78 @@ async function main() {
     for (const x of [ra, rb, rl, rf]) x.ws.close();
   }
 
+  console.log('mech gallery');
+  {
+    const ga = await player(), gb = await player(), gc = await player(), gd = await player(), gg = await player();
+    const reg = async (p, name) => { p.send({ t: 'acctRegister', name, pass: 'galpass1' }); return (await p.next('acctOk')).me; };
+    await reg(ga, 'GalA'); await reg(gb, 'GalB'); await reg(gc, 'GalC'); await reg(gd, 'GalD');
+    const buggy = [{ t: 'core', x: 0, y: 0, z: 0 }, { t: 'camera', x: 0, y: 1, z: 0 }, { t: 'wheel', x: -1, y: 0, z: -1 }, { t: 'wheel', x: 1, y: 0, z: -1 }, { t: 'wheel', x: -1, y: 0, z: 1 }, { t: 'wheel', x: 1, y: 0, z: 1 }, { t: 'cannon', x: 0, y: 0, z: -1 }];
+    const boat = [{ t: 'core', x: 0, y: 0, z: 0 }, { t: 'float', x: -1, y: 0, z: 0 }, { t: 'float', x: 1, y: 0, z: 0 }, { t: 'prop', x: 0, y: 0, z: 1 }, { t: 'rotor', x: 0, y: 1, z: 0 }];
+    gg.send({ t: 'galPublish', bp: { name: 'Guesty', parts: buggy } });
+    check(/Log in/.test((await gg.next('acctErr')).msg), 'guests can look but not share');
+    ga.send({ t: 'galPublish', bp: { name: 'x', parts: buggy } });
+    check(/name/.test((await ga.next('acctErr')).msg), 'a shared mech needs a name');
+    ga.send({ t: 'galPublish', bp: { name: 'Big Laser', parts: buggy.concat([{ t: 'nuke', x: 2, y: 0, z: 0 }]) } });
+    check(/can't be shared/.test((await ga.next('acctErr')).msg), 'mechs with unknown parts are refused');
+    const heavy = buggy.concat(Array.from({ length: 30 }, (_, i) => ({ t: 'railgun', x: (i % 5) - 2, y: 2 + Math.floor(i / 10), z: Math.floor(i / 5) % 2 ? 2 : -2 })));
+    ga.send({ t: 'galPublish', bp: { name: 'Too Much', parts: heavy } });
+    check(/budget/.test((await ga.next('acctErr')).msg), 'over-budget mechs are refused');
+    ga.send({ t: 'galPublish', bp: { name: 'Buggy Boo', color: 0xff0000, parts: buggy } });
+    const pub = await ga.next('galPublished');
+    check(pub.item.n === 'Buggy Boo' && pub.item.by === 'GalA' && pub.item.tags.join() === 'land' && pub.item.cost > 0, `a mech is shared (${pub.item.cost} Bolts, ${pub.item.tags})`);
+    ga.send({ t: 'galPublish', bp: { name: 'Buggy Again', parts: buggy } });
+    check(/already|Wait/.test((await ga.next('acctErr')).msg), 'sharing again right away (or the same mech twice) is refused');
+    gb.send({ t: 'galPublish', bp: { name: 'Fly Boat', color: 0x00ff00, parts: boat } });
+    const pub2 = await gb.next('galPublished');
+    check(pub2.item.tags.sort().join() === 'air,water', 'movement tags come from the parts (water + air)');
+    // browse
+    gg.send({ t: 'galList', sort: 'new' });
+    const l1 = await gg.next('galItems');
+    check(l1.items.length === 2 && l1.items[0].n === 'Fly Boat' && !('likes' in l1.items[0] && Array.isArray(l1.items[0].likes)), 'anyone can browse (newest first, no lists of who liked)');
+    gg.send({ t: 'galList', sort: 'top', tag: 'land' });
+    check((await gg.next('galItems')).items.map((x) => x.n).join() === 'Buggy Boo', 'the land filter');
+    gg.send({ t: 'galList', sort: 'trending', tag: 'hybrid' });
+    check((await gg.next('galItems')).items.map((x) => x.n).join() === 'Fly Boat', 'the mixed filter');
+    gg.send({ t: 'galList', sort: 'new', q: 'gala' });
+    check((await gg.next('galItems')).items.map((x) => x.n).join() === 'Buggy Boo', 'search by maker');
+    // likes
+    ga.send({ t: 'galLike', id: pub.item.id, on: true });
+    check(/own/.test((await ga.next('acctErr')).msg), "you can't like your own mech");
+    gb.send({ t: 'galLike', id: pub.item.id, on: true });
+    gc.send({ t: 'galLike', id: pub.item.id, on: true });
+    gc.send({ t: 'galLike', id: pub.item.id, on: true });
+    await gb.next('galLiked');
+    await gc.next('galLiked');
+    const lk = await gc.next('galLiked');
+    check(lk.likes === 2 && lk.liked, 'likes count once per player');
+    gc.send({ t: 'galLike', id: pub.item.id, on: false });
+    check((await gc.next('galLiked')).likes === 1, 'unlike');
+    gb.send({ t: 'galList', sort: 'liked' });
+    check((await gb.next('galItems')).items.map((x) => x.n).join() === 'Buggy Boo', 'the ❤ Liked list');
+    gb.send({ t: 'galList', sort: 'top' });
+    const top = await gb.next('galItems');
+    check(top.items[0].n === 'Buggy Boo' && top.items[0].likes === 1 && top.items[0].liked, 'top = most liked first');
+    // copies
+    gb.send({ t: 'galCopy', id: pub.item.id }); gb.send({ t: 'galCopy', id: pub.item.id }); gg.send({ t: 'galCopy', id: pub.item.id });
+    await gb.next('galCopied');
+    const cp = await gb.next('galCopied');
+    check(cp.copies === 1 && (await gg.next('galCopied')).copies === 1, 'copies count once per account (guests can copy too)');
+    // reports: three players hide it
+    for (const p of [gb, gc, gd]) { p.send({ t: 'galReport', id: pub.item.id, why: 'name' }); await p.next('note'); }
+    gg.send({ t: 'galList', sort: 'new' });
+    check((await gg.next('galItems')).items.every((x) => x.id !== pub.item.id), 'a mech reported by 3 players is hidden');
+    ga.send({ t: 'galList', sort: 'mine' });
+    const mine = await ga.next('galItems');
+    check(mine.items.length === 1 && mine.items[0].hidden, 'its maker still sees it (marked hidden)');
+    gg.send({ t: 'galGet', id: pub.item.id });
+    check(!!(await gg.next('galGone')), 'hidden mechs cannot be opened by others');
+    // delete: only the maker
+    gc.send({ t: 'galDelete', id: pub2.item.id });
+    gb.send({ t: 'galDelete', id: pub2.item.id });
+    check((await gb.next('galDeleted')).id === pub2.item.id, 'the maker removes their mech (others cannot)');
+    for (const p of [ga, gb, gc, gd, gg]) p.ws.close();
+  }
+
   console.log('weekly event + ranked');
   const E = require('../js/economy.js');
   const wk = await player();

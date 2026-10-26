@@ -12,6 +12,7 @@ const crypto = require('crypto');
 const { Accounts } = require('./accounts');
 const { Talk } = require('./talk');
 const { Pics } = require('./pics');
+const { Gallery } = require('./gallery');
 const google = require('./google');
 const E = require('../js/economy.js');
 const FEATURED = require('../js/featured.js');
@@ -400,6 +401,7 @@ const accounts = new Accounts({ clients, rooms, joinRoom, maxPlayers: MAX_PLAYER
 accounts.talk = new Talk(accounts, { clients, rooms });
 // players' own profile pictures and club pictures (server/pics.js)
 accounts.pics = new Pics(accounts, path.join(process.env.DATA_DIR || path.resolve(__dirname, '..', 'data'), 'pics'));
+accounts.gallery = new Gallery(accounts);
 
 // mech parts from players: only short part names and small whole-number positions are relayed
 const coord = (v) => Math.max(-64, Math.min(64, v | 0));

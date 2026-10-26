@@ -282,6 +282,15 @@
       $('wsName').oninput = (e) => { this.bp.name = e.target.value.slice(0, 24) || 'Unnamed'; this.persist(); };
       $('wsSave').onclick = () => this.save(false);
       $('wsSaveNew').onclick = () => this.save(true);
+      // 🌍 share in the gallery: leave the Workshop with this mech as your current one, pick it in the share box
+      $('wsShare').onclick = () => {
+        if (!this.validation.ok) return this.game.toast('Fix the red errors first');
+        const bp = CW.cloneBp(this.bp);
+        this.game.setCurrentBp(bp);
+        this.game.showMenu();
+        this.game.gallery.open();
+        this.game.gallery.shareDialog(bp);
+      };
       $('wsCopy').onclick = () => {
         const code = CW.encodeBp(this.bp);
         this.game.openModal('Blueprint code', 'Share this code with friends. They can paste it in their Workshop.', code, null);

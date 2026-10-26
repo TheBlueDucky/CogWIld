@@ -219,6 +219,7 @@ class Accounts {
     const t = m.t;
     if (this.talk && this.talk.handle(c, m)) return true; // chat and voice (server/talk.js)
     if (this.pics && this.pics.handle(c, m)) return true; // profile and club pictures (server/pics.js)
+    if (this.gallery && this.gallery.handle(c, m)) return true; // the mech gallery (server/gallery.js)
     if (!/^(acct|friend|party|invite|top|profile|save|status|earn|gift|buy|roadClaim|passClaim|eventClaim|club|guest|email|google)/.test(t)) return false;
     const fn = {
       acctRegister: () => this.register(c, m), acctSignup: () => this.signup(c, m), acctLogin: () => this.login(c, m), acctAuth: () => this.auth(c, m),
@@ -499,6 +500,7 @@ class Accounts {
     if (u.email) this.byEmail.delete(u.email);
     delete this.db.users[k];
     if (this.pics) this.pics.drop('u', k);
+    if (this.gallery) this.gallery.dropUser(k);
     this.dirty();
     this.send(c, { t: 'acctOut', reason: 'Account deleted' });
   }
@@ -552,11 +554,13 @@ class Accounts {
         if (p) { p.members = swap(p.members); if (p.leader === ok) p.leader = nk; }
       }
       if (this.pics) this.pics.move('u', ok, nk);
+      if (this.gallery) this.gallery.renamed(ok, nk, name);
       c.user = nk;
       u.renamedAt = Date.now();
     }
     u.name = name;
     c.name = name;
+    if (this.gallery) this.gallery.renamed(c.user, c.user, name); // shared mechs show the new spelling
     this.dirty();
     this.send(c, { t: 'acctMe', me: this.publicCard(u) });
     this.send(c, { t: 'note', kind: 'info', msg: `✏ You're now ${name}` });
