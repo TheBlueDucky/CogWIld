@@ -28,7 +28,7 @@ app.whenReady().then(async () => {
   const useMech = (id) => js(`(() => { const g = ${G}; g.setCurrentBp(CW.PRESETS.find((p) => p.id === '${id}')); return g.currentBp.name; })()`);
 
   // ---- the new mechs in the Workshop ----
-  check(await js(`CW.BUDGET === 750 && CW.ECON.BUDGET === 750`), 'the build budget is 750 Bolts');
+  check(await js(`CW.BUDGET === 500 && CW.ECON.BUDGET === 500`), 'the build budget is 500 Bolts');
   check(await js(`${G}.settings.autoSteer === false`), 'auto-steer is off on a PC (A/D steer like a car)');
   for (const id of ['buggy', 'monster', 'racer']) {
     const name = await useMech(id);

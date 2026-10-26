@@ -1,0 +1,18 @@
+# Runs on every push: every script must parse, and the server self-test (~160 checks: accounts, economy, chat,
+# matchmaking, tournaments, gallery, fair play...) must pass. The muted game tests in tests/ need a screen and run on
+# the developer's PC (tests/README.md).
+name: checks
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Every script parses
+        run: for f in js/*.js server/*.js deploy/*.js tests/*.js; do node --check "$f" || exit 1; done
+      - name: Server self-test
+        run: node --experimental-websocket server/selftest.js

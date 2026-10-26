@@ -221,7 +221,7 @@
     for (const p of Array.isArray(parts) ? parts : []) { const r = p && Object.prototype.hasOwnProperty.call(PARTS, p.t) ? PARTS[p.t] : null; if (r) { hp += r[3]; dps += r[4]; } }
     return { hp, dps };
   }
-  const BUDGET = 750, RUSH_BUDGET = 400, MAX_PARTS = 200, GRID = { minX: -4, maxX: 4, minY: -2, maxY: 4, minZ: -4, maxZ: 4 };
+  const BUDGET = 500, RUSH_BUDGET = 300, MAX_PARTS = 150, GRID = { minX: -4, maxX: 4, minY: -2, maxY: 4, minZ: -4, maxZ: 4 };
   // why a mech isn't allowed for a player of this level (or null when it's fine)
   function mechProblem(parts, level, budget) {
     if (!Array.isArray(parts) || !parts.length || parts.length > MAX_PARTS) return 'no parts';

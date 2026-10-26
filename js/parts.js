@@ -32,7 +32,7 @@
   CW.SAVE_VERSION = 2;
   CW.WATER_Y = 0;
   CW.GRAV = 22;
-  CW.BUDGET = CW.ECON.BUDGET; // 750 Bolts (js/economy.js, the server checks the same number)
+  CW.BUDGET = CW.ECON.BUDGET; // 500 Bolts (js/economy.js, the server checks the same number)
   CW.ARENA_HALF = 176;
   CW.CEILING = 110;
   CW.DRAG = { land: 1.55, water: 1.2, air: 0.55 }; // lower = faster top speed

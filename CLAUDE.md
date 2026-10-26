@@ -36,7 +36,7 @@ The user is not a programmer: explain things in plain words, test everything you
   smoothly and snaps straight on release), front wheels visibly steer, S brakes then reverses, the body leans in turns.
   The view turns only by exactly what the player's own steering turned the mech (`mech.camFollowYaw`, applied in
   `updateCamera` the same frame), so letting go of A/D never moves the aim. Auto-steer (W drives toward the view) is off
-  on PCs and on for touch screens (`settings.carSteer` migration in meta.js). Budget 750 Bolts (`ECON.BUDGET`; Rush 400).
+  on PCs and on for touch screens (`settings.carSteer` migration in meta.js). Budget 500 Bolts, at most 150 parts (`ECON.BUDGET`, `MAX_PARTS`; Rush 300; was 750 in v1.8.0-1.8.4: big builds were too heavy for phones).
   Effects they asked for: thin tracer bullets with a gunshot sound (not big white balls), no muzzle flash right in front of
   your own camera, broken parts fly off smoking, a wreck falls apart and explodes 0.28 s later (`fx.later`). Menus, screens,
   PLAY and the countdown animate (CSS block "v1.8 animations"); the Workshop is calm and flat (block "v1.8 Workshop").
