@@ -65,11 +65,14 @@
         try { ws = new WebSocket(this.url()); } catch (e) { this.setStatus('offline'); reject(e); return; }
         this.ws = ws;
         const timeout = setTimeout(() => ws.close(), 9000);
-        ws.onopen = () => this.send({ t: 'hello', name: this.name || (this.name = this.myName()), ver: NET_VERSION, arenas: Object.keys(CW.ARENAS) });
+        ws.onopen = () => this.send({ t: 'hello', name: this.name || (this.name = this.myName()), ver: NET_VERSION, arenas: Object.keys(CW.ARENAS), plat: CW.platName ? CW.platName() : undefined });
         ws.onmessage = (e) => {
           let m;
           try { m = JSON.parse(e.data); } catch (err) { return; }
-          if (m.t === 'welcome') { clearTimeout(timeout); this.id = m.id; this.setStatus('online'); resolve(); if (this.game.account) this.game.account.onWelcome(m); }
+          if (m.t === 'welcome') {
+            clearTimeout(timeout); this.id = m.id; this.setStatus('online'); resolve(); if (this.game.account) this.game.account.onWelcome(m);
+            if (CW.Bugs) CW.Bugs.online((b) => this.send(b)); // bug reports that waited for a connection (js/bugs.js)
+          }
           try { this.onMessage(m); } catch (err) { console.error('net message', m.t, err); }
         };
         ws.onclose = () => {
@@ -77,6 +80,7 @@
           const wasOnline = this.status === 'online';
           this.ws = null;
           this.connecting = null;
+          if (CW.Bugs) CW.Bugs.online(null);
           this.setStatus('offline');
           reject(new Error('closed'));
           this.onDisconnect(wasOnline);

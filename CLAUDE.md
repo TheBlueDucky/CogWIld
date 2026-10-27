@@ -5,7 +5,7 @@ You build a mech from parts in the Workshop, then fight online (bots fill empty 
 It runs in the browser (three.js r128, no build step), as a Windows app (Electron) and an Android app (Capacitor),
 and on game portals (itch.io, CrazyGames, Poki). The online server is zero-dependency Node.js.
 
-**Live:** https://cogwild.duckdns.org (download page `/download`) · **Code:** https://github.com/TheBlueDucky/CogWIld (public; commits as theblueduckymc@gmail.com) · **Current version:** v1.9.1 · **Online protocol:** `cogwild-net-10`
+**Live:** https://cogwild.duckdns.org (download page `/download`) · **Code:** https://github.com/TheBlueDucky/CogWIld (public; commits as theblueduckymc@gmail.com) · **Current version:** v1.9.2 · **Online protocol:** `cogwild-net-10`
 The user is not a programmer: explain things in plain words, test everything yourself, and show screenshots as proof.
 
 ## How the user wants things done
@@ -76,7 +76,8 @@ The user is not a programmer: explain things in plain words, test everything you
 | `server/filter.js` | chat filter: bad words (English + Hebrew, also disguised) -> ****, links/emails/phone numbers/social handles -> [hidden]; used for typed chat and club descriptions, refuses usernames and club names |
 | `server/pics.js` | own profile + club pictures: square JPEGs ≤64 KB in DATA_DIR/pics, served at `/pic/u/<name>.jpg`, `/pic/c/<id>.jpg` (`pv` = version) |
 | `server/gallery.js` | shared mechs in `db.gallery` (legal mechs, filtered names, 12 per account, likes/copies once each, 3 reports hide one) |
-| `server/admin.js`, `admin.html`, `js/admin.js` | the moderation page `/admin` (needs `ADMIN_TOKEN`, made by `deploy/set-admin.ps1`): reports, mute, ban, forced quick chat, dismiss, hide/show/delete mechs; 5 wrong keys lock it 15 min |
+| `server/admin.js`, `admin.html`, `js/admin.js` | the moderation page `/admin` (needs `ADMIN_TOKEN`, made by `deploy/set-admin.ps1`): reports, mute, ban, forced quick chat, dismiss, hide/show/delete mechs, 📈 Stats and 🐞 Bugs tabs; 5 wrong keys lock it 15 min |
+| `server/stats.js`, `js/bugs.js` | players per day (`db.stats`: counts, platforms `hello.plat`, modes from `earn` match `mode`/`on`, came-back-next-day/week from per-day player codes) and automatic bug reports (`db.bugs`, grouped by message+place, scrubbed of emails/links/ids, 20 per connection, kept on the device while offline) |
 | `server/talk.js` | typed chat (DMs in `db.dms`, club chat in `db.clubChat`, both deleted after 7 days; party lines in memory; DMs between friends or club-mates), Quick chat only (`u.cm`), block (`u.blocked`), reports (`db.reports`), voice peers + signaling, TURN logins |
 | `auth.html`, `js/auth-done.js` | the page Google sends players back to (`/auth/google/done`); posts the token to `/auth/google/finish` |
 | `server/accounts.js` | accounts + JSON DB (`db.users`, `db.guests`, `db.clubs`), wallet (coins/XP/unlocks/pass), email/Google login, friends, parties, clubs, trophies, Ranked |
@@ -125,6 +126,9 @@ The user is not a programmer: explain things in plain words, test everything you
   `room.arenas` (what everyone has); the host picks only from those. New arena ids therefore need no NET_VERSION bump.
 - **Bots**: look-ahead steering (`botClearYaw`), circling, fleeing when hurt, reversing out, dodge dashes, victory donuts (`ai.smarts` by difficulty).
 - **Kids safety**: 3 different chat reporters in 24 h → typed chat muted 24 h automatically (`u.muteUntil`, `autoMuted`); `banUntil` refuses login.
+- **Stats + bug reports (v1.9.2)**: a player = one short one-way code per day (`u.sid` keeps it across renames and guest → account); no names in
+  `db.stats`. Games send `{ t: 'bug' }` by themselves (window errors, unhandled promises, the crash screen); add-on/portal-script errors are skipped.
+  Both show on /admin (needs set-admin.ps1). New things shown to players there must stay listed in privacy.html and STORE_PAGE.md "Data safety".
 - **Languages**: texts live in `tools/i18n/` (`i18n_keys.py` + one `i18n_<id>.py` list per language, same order, same `{n}` count, and the
   engine `i18n_engine.js`). After editing: `python tools/i18n/i18n_check.py es fr …` then `python tools/i18n/i18n_build.py` (writes js/i18n.js and
   js/lang/*.js). `tests/i18n-extract.js` lists what the game shows. Long Help/News texts stay English.
@@ -182,7 +186,8 @@ apps would break with the new server; they then get an "update" prompt.
 - The server's sign-up limit is 5 accounts per network per hour (tests reuse accounts for that reason).
 
 ## Waiting on the user
-- Moderation page: run `deploy\set-admin.ps1` once (makes the moderator key, copies it to the clipboard, opens /admin).
+- Moderation page: run `deploy\set-admin.ps1` once (makes the moderator key, copies it to the clipboard, opens /admin). Stats and Bugs live there too.
+- Google Play "Data safety" form: since v1.9.2 also tick App interactions + Crash logs + Diagnostics (analytics), see STORE_PAGE.md.
 - Email sending: run `deploy\set-login.ps1` (Gmail app password or other SMTP; optional Google OAuth client ID).
   Steps are in `LAUNCH.md` > "Turn on email login".
 - Minecraft players who joined by the old IP 150.136.43.207 need the new one (84.13.68.152); that address is gone.

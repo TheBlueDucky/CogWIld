@@ -33,6 +33,20 @@
   #msg.err { color: var(--bad); }
   .tag { display: inline-block; padding: 1px 7px; border-radius: 6px; font-size: 12px; background: rgba(255, 255, 255, .08); }
   .tag.bad { background: rgba(255, 107, 107, .15); color: var(--bad); }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 10px; }
+  .tile { padding: 10px 12px; border-radius: var(--rad); border: 1px solid var(--line); background: rgba(255, 255, 255, .03); }
+  .tile b { display: block; font-size: 26px; font-weight: 700; color: #fff; }
+  .chart { display: flex; align-items: flex-end; gap: 3px; height: 140px; padding-top: 8px; }
+  .chart div { flex: 1; min-width: 4px; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
+  .chart i { display: block; background: var(--hl); border-radius: 3px 3px 0 0; min-height: 1px; }
+  .chart i.new { background: #7bd389; border-radius: 0; }
+  .axis { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted2); margin-top: 4px; }
+  .tbl { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted2); font-weight: 600; }
+  pre { margin: 8px 0 0; padding: 8px 10px; border-radius: 6px; background: rgba(0, 0, 0, .3); font-size: 12px; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
 </style>
 </head>
 <body>
@@ -53,6 +67,8 @@
       <button data-tab="mechs">🖼 Reported mechs</button>
       <button data-tab="people">🔇 Muted and banned</button>
       <button data-tab="find">🔍 Find a player</button>
+      <button data-tab="stats">📈 Stats</button>
+      <button data-tab="bugs">🐞 Bugs</button>
     </div>
     <div id="view"></div>
   </div>
@@ -60,6 +76,8 @@
     How it works: players report others from a name in the chat or a mech in the gallery. When 3 different players report someone's chat within a day,
     their typed chat turns off for 24 hours by itself until you look. <b>Mute</b> turns off typed chat (quick chat still works). <b>Ban</b> signs the
     account out and stops it logging in. <b>Quick chat only</b> makes the account use ready-made lines (the player can't switch it back).
+    <b>Stats</b> counts each player once a day (accounts and guests, no names kept); "came back" = new players who played again the next day / a week later.
+    <b>Bugs</b> are errors games sent by themselves; mark one fixed after an update, and it comes back marked "happened again" if it wasn't.
   </div>
 </main>
 <script src="/js/admin.js"></script>

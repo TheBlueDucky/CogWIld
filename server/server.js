@@ -14,6 +14,7 @@ const { Talk } = require('./talk');
 const { Pics } = require('./pics');
 const { Gallery } = require('./gallery');
 const { Admin } = require('./admin');
+const { Stats } = require('./stats');
 const google = require('./google');
 const E = require('../js/economy.js');
 const FEATURED = require('../js/featured.js');
@@ -406,6 +407,8 @@ accounts.talk = new Talk(accounts, { clients, rooms });
 // players' own profile pictures and club pictures (server/pics.js)
 accounts.pics = new Pics(accounts, path.join(process.env.DATA_DIR || path.resolve(__dirname, '..', 'data'), 'pics'));
 accounts.gallery = new Gallery(accounts);
+// players per day and bug reports from games (server/stats.js), shown on the moderation page
+accounts.stats = new Stats(accounts);
 const admin = new Admin(accounts, { clients, rooms }, ROOT, SECURITY);
 
 // mech parts from players: only short part names and small whole-number positions are relayed
@@ -426,6 +429,8 @@ function handle(c, data) {
       if (!c.user) c.name = clean(m.name, 16) || 'Pilot' + c.id;
       // the arenas this game knows (older games don't say: the classic eight)
       c.arenas = Array.isArray(m.arenas) ? m.arenas.filter((a) => typeof a === 'string' && /^[a-z]{1,16}$/.test(a)).slice(0, 40) : FEATURED.CLASSIC;
+      // what the game runs on (website, app, phone…), for the daily stats
+      c.plat = typeof m.plat === 'string' && /^[a-z][a-z0-9-]{0,15}$/.test(m.plat) ? m.plat : 'old';
       if (m.ver !== NET_VERSION) c.ws.send({ t: 'err', msg: 'Your game is out of date. Refresh the page to update.', fatal: true });
       break;
     // logged-in players always show their username
@@ -569,6 +574,8 @@ function handle(c, data) {
       else broadcast(room, m, c.id);
       break;
     case 'ping': c.ws.send({ t: 'pong', at: m.at }); break;
+    // an error the player's game ran into (js/bugs.js sends these by itself)
+    case 'bug': accounts.stats.bug(c, m); break;
     // watch a friend's match (accounts only, friends only)
     case 'spectate': {
       const target = accounts.friendClient(c, m.name);

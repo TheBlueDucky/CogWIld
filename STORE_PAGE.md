@@ -100,8 +100,9 @@ Action · Vehicle combat · Building · Mech · Robots · Arena · Multiplayer �
   **Messages → Other in-app messages** (chat with friends, party, club; deleted after 7 days) · **Photos and videos → Photos**
   (optional profile/club picture the player picks, shown to other players) · **Audio → Voice or sound recordings**: voice chat,
   *processed ephemerally* (passes live through the relay, never stored) · **App activity → Other user-generated content**
-  (mech designs, game progress) · **App info and performance**: none
-- Purpose: App functionality, Account management. **Not shared** with third parties. **Not used for ads.**
+  (mech designs, game progress) · **App activity → App interactions** (players per day, modes played; under a one-way code, since v1.9.2) ·
+  **App info and performance → Crash logs + Diagnostics** (error messages the game sends by itself, since v1.9.2)
+- Purpose: App functionality, Account management, **Analytics** (the two v1.9.2 items). **Not shared** with third parties. **Not used for ads.**
 - Encrypted in transit: **Yes** (HTTPS/WSS) · Users can request deletion: **Yes** (in app: Profile → Delete account; web: same on the website; or by email)
 - Account creation: Google sign-in (older accounts: email/username + password) · Account deletion URL: https://cogwild.duckdns.org/privacy.html#deleting
 

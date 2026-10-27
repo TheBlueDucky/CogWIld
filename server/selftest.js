@@ -787,6 +787,48 @@ async function main() {
     gg.send({ t: 'galList', sort: 'new' });
     check((await gg.next('galItems')).items.some((x) => x.id === pub.item.id), '...and everyone sees it');
     check((await adm('/admin/api/act?do=delmech&id=' + pub.item.id)).j.ok && !(await adm('/admin/api/overview')).j.hidden.some((x) => x.id === pub.item.id), 'delete a mech');
+    // ---- stats and bug reports (server/stats.js) ----
+    const st0 = (await adm('/admin/api/stats')).j;
+    check(st0 && st0.today.n > 5 && st0.today.acc > 0 && st0.days.length === 30 && st0.everyone >= st0.today.n, `players today are counted (${st0 && st0.today.n}, accounts and guests)`);
+    const sp = await player();
+    sp.send({ t: 'hello', name: 'Phone', ver: VER, plat: 'web-phone' });
+    sp.send({ t: 'guest', token: null, profile: {} });
+    const spTok = (await sp.next('guestOk')).token;
+    sp.send({ t: 'earn', src: 'match', n: 50, xp: 40, pp: 10, mode: 'koth', on: false });
+    await sp.next('wallet', (m) => m.src === 'match');
+    const st1 = (await adm('/admin/api/stats')).j;
+    check(st1.today.n === st0.today.n + 1 && st1.today.new === st0.today.new + 1 && (st1.today.plat['web-phone'] | 0) === (st0.today.plat['web-phone'] | 0) + 1, 'a new guest on a phone browser: one more player, one more new, platform "web-phone"');
+    check((st1.today.modes.koth | 0) === (st0.today.modes.koth | 0) + 1 && st1.today.solo === st0.today.solo + 1, 'a finished match is counted for its mode (offline)');
+    sp.ws.close();
+    const sp2 = await player();
+    sp2.send({ t: 'guest', token: spTok });
+    await sp2.next('guestOk');
+    check((await adm('/admin/api/stats')).j.today.n === st1.today.n, 'the same player coming back the same day counts once');
+    const ostats = JSON.stringify(st1);
+    check(!/GalA|Alice_1|Bob\b|@/.test(ostats), 'the stats hold no names or emails');
+    // bug reports: cleaned, grouped, limited, marked fixed, back if they happen again
+    const bugMsg = { t: 'bug', kind: 'error', msg: "TypeError: Cannot read properties of undefined (reading 'mech') me@mail.com https://cogwild.duckdns.org/js/game.js?v=33 " + 'ab'.repeat(20), where: 'game.js:1200:7', stack: 'at tick (https://cogwild.duckdns.org/js/game.js?v=33:1200:7)', ver: 'v1.9.2', state: 'match/koth' };
+    sp2.send(bugMsg);
+    const sp3 = await player();
+    sp3.send(Object.assign({}, bugMsg, { ver: 'v1.9.1' }));
+    await wait(300);
+    let bugs = (await adm('/admin/api/bugs')).j.bugs;
+    const bug = bugs.find((b) => /reading 'mech'/.test(b.msg));
+    check(bug && bug.n === 2 && bug.who === 2 && bug.vers['v1.9.2'] === 1 && bug.vers['v1.9.1'] === 1 && bug.states['match/koth'] === 2, 'the same error from two players is one bug: 2 players, both versions');
+    check(bug && !/@|duckdns|abab/.test(bug.msg + bug.stack) && /game\.js/.test(bug.msg), 'bug reports keep no emails, links or long codes');
+    for (let i = 0; i < 30; i++) sp3.send({ t: 'bug', msg: 'spam ' + 'x'.repeat(i), where: 'a.js:' + i + ':1' });
+    await wait(300);
+    bugs = (await adm('/admin/api/bugs')).j.bugs;
+    check(bugs.filter((b) => /^spam/.test(b.msg)).length <= 19, 'one game can send at most 20 reports');
+    check((await adm('/admin/api/overview')).j.stats.openBugs === bugs.filter((b) => !b.done).length, 'the overview counts open bugs');
+    check((await adm('/admin/api/act?do=bugdone&sig=' + bug.sig)).j.ok && (await adm('/admin/api/bugs')).j.bugs.find((b) => b.sig === bug.sig).done > 0, 'mark a bug fixed');
+    sp2.send(bugMsg); // a new session of the same game would send it again
+    const sp4 = await player();
+    sp4.send(bugMsg);
+    await wait(300);
+    const again = (await adm('/admin/api/bugs')).j.bugs.find((b) => b.sig === bug.sig);
+    check(again && !again.done && again.back && again.n === 4, 'a "fixed" bug that happens again comes back marked so');
+    for (const p of [sp2, sp3, sp4]) p.ws.close();
     // wrong keys lock the page for a while
     for (let i = 0; i < 4; i++) await adm('/admin/api/overview', 'c'.repeat(64));
     check((await adm('/admin/api/overview')).status === 429, '5 wrong keys lock it for 15 minutes (even the right key)');

@@ -179,6 +179,7 @@ class Accounts {
     // the club sees you come online
     const club = this.clubOf(u);
     if (club) this.clubChanged(club); else this.send(c, { t: 'club', club: null });
+    if (this.stats) this.stats.seen(c);
   }
   detach(c) {
     const k = c.user;
@@ -1025,6 +1026,7 @@ class Accounts {
     c.guest = k;
     this.dirty();
     this.send(c, { t: 'guestOk', token: fresh, wallet: this.walletView(g) });
+    if (this.stats) this.stats.seen(c);
   }
   // give a reward ({ coins, paint/paints, trail/trails, avatar/avatars }); things you already own pay their price
   grant(w, r) {
@@ -1060,6 +1062,7 @@ class Accounts {
         w.earn.last = now;
         w.earn.after = n; // a results crate and an ad doubling may follow this match, once
         w.earn.crate = true;
+        if (this.stats) this.stats.match(c, m.mode, !!m.on);
       }
     } else if (src === 'chest') {
       if (w.earn.crate) { n = Math.min(ask, E.EARN.chest); w.earn.crate = false; }

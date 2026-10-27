@@ -104,13 +104,14 @@
     claimable() { return this.game.profile.challenges.list.filter((c) => c.progress >= c.target && !c.claimed).length; }
 
     // coins shown at once; for logged-in players the server checks them and sends the real total back
-    addCoins(n, src, key, pp, xp) {
+    // extra: { mode, on } with a match reward (the server counts matches per mode for the daily stats)
+    addCoins(n, src, key, pp, xp, extra) {
       const p = this.game.profile;
       p.coins += n;
       p.stats.coinsEarned += n;
       const a = this.game.account;
       if (!src || !a) return;
-      if (a.walletLive) return a.net.send({ t: 'earn', src, n, key, pp, xp });
+      if (a.walletLive) return a.net.send(Object.assign({ t: 'earn', src, n, key, pp, xp }, extra || {}));
       // no connection: match rewards and achievements are reported when it's back
       if (src === 'ach') (p.pendingAch = p.pendingAch || []).push(key);
       else if (src === 'match' || src === 'chest') { p.pending = p.pending || { n: 0, xp: 0 }; p.pending.n += n; p.pending.xp += xp || 0; }
@@ -556,6 +557,7 @@
         body.innerHTML = `<div class="small">${n} / ${CW.ACHIEVEMENTS.length} unlocked. Each one pays coins.</div><div class="ach-grid">${CW.ACHIEVEMENTS.map((a) => `<div class="ach ${got[a.id] ? 'got' : ''}"><b>${got[a.id] ? '🏆' : '🔒'} ${a.name}</b><span class="small">${a.desc}</span>${got[a.id] ? '' : prog(a)}<div class="small">+${a.reward} 🪙</div></div>`).join('')}</div>`;
       } else if (k === 'news') {
         body.innerHTML = `<ul class="news">
+          <li><b>v1.9.2</b>: 🐞 When something in the game breaks, it now tells us by itself (just the error, never your name or chat), so bugs get fixed faster.</li>
           <li><b>v1.9.1</b>: 🖱 The mouse pointer no longer stays on screen in matches: PCs with a touchscreen or pen tablet don't get the phone controls unless you touch the screen, any key catches the mouse (not only a click), and the pointer is hidden while you play.</li>
           <li><b>v1.9.0</b>: 🌐 <b>12 more languages</b>: Español, Português, Français, Deutsch, Italiano, Русский, Türkçe, हिन्दी, العربية, עברית, 中文, 日本語 (Settings › Display › Language). 🎬 <b>Replays</b> of your matches: watch them from the results screen or 🎬 Replays, with speeds, a timeline and three cameras. 🖼 The <b>mech gallery</b>: share your mechs, like, try and copy others'. 🏆 The <b>Weekend Cup</b> every Friday to Sunday: your best 10 matches count, rewards and a Champion trail for the top 3. 🎃 <b>Seasonal events</b> (Halloween now, then Christmas, Valentine's, spring and summer) with decorated arenas and exclusive rewards. 🗺 Three new arenas, <b>Turbo Speedway</b>, <b>Shipwreck Bay</b> and <b>Moon Base</b> (low gravity!), and an arena rotation for Any arena. 🤖 Smarter bots: they steer around walls, circle you, dodge, use their supers at the right time and do victory donuts. 🔩 500 Bolts per mech. 🛡 Safer for kids: reports are looked at, and typed chat turns off by itself for someone reported by 3 players in a day.</li>
           <li><b>v1.8.4</b>: ✏ Change your username in your profile (once a week; friends, clubs and messages keep working). 📱 Phones: a clear ☰ Menu button in matches, the phone's Back button opens the menu (and goes back a screen in menus), and "Back to Workshop" in a test drive can be tapped again.</li>

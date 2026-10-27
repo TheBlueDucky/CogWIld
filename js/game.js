@@ -2016,7 +2016,7 @@
       // Cog Pass points: more for doing well, a bonus in featured and weekly events
       const passPts = Math.min(CW.ECON.PASS.match, 15 + (this.won ? 15 : 0) + Math.max(0, 10 - (p.place - 1) * 3) + (featured ? 5 : 0) + (weekly ? 10 : 0));
       this.lastPassPts = passPts;
-      this.meta.addCoins(coins, this.isPractice() ? null : 'match', null, passPts, xp);
+      this.meta.addCoins(coins, this.isPractice() ? null : 'match', null, passPts, xp, { mode: this.modeId, on: !!this.net.active });
       const st = this.profile.stats;
       st.matches++;
       if (this.won) st.wins++;
@@ -2708,6 +2708,7 @@
     // A bug should never freeze the whole game: show a panel, let the player recover
     crash(e) {
       console.error(e);
+      if (CW.Bugs) CW.Bugs.report(e, 'crash'); // sent to the developer by itself (js/bugs.js)
       this.crashCount = (this.crashCount || 0) + 1;
       if (this.crashShown) return;
       this.crashShown = true;

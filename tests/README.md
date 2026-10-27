@@ -32,6 +32,7 @@ Then run one with `desktop/node_modules/.bin/electron tests/<file>.js` (screensh
 | `spec-test.js` | watching a friend's match, the friend is told, Esc leaves |
 | `signup-test.js` | sign up (email, password twice, username), log out, log in, same email refused |
 | `login-test.js` | the email-code sign-up flow (needs `MAIL_DEV=1`) |
+| `stats-test.js` | daily stats + automatic bug reports: platform, a match per mode, an error and a crash reach /admin by themselves, offline reports wait and go out, add-on errors skipped, the 📈 Stats / 🐞 Bugs tabs (server needs `ADMIN_TOKEN` = `a`×64) |
 | `mouse-test.js` | no mouse pointer while playing with a mouse: Auto phone controls (touchscreen PCs start without them, finger on / mouse off), hidden pointer, keys catch the mouse, one tip when the browser refuses |
 | `phone-test.js` | lobby, settings and match HUD at phone size with touch controls (`W=780 H=350`) |
 | `wall-aim-test.js` | a mech hopping into a cliff stays below it, camera stays out of the cliff, touch aim assist turns toward enemies |
