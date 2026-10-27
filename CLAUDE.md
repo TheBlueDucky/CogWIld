@@ -128,7 +128,7 @@ The user is not a programmer: explain things in plain words, test everything you
 - **Kids safety**: 3 different chat reporters in 24 h → typed chat muted 24 h automatically (`u.muteUntil`, `autoMuted`); `banUntil` refuses login.
 - **Stats + bug reports (v1.9.2)**: a player = one short one-way code per day (`u.sid` keeps it across renames and guest → account); no names in
   `db.stats`. Games send `{ t: 'bug' }` by themselves (window errors, unhandled promises, the crash screen); add-on/portal-script errors are skipped.
-  Both show on /admin (needs set-admin.ps1). New things shown to players there must stay listed in privacy.html and STORE_PAGE.md "Data safety".
+  Both show on /admin (turned on 27 Oct 2026: the user ran set-admin.ps1; the key is theirs, never ask for it). New things shown to players there must stay listed in privacy.html and STORE_PAGE.md "Data safety".
 - **Languages**: texts live in `tools/i18n/` (`i18n_keys.py` + one `i18n_<id>.py` list per language, same order, same `{n}` count, and the
   engine `i18n_engine.js`). After editing: `python tools/i18n/i18n_check.py es fr …` then `python tools/i18n/i18n_build.py` (writes js/i18n.js and
   js/lang/*.js). `tests/i18n-extract.js` lists what the game shows. Long Help/News texts stay English.
@@ -186,7 +186,6 @@ apps would break with the new server; they then get an "update" prompt.
 - The server's sign-up limit is 5 accounts per network per hour (tests reuse accounts for that reason).
 
 ## Waiting on the user
-- Moderation page: run `deploy\set-admin.ps1` once (makes the moderator key, copies it to the clipboard, opens /admin). Stats and Bugs live there too.
 - Google Play "Data safety" form: since v1.9.2 also tick App interactions + Crash logs + Diagnostics (analytics), see STORE_PAGE.md.
 - Email sending: run `deploy\set-login.ps1` (Gmail app password or other SMTP; optional Google OAuth client ID).
   Steps are in `LAUNCH.md` > "Turn on email login".
