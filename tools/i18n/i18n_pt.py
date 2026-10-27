@@ -109,4 +109,5 @@ T = [
 "O chat rápido está ligado (Configurações › Chat)", "Esse mech não está mais na galeria", "Tirado da galeria",
 "Vire o celular para jogar Cogwild", "Ops, algo quebrou", "Copiar relatório", "Usar chat de voz?", "Deixar desligado", "Ligar o chat de voz",
 "Digite uma mensagem…", "Só chat rápido",
+"Clique no jogo para mirar de novo · Esc = menu", "Este navegador não deixa o jogo prender o mouse: segure um botão do mouse e arraste para mirar", 
 ]

@@ -109,4 +109,5 @@ T = [
 "Sadece hızlı sohbet açık (Ayarlar › Sohbet)", "O robot artık galeride değil", "Galeriden kaldırıldı",
 "Cogwild oynamak için telefonunu yan çevir", "Hay aksi, bir şey bozuldu", "Raporu kopyala", "Sesli sohbet kullanılsın mı?", "Kapalı kalsın", "Sesli sohbeti aç",
 "Bir mesaj yaz…", "Sadece hızlı sohbet",
+"Yeniden nişan almak için oyuna tıkla · Esc = menü", "Bu tarayıcı oyunun fareyi tutmasına izin vermiyor: nişan almak için bir fare tuşunu basılı tutup sürükle", 
 ]

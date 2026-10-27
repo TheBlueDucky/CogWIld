@@ -5,7 +5,7 @@ You build a mech from parts in the Workshop, then fight online (bots fill empty 
 It runs in the browser (three.js r128, no build step), as a Windows app (Electron) and an Android app (Capacitor),
 and on game portals (itch.io, CrazyGames, Poki). The online server is zero-dependency Node.js.
 
-**Live:** https://cogwild.duckdns.org (download page `/download`) · **Code:** https://github.com/TheBlueDucky/CogWIld (public; commits as theblueduckymc@gmail.com) · **Current version:** v1.9.0 · **Online protocol:** `cogwild-net-10`
+**Live:** https://cogwild.duckdns.org (download page `/download`) · **Code:** https://github.com/TheBlueDucky/CogWIld (public; commits as theblueduckymc@gmail.com) · **Current version:** v1.9.1 · **Online protocol:** `cogwild-net-10`
 The user is not a programmer: explain things in plain words, test everything yourself, and show screenshots as proof.
 
 ## How the user wants things done
@@ -168,6 +168,9 @@ apps would break with the new server; they then get an "update" prompt.
 - Never zip with `Compress-Archive` (Windows PowerShell 5.1): it stores `js\economy.js` with backslashes, and Linux hosts (itch.io,
   portals) unpack that as one odd file name, so the game sticks on "Building the arena…". build-itch.ps1 uses .NET ZipFile with `/`.
 - Phones: Android's Back button/gesture calls `CW.onBack()` (MainActivity OnBackPressedCallback; like Esc: closes a menu, opens/closes the match menu, goes back a screen; 'exit' only from the main menu → app to background). The touch HUD's menu button reads "☰ Menu". `#testBar` lives at the top level of #app (z 6) so the touch look layer (#touch, z 4) doesn't swallow taps; HUD buttons inside #hud are under it.
+- Mouse pointer in matches (v1.9.1): `game.lockMouse()` (clicks, any key, resume, match start; browsers need a fresh click/key), `html.aiming` hides the
+  pointer over the canvas even when the lock is refused (`pointerlockerror` → one "drag to aim" tip). Touch "Auto" = `(pointer: coarse)` at start, then
+  follows the last press (`Touch.follow`: finger on, mouse off): touchscreen PCs used to get the touch layer over the canvas, so clicks never locked the mouse.
 - Usernames: `acctRename` (Profile › Change username, once a week, capital letters any time) re-keys the account everywhere (friends/requests/blocked/unread, clubs, DMs + club chat authors, tokens, email map, online, party, picture file).
 - Bridges: `world.groundAt(x, z, refY)` counts a deck only within 0.9 of `refY` (2.2 near the ends): otherwise anything
   under a bridge popped up onto it. Pilots treat ground rising > 0.5 m within 0.5 m ahead as a wall (no creeping up cliffs),

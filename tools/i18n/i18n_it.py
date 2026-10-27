@@ -109,4 +109,5 @@ T = [
 "La chat rapida è attiva (Impostazioni › Chat)", "Quel mech non è più nella galleria", "Tolto dalla galleria",
 "Gira il telefono per giocare a Cogwild", "Ops, qualcosa si è rotto", "Copia il rapporto", "Usare la chat vocale?", "Lasciala spenta", "Attiva la chat vocale",
 "Scrivi un messaggio…", "Solo chat rapida",
+"Clicca sul gioco per mirare di nuovo · Esc = menu", "Questo browser non lascia al gioco il controllo del mouse: tieni premuto un tasto del mouse e trascina per mirare", 
 ]

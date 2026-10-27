@@ -109,4 +109,5 @@ T = [
 "Le chat rapide est activé (Paramètres › Chat)", "Ce mech n'est plus dans la galerie", "Retiré de la galerie",
 "Tourne ton téléphone pour jouer à Cogwild", "Oups, quelque chose a cassé", "Copier le rapport", "Utiliser le chat vocal ?", "Le laisser désactivé", "Activer le chat vocal",
 "Écris un message…", "Chat rapide seulement",
+"Clique sur le jeu pour viser à nouveau · Échap = menu", "Ce navigateur ne laisse pas le jeu capturer la souris : maintiens un bouton de la souris et fais glisser pour viser", 
 ]

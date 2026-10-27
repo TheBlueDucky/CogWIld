@@ -109,4 +109,5 @@ T = [
 "El chat rápido está activado (Ajustes › Chat)", "Ese mech ya no está en la galería", "Quitado de la galería",
 "Gira el móvil para jugar a Cogwild", "Uy, algo se rompió", "Copiar informe", "¿Usar el chat de voz?", "Dejarlo apagado", "Activar el chat de voz",
 "Escribe un mensaje…", "Solo chat rápido",
+"Haz clic en el juego para volver a apuntar · Esc = menú", "Este navegador no deja que el juego retenga el ratón: mantén pulsado un botón del ratón y arrastra para apuntar", 
 ]

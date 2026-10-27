@@ -27,15 +27,35 @@
       this.on = false;
       this.stick = null; // { id, x0, y0, x, y }
       this.looks = new Map(); // pointerId -> last { x, y }
+      this.auto = null; // Auto: what the last press used (true = finger, false = mouse), null = not known yet
       this.build();
       this.bindWorkshop();
       this.apply();
+      window.addEventListener('pointerdown', (e) => this.follow(e), true);
     }
 
-    detected() { return 'ontouchstart' in window || navigator.maxTouchPoints > 0; }
+    // Auto starts with the controls on only where a finger is the main pointer (phones, tablets): a PC with a
+    // touchscreen, pen tablet or touch driver has a mouse as its main pointer and starts without them
+    detected() {
+      const mq = (q) => !!(window.matchMedia && window.matchMedia(q).matches);
+      if (mq('(pointer: coarse)')) return true;
+      if (mq('(pointer: fine)')) return false;
+      return 'ontouchstart' in window || navigator.maxTouchPoints > 0; // old browsers that can't tell
+    }
+    // ...then Auto follows what you use: a finger on the screen turns them on, a mouse click turns them off
+    // (that click also catches the mouse, so the pointer disappears right away)
+    follow(e) {
+      const s = this.game.settings;
+      if (s.touch === 'on' || s.touch === 'off') return;
+      const finger = e.pointerType === 'touch' ? true : e.pointerType === 'mouse' ? false : null; // a pen changes nothing
+      if (finger === null || finger === this.on) return;
+      this.auto = finger;
+      this.apply();
+      if (!finger) this.game.lockMouse();
+    }
     apply() {
       const s = this.game.settings;
-      this.on = s.touch === 'on' || (s.touch !== 'off' && this.detected());
+      this.on = s.touch === 'on' || (s.touch !== 'off' && (this.auto !== null ? this.auto : this.detected()));
       document.documentElement.classList.toggle('touch-ui', this.on);
       document.documentElement.style.setProperty('--tsize', String(s.touchSize || 1));
       if (!this.on) this.release();

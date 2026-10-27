@@ -467,6 +467,7 @@
   /* ---- touch controls ---- */
   :root { --tsize: 1; }
   #app canvas { touch-action: none; }
+  html.aiming #app canvas { cursor: none; } /* playing with a mouse: no pointer over the game (game.js tick) */
   #touch { position: absolute; inset: 0; z-index: 4; user-select: none; -webkit-user-select: none; touch-action: none; }
   #tLook { position: absolute; inset: 0; }
   #tStick { position: absolute; left: calc(24px + env(safe-area-inset-left)); bottom: 24px; width: calc(150px * var(--tsize)); height: calc(150px * var(--tsize)); border-radius: 50%; background: rgba(255, 255, 255, .08); border: 3px solid rgba(255, 255, 255, .25); }
@@ -1961,32 +1962,32 @@
 </div>
 
 <!-- three.js: from the CDN, or the local copy in js/vendor/ when offline (desktop build / no internet) -->
-<script src="js/vendor/three.min.js?v=32"></script>
-<script src="js/economy.js?v=32"></script>
-<script src="js/parts.js?v=32"></script>
-<script src="js/i18n.js?v=32"></script>
-<script src="js/platform.js?v=32"></script>
-<script src="js/featured.js?v=32"></script>
-<script src="js/world.js?v=32"></script>
-<script src="js/entities.js?v=32"></script>
-<script src="js/meta.js?v=32"></script>
-<script src="js/extras.js?v=32"></script>
-<script src="js/modes.js?v=32"></script>
-<script src="js/tutorial.js?v=32"></script>
-<script src="js/clips.js?v=32"></script>
-<script src="js/gamepad.js?v=32"></script>
-<script src="js/workshop.js?v=32"></script>
-<script src="js/config.js?v=32"></script>
-<script src="js/net.js?v=32"></script>
-<script src="js/account.js?v=32"></script>
-<script src="js/touch.js?v=32"></script>
-<script src="js/supers.js?v=32"></script>
-<script src="js/gadgets.js?v=32"></script>
-<script src="js/replay.js?v=32"></script>
-<script src="js/gallery.js?v=32"></script>
-<script src="js/pics.js?v=32"></script>
-<script src="js/talk.js?v=32"></script>
-<script src="js/voice.js?v=32"></script>
-<script src="js/game.js?v=32"></script>
+<script src="js/vendor/three.min.js?v=33"></script>
+<script src="js/economy.js?v=33"></script>
+<script src="js/parts.js?v=33"></script>
+<script src="js/i18n.js?v=33"></script>
+<script src="js/platform.js?v=33"></script>
+<script src="js/featured.js?v=33"></script>
+<script src="js/world.js?v=33"></script>
+<script src="js/entities.js?v=33"></script>
+<script src="js/meta.js?v=33"></script>
+<script src="js/extras.js?v=33"></script>
+<script src="js/modes.js?v=33"></script>
+<script src="js/tutorial.js?v=33"></script>
+<script src="js/clips.js?v=33"></script>
+<script src="js/gamepad.js?v=33"></script>
+<script src="js/workshop.js?v=33"></script>
+<script src="js/config.js?v=33"></script>
+<script src="js/net.js?v=33"></script>
+<script src="js/account.js?v=33"></script>
+<script src="js/touch.js?v=33"></script>
+<script src="js/supers.js?v=33"></script>
+<script src="js/gadgets.js?v=33"></script>
+<script src="js/replay.js?v=33"></script>
+<script src="js/gallery.js?v=33"></script>
+<script src="js/pics.js?v=33"></script>
+<script src="js/talk.js?v=33"></script>
+<script src="js/voice.js?v=33"></script>
+<script src="js/game.js?v=33"></script>
 </body>
 </html>

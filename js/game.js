@@ -725,6 +725,8 @@
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
         // remapped keys (Settings > Keys) are turned into the default key the game reads
         const code = this.keymap[e.code] || e.code;
+        // any key catches the mouse too, not only a click (a moment later: Enter may have just opened the chat)
+        if (this.state === 'match' && e.code !== 'Escape') setTimeout(() => this.lockMouse(), 0);
         if (!this.keys[code]) this.pressed[code] = true;
         this.keys[code] = true;
         if (this.state === 'match' && ['Space', 'Tab', 'ShiftLeft'].includes(code)) e.preventDefault();
@@ -748,9 +750,7 @@
         if (this.paused) return;
         if (e.button === 0) this.mouse.left = true;
         if (e.button === 2 && document.pointerLockElement === cv) this.pressed.KeyX = true; // right-click = super
-        if (document.pointerLockElement !== cv && cv.requestPointerLock) {
-          try { const r = cv.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (err) { /* no lock */ }
-        }
+        this.lockMouse();
       });
       window.addEventListener('mouseup', (e) => { if (e.button === 0) this.mouse.left = false; });
       window.addEventListener('mousemove', (e) => {
@@ -765,6 +765,21 @@
         if (locked) this.hadLock = true;
         else if (this.state === 'match' && this.hadLock && !this.ended && !this.paused && !this.touch.on && !this.talk.isOpen) this.toast('🖱 Click the game to aim again · Esc = menu');
       });
+      // some browsers, add-ons, game-site frames and remote-play tools never let a page catch the mouse: the pointer
+      // is still hidden while playing (html.aiming) and aiming works by holding a mouse button and dragging
+      document.addEventListener('pointerlockerror', () => {
+        if (this.state !== 'match' || this.hadLock || this.touch.on) return;
+        if (++this.lockFails === 2) this.toast('🖱 This browser won’t let the game hold the mouse: hold a mouse button and drag to aim');
+      });
+    }
+    // catch the mouse while playing (no pointer on screen, endless turning). Browsers only allow it right after a
+    // click or key press, so it's asked on both, after the match menu, and at the start (offline PLAY was a click)
+    lockMouse() {
+      const cv = this.renderer.domElement;
+      if (this.state !== 'match' || document.pointerLockElement === cv || !cv.requestPointerLock) return;
+      if (this.paused || this.ended || this.spectator || this.touch.on || this.talk.isOpen) return;
+      if (navigator.userActivation && !navigator.userActivation.isActive) return;
+      try { const r = cv.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (e) { /* no lock */ }
     }
 
     // the match menu (Esc / ⏸): the match keeps going behind it, only your own controls rest
@@ -779,8 +794,7 @@
     resume() {
       this.paused = false;
       $('pause').classList.add('hidden');
-      const cv = this.renderer.domElement;
-      if (cv.requestPointerLock) { try { const r = cv.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (e) { /* ignore */ } }
+      this.lockMouse();
     }
 
     // ---------------- match setup ----------------
@@ -841,6 +855,8 @@
       this.paused = false;
       this.slowmo = 0; this.slowmoDone = false;
       this.hadLock = false;
+      this.lockFails = 0;
+      setTimeout(() => this.lockMouse(), 0);
       this.suddenDeath = false;
       this.respawns = [];
       this.streak = 0; this.matchStreak = 0; this.lastWreckT = -99; this.firstBlood = false; this.bonusCoins = 0;
@@ -2706,6 +2722,9 @@
       this.time += dt;
       this.gamepad.update(dt);
       this.touch.update();
+      // no mouse pointer over the game while you play (even when the browser wouldn't let the game catch the mouse)
+      const aiming = this.state === 'match' && !this.paused && !this.ended && !this.spectator && !this.touch.on && !this.talk.isOpen;
+      if (aiming !== this._aiming) { this._aiming = aiming; document.documentElement.classList.toggle('aiming', aiming); }
       this.supers.update(dt);
       this.gadgets.update(dt);
       if (this.state !== this._musicState) { this._musicState = this.state; this.updateMusic(); }

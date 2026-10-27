@@ -109,4 +109,5 @@ T = [
 "Nur Schnellchat ist an (Einstellungen › Chat)", "Dieser Mech ist nicht mehr in der Galerie", "Aus der Galerie entfernt",
 "Dreh dein Handy quer, um Cogwild zu spielen", "Hoppla, etwas ist kaputtgegangen", "Bericht kopieren", "Sprachchat benutzen?", "Aus lassen", "Sprachchat einschalten",
 "Schreib eine Nachricht…", "Nur Schnellchat",
+"Klicke ins Spiel, um wieder zu zielen · Esc = Menü", "Dieser Browser lässt das Spiel die Maus nicht festhalten: Halte eine Maustaste gedrückt und ziehe, um zu zielen", 
 ]

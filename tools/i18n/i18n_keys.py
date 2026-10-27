@@ -111,4 +111,5 @@ KEYS = [
 "Quick chat only is on (Settings › Chat)", "That mech is no longer in the gallery", "Removed from the gallery",
 "Turn your phone sideways to play Cogwild", "Oops, something broke", "Copy report", "Use voice chat?", "Keep it off", "Turn on voice chat",
 "Type a message…", "Quick chat only",
+"Click the game to aim again · Esc = menu", "This browser won’t let the game hold the mouse: hold a mouse button and drag to aim", 
 ]
