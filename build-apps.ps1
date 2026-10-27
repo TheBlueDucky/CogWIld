@@ -69,7 +69,8 @@ if ($Only -contains 'android') {
   if ($LASTEXITCODE) { throw 'Android sync failed' }
   Push-Location android
   # signed with android\keys (release.properties): the .aab is what Google Play wants, the .apk is for the download page
-  .\gradlew.bat assembleRelease bundleRelease --console=plain
+  # --no-daemon: a Gradle helper left running would keep a background release "running" after it finished
+  .\gradlew.bat assembleRelease bundleRelease --console=plain --no-daemon
   if ($LASTEXITCODE) { throw 'Android build failed' }
   Copy-Item 'app\build\outputs\apk\release\app-release.apk' (Join-Path $out "Cogwild-$ver.apk") -Force
   Copy-Item 'app\build\outputs\bundle\release\app-release.aab' (Join-Path $storeOut "Cogwild-$ver.aab") -Force
