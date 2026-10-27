@@ -105,7 +105,7 @@ The user is not a programmer: explain things in plain words, test everything you
   username + password behind a link. Without Google: email + password + username sign-up (`acctSignup`; a 6-digit code
   when mail is configured). Nobody has to log in: guests play with progress on their device (plus the guest wallet) and get a
   "Playing as a guest" card at most once a day (account.js guestNudge) with Log in / Sign up.
-- **Chat/voice:** matches = quick chat only (keys 1-8); friends/party/club = free text (200 chars, no word filter yet) or
+- **Chat/voice:** matches = quick chat only (keys 1-8); friends/party/club = free text (200 chars, filtered by `server/filter.js`) or
   quick lines (`TALK_QUICK` in economy.js). "Quick chat only" (kids) is per account and also turns voice off. Voice needs an
   account; peers = same party, or same room when both chose "my match"; always via the TURN relay (no IPs shared). Free
   chat is off on CrazyGames/Poki and voice is off on every portal (their frames block the mic). The game asks "Use voice chat?" on first start, after each update and per account.
@@ -189,7 +189,6 @@ apps would break with the new server; they then get an "update" prompt.
 - Optional cleanup of old downloads on the server (1.0–1.6.3).
 - Confirm the Oracle alert email subscription.
 - Store launch: Google Play closed test (12 testers × 14 days), itch.io/CrazyGames/Poki submissions (zips in `dist/`).
-- Possibly a chat word filter later (they asked to wait).
 - Microsoft Store: **submitted for certification on 24 Oct 2026** (v1.8.3, identity TheBlueDucky.CogWild, Store ID 9P58PTK2Z93L, listing name "CogWild", publisher TheBlueDucky; settings in desktop/package.json). After it's live: add a "Get it from Microsoft" link (https://apps.microsoft.com/detail/9P58PTK2Z93L) to download.html. Each update = higher version + `build-apps.ps1 -Only store` + a new submission (1-3 days); avoid NET_VERSION bumps right before one, Store players can't update until it passes. The Store copy (`process.windowsStore` → `?store=1` → `CW.STORE`) sends updates to its Store page (`CW.STORE_ID`).
 - The Mac builds were never tried on a real Mac (built on Windows); Linux arm64 was smoke-tested in Docker on DuckysSrv.
 - New parts must also go into `js/economy.js` PARTS (cost, type, level, HP, DPS) or the server refuses mechs with them; adding part types needs a NET_VERSION bump (old games crash on unknown parts).
