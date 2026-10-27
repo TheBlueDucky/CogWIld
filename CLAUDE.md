@@ -175,6 +175,9 @@ apps would break with the new server; they then get an "update" prompt.
 - Mouse pointer in matches (v1.9.1): `game.lockMouse()` (clicks, any key, resume, match start; browsers need a fresh click/key), `html.aiming` hides the
   pointer over the canvas even when the lock is refused (`pointerlockerror` → one "drag to aim" tip). Touch "Auto" = `(pointer: coarse)` at start, then
   follows the last press (`Touch.follow`: finger on, mouse off): touchscreen PCs used to get the touch layer over the canvas, so clicks never locked the mouse.
+- Mouse speed (v1.9.3): Chrome on some Chromebooks / zoomed screens reports `movementX` × devicePixelRatio. `game.mouseScale` compares movement with
+  the pointer's clientX path in the menus and sets `mouseFix` = DPR only when the ratio ≈ DPR; the mousemove handler also drops one huge made-up jump
+  (>250 px and >8× the recent average). Synthetic Electron input has movementX 0, so `tests/mouse-speed-test.js` dispatches MouseEvents itself.
 - Usernames: `acctRename` (Profile › Change username, once a week, capital letters any time) re-keys the account everywhere (friends/requests/blocked/unread, clubs, DMs + club chat authors, tokens, email map, online, party, picture file).
 - Bridges: `world.groundAt(x, z, refY)` counts a deck only within 0.9 of `refY` (2.2 near the ends): otherwise anything
   under a bridge popped up onto it. Pilots treat ground rising > 0.5 m within 0.5 m ahead as a wall (no creeping up cliffs),

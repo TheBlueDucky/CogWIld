@@ -23,7 +23,7 @@
     const ua = navigator.userAgent || '';
     if (window.CogwildNative || CW.APP === 'android') return 'android';
     if (/Electron/.test(ua)) return CW.STORE ? 'store' : /Mac/.test(ua) ? 'mac' : /Linux/.test(ua) ? 'linux' : 'windows';
-    return /Android|iPhone|iPad|iPod|Mobi/i.test(ua) ? 'web-phone' : 'web';
+    return /Android|iPhone|iPad|iPod|Mobi/i.test(ua) ? 'web-phone' : /CrOS/.test(ua) ? 'web-chromebook' : 'web';
   };
 
   function report(err, kind, where, src) {

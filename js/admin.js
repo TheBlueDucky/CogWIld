@@ -83,7 +83,7 @@
     bind(v);
   }
   // ---- 📈 Stats: players per day (server/stats.js) ----
-  const PLAT = { web: 'Website (PC)', 'web-phone': 'Website (phone)', windows: 'Windows app', store: 'Microsoft Store', android: 'Android app', mac: 'Mac app', linux: 'Linux app',
+  const PLAT = { web: 'Website (PC)', 'web-phone': 'Website (phone)', 'web-chromebook': 'Website (Chromebook)', windows: 'Windows app', store: 'Microsoft Store', android: 'Android app', mac: 'Mac app', linux: 'Linux app',
     itch: 'itch.io', crazygames: 'CrazyGames', poki: 'Poki', old: 'Older game versions' };
   const MODE = { clash: 'Workshop Clash', rush: 'Rush Build', koth: 'King of the Hill', gold: 'Gold Rush', bounty: 'Bounty Hunt', race: 'Combat Race', survival: 'Survival', boss: 'Boss Battle' };
   const pct = (x) => (x == null ? '—' : x + '%');

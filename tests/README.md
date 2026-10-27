@@ -34,6 +34,7 @@ Then run one with `desktop/node_modules/.bin/electron tests/<file>.js` (screensh
 | `login-test.js` | the email-code sign-up flow (needs `MAIL_DEV=1`) |
 | `stats-test.js` | daily stats + automatic bug reports: platform, a match per mode, an error and a crash reach /admin by themselves, offline reports wait and go out, add-on errors skipped, the 📈 Stats / 🐞 Bugs tabs (server needs `ADMIN_TOKEN` = `a`×64) |
 | `mouse-test.js` | no mouse pointer while playing with a mouse: Auto phone controls (touchscreen PCs start without them, finger on / mouse off), hidden pointer, keys catch the mouse, one tip when the browser refuses |
+| `mouse-speed-test.js` | aiming turns the same everywhere: a browser that reports mouse movement × the pixel ratio (Chromebooks) is noticed in the menus and divided back, normal browsers left alone, one made-up huge jump ignored, real fast flicks kept |
 | `phone-test.js` | lobby, settings and match HUD at phone size with touch controls (`W=780 H=350`) |
 | `wall-aim-test.js` | a mech hopping into a cliff stays below it, camera stays out of the cliff, touch aim assist turns toward enemies |
 | `chat-test.js` | a quick-chat line shows once for the sender and once for the other player |

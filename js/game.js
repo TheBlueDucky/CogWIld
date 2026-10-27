@@ -754,9 +754,19 @@
       });
       window.addEventListener('mouseup', (e) => { if (e.button === 0) this.mouse.left = false; });
       window.addEventListener('mousemove', (e) => {
-        if (this.state !== 'match') return;
         const locked = document.pointerLockElement === cv;
-        if (locked || this.mouse.left || e.buttons & 2) { this.mouse.dx += e.movementX || 0; this.mouse.dy += e.movementY || 0; }
+        const mx = e.movementX || 0, my = e.movementY || 0;
+        if (!locked) this.mouseScale(e, mx);
+        if (this.state !== 'match') return;
+        if (locked || this.mouse.left || e.buttons & 2) {
+          // Chrome sometimes sends one huge made-up jump (seen on Chromebooks): a whole turn from a tiny nudge
+          const big = Math.max(Math.abs(mx), Math.abs(my));
+          const usual = this.mouseUsual || 0;
+          this.mouseUsual = usual * 0.8 + Math.min(big, 400) * 0.2;
+          if (big > 250 && big > 8 * (usual + 15)) return;
+          const s = this.mouseFix || 1;
+          this.mouse.dx += mx / s; this.mouse.dy += my / s;
+        }
       });
       cv.addEventListener('contextmenu', (e) => { if (this.state === 'match') e.preventDefault(); });
       // losing the mouse (Alt-Tab, clicking outside) never stops the match: click the game to aim again
@@ -780,6 +790,23 @@
       if (this.paused || this.ended || this.spectator || this.touch.on || this.talk.isOpen) return;
       if (navigator.userActivation && !navigator.userActivation.isActive) return;
       try { const r = cv.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (e) { /* no lock */ }
+    }
+
+    // some browsers (Chrome on many Chromebooks, zoomed screens) report mouse movement times the screen's pixel
+    // ratio, so aiming turned 1.25-2× too fast there. In the menus the pointer's real path shows it: if movement is
+    // steadily the pixel ratio times the pointer's move, aiming divides it back (this.mouseFix)
+    mouseScale(e, mx) {
+      const px = this.mouseLastX;
+      this.mouseLastX = e.clientX;
+      const d = px === undefined ? 0 : e.clientX - px;
+      if (Math.abs(d) < 3 || Math.abs(mx) < 2 || (d > 0) !== (mx > 0) || Math.abs(d) > 300) return;
+      const r = (this.mouseRatios || (this.mouseRatios = []));
+      r.push(mx / d);
+      if (r.length > 25) r.shift();
+      if (r.length < 10) return;
+      const med = r.slice().sort((a, b) => a - b)[r.length >> 1];
+      const dpr = window.devicePixelRatio || 1;
+      this.mouseFix = dpr > 1.1 && Math.abs(med - dpr) < 0.15 * dpr ? dpr : 1;
     }
 
     // the match menu (Esc / ⏸): the match keeps going behind it, only your own controls rest
