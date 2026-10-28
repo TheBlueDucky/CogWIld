@@ -1,6 +1,7 @@
 // Cogwild — the chat window (💬, or Enter): your match, your party, your club and your friends.
 //
-// Matches only have quick chat (ready-made lines, also keys 1-8). Party, club and friends have free chat:
+// Matches only have quick chat (ready-made lines, also keys 1-8); while a room waits for its match you can type to
+// everyone in it (v1.9.7, server/talk.js roomSay). Party, club and friends have free chat:
 // type anything (200 characters). "Quick chat only" (Settings > Chat, kept on your account) is for kids:
 // only ready-made lines, no free text either way and no voice chat. Tap a name to see their profile,
 // block them (nothing from them reaches you, also no voice) or report them. The server: server/talk.js.
@@ -46,14 +47,14 @@
       // Enter, or the chat key (T unless changed or turned off in Settings › Chat), opens the chat; not while typing
       window.addEventListener('keydown', (e) => {
         const key = this.game.meta.optKey('chatKey');
-        if (e.code !== 'Enter' && e.code !== 'NumpadEnter' && (key === 'none' || e.code !== key)) return;
+        if (e.code !== 'Enter' && e.code !== 'NumpadEnter' && !CW.keyHit(e, key)) return;
         const t = e.target;
         if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
         if (e.code === 'KeyT' && this.game.state === 'match' && this.game.modeId === 'test') return; // T = back to the Workshop there
         if (e.repeat || !['menu', 'match', 'results'].includes(this.game.state) || !$('acct').classList.contains('hidden')) return;
         e.preventDefault();
         // the chat key opens the chat, and closes it again when you're not typing in it (Enter only opens it)
-        if (this.isOpen) { if (e.code === key) this.close(); return; }
+        if (this.isOpen) { if (CW.keyHit(e, key)) this.close(); return; }
         this.open();
       });
       // phones: typing in the menu turns the phone upright (easier to type), Done turns it back
@@ -62,6 +63,20 @@
       $('chatInput').addEventListener('pointerdown', upright);
       $('chatDone').onclick = () => this.close();
       this.bindGrip();
+      // v1.9.7: a click anywhere outside the chat closes it (Settings › Chat can keep it open). Not the buttons that
+      // open it, not pop-ups on top (questions, a call)
+      window.addEventListener('pointerdown', (e) => {
+        if (!this.isOpen || this.game.settings.chatStay || /talk-(full|portrait)/.test(document.body.className)) return;
+        const t = e.target;
+        if (!(t instanceof Element) || t.closest('#chat, #btnChat, #hudChat, #confirm, #callCard, #vcAsk, #modal, #toast')) return;
+        this.close();
+      }, true);
+      // the room screen: type to the room while it waits
+      $('lbForm').onsubmit = (e) => {
+        e.preventDefault();
+        const x = $('lbIn').value.trim();
+        if (x && this.sayTo('game', { x })) $('lbIn').value = '';
+      };
     }
 
     // ======================= from the server =======================
@@ -95,6 +110,16 @@
           this.heard('party', m.msg, '🎉 Party');
           return true;
         }
+        case 'roomMsg': {
+          // free chat in a room before its match (v1.9.7)
+          if (this.isBlocked(m.msg.f)) return true;
+          const net = this.net, mine = m.from === net.id;
+          (net.chatLog = net.chatLog || []).push(`<b>${esc(mine ? 'You' : m.msg.f)}:</b> ${esc(m.msg.x || '')}`);
+          if (net.chatLog.length > 30) net.chatLog.shift();
+          net.renderChat();
+          this.refresh();
+          return true;
+        }
         case 'clubMsg': {
           const cl = this.acct.club;
           if (cl) cl.log = (cl.log || []).concat(m.msg).slice(-40);
@@ -124,7 +149,12 @@
     say(m) {
       const net = this.net;
       if (m.x != null && !this.freeOk) { this.game.toast('Quick chat only is on (Settings > Chat)'); return false; }
-      if (this.tab === 'game') return false;
+      if (this.tab === 'game') {
+        if (m.x == null || !this.roomFree) return false;
+        if (!this.acct.loggedIn) { this.acct.openLogin('Log in to type in the chat'); return false; }
+        net.send({ t: 'roomSay', x: m.x });
+        return true;
+      }
       if (!this.acct.loggedIn) { this.acct.openLogin('Log in to chat with friends, your party and your club'); return false; }
       const msg = Object.assign({}, m);
       if (this.tab === 'party') net.send(Object.assign({ t: 'partySay' }, msg));
@@ -137,6 +167,8 @@
       if (!this.acct.loggedIn) return this.acct.openLogin('Log in to choose how you chat');
       this.net.send({ t: 'chatMode', mode });
     }
+    // a room waiting for its match (the search screen or a private room): typing is open
+    get roomFree() { const r = this.net.room; return !!r && r.state === 'lobby' && this.game.state !== 'match' && this.freeOk; }
     isBlocked(name) { return !!name && this.blocked.some((b) => b.toLowerCase() === String(name).toLowerCase()); }
 
     // ======================= the window =======================
@@ -154,6 +186,7 @@
       const show = st === 'match' || st === 'lobby' || st === 'results';
       $('hudTalk').classList.toggle('hidden', !show);
       $('hudTalk').classList.toggle('waiting', st !== 'match');
+      $('lbForm').classList.toggle('hidden', !(this.roomFree && this.acct.loggedIn));
     }
     open(tab) {
       if (this.game.state === 'match' && document.pointerLockElement) document.exitPointerLock();
@@ -297,10 +330,11 @@
       const logIn = (why) => `<div class="chat-empty">${why}<br><button class="ws-btn on" data-login="1">Log in</button></div>`;
       if (tab === 'game') {
         // the match: quick chat only (keys 1-8 too)
-        const log = this.net.chatLog || [];
-        sub = `<span class="small">Quick chat with everyone in this match${this.game.touch.on ? '' : ' · keys 1-8'}</span>`;
-        body = log.length ? log.map((l) => `<div class="chat-line">${l}</div>`).join('') : '<div class="chat-empty">Say hi with the quick chat below</div>';
+        const log = this.net.chatLog || [], free = this.roomFree && this.acct.loggedIn;
+        sub = `<span class="small">${free ? 'Type to everyone here until the match starts' : `Quick chat with everyone in this match${this.game.touch.on ? '' : ' · keys 1-8'}`}</span>`;
+        body = log.length ? log.map((l) => `<div class="chat-line">${l}</div>`).join('') : `<div class="chat-empty">${free ? 'Say hi!' : 'Say hi with the quick chat below'}</div>`;
         quick = CW.QUICK_CHAT.map((t, i) => `<button class="chat-q" data-gq="${i}">${t}</button>`);
+        canType = free;
       } else if (!this.acct.loggedIn) {
         body = logIn(tab === 'club' ? 'Log in to chat with your club' : 'Log in to chat with your friends and party');
       } else if (tab === 'club' && !this.acct.club) {
@@ -319,7 +353,10 @@
         body = fr.length ? fr.map((f) => `<button class="chat-friend ${f.on ? 'on' : ''}" data-dm="${esc(f.name)}"><span class="av">${CW.face(f)}</span><b>${esc(f.name)}</b><small>${this.isBlocked(f.name) ? '🚫 blocked' : (f.club ? '🛡 ' : '') + (f.on ? '🟢 online' : '⚫ offline')}</small>${this.unread[f.name] ? `<i class="badge">${this.unread[f.name]}</i>` : ''}</button>`).join('')
           : '<div class="chat-empty">No friends yet. Add someone in 👥 Friends, or message a club member from 🛡 Clubs.</div>';
       } else {
-        if (tab === 'friends') sub = `<button class="ws-btn chat-back" data-back="1">←</button><b class="chat-who" data-who="${esc(this.thread)}">${esc(this.thread)}</b>`;
+        if (tab === 'friends') {
+          const f = this.acct.friends.find((x) => x.name === this.thread) || ((this.acct.club && this.acct.club.list) || []).find((x) => x.name === this.thread);
+          sub = `<button class="ws-btn chat-back" data-back="1">←</button><b class="chat-who" data-who="${esc(this.thread)}">${esc(this.thread)}</b>${f && f.on && !this.isBlocked(this.thread) ? `<button class="ws-btn chat-call" data-call="${esc(this.thread)}" aria-label="Call ${esc(this.thread)}">📞 Call</button>` : ''}`;
+        }
         else if (tab === 'club') sub = `<b>🛡 ${esc(this.acct.club.name)}</b><span class="small">${this.acct.club.list.filter((p) => p.on).length} online</span>`;
         else sub = `<b>🎉 Party</b><span class="small">${this.acct.party.members.map((p) => esc(p.name)).join(', ')}</span>`;
         const list = this.lines(tab).filter((l) => !this.isBlocked(l.f));
@@ -357,6 +394,7 @@
       on('[data-q]', (b) => this.say({ q: +b.dataset.q }));
       on('[data-dm]', (b) => { this.thread = b.dataset.dm; this.who = null; this.net.send({ t: 'dmOpen', name: this.thread }); this.render(); });
       on('[data-back]', () => { this.thread = null; this.who = null; this.render(); });
+      on('[data-call]', (b) => this.game.calls.start(b.dataset.call));
       on('[data-login]', () => { this.close(); this.acct.openLogin('Log in to chat with friends, your party and your club'); });
       on('[data-clubs]', () => { this.close(); $('btnClubs').click(); });
       on('[data-who]', (b) => { const n = b.dataset.who; if (this.acct.me && n === this.acct.me.name) return; this.who = n; this.reporting = false; this.render(); });

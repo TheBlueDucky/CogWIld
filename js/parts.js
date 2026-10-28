@@ -2,7 +2,7 @@
 (function () {
   const CW = (window.CW = window.CW || {});
 
-  CW.VERSION = 'v1.9.6';
+  CW.VERSION = 'v1.9.7';
   // escape text before it goes into innerHTML (mech/player names can come from pasted save codes)
   // "3h 12m" / "5d 4h" / "12m" until something ends
   CW.timeLeft = (ms) => { const m = Math.max(1, Math.ceil(ms / 60000)); return m >= 2880 ? `${Math.floor(m / 1440)}d ${Math.floor((m % 1440) / 60)}h` : m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; };
@@ -33,7 +33,10 @@
   CW.WATER_Y = 0;
   CW.GRAV = 22;
   CW.BUDGET = CW.ECON.BUDGET; // 500 Bolts (js/economy.js, the server checks the same number)
-  CW.ARENA_HALF = 176;
+  CW.ARENA_HALF = 176; // the playing area (spawns, bots, the map)
+  // v1.9.7: the force field stands at the very top of the slopes around the arena (they rise from 166 to 195), so a fast
+  // mech can drive up the sides until the edge instead of hitting a wall half-way up
+  CW.FIELD = 192;
   CW.CEILING = 110;
   CW.DRAG = { land: 1.55, water: 1.2, air: 0.55 }; // lower = faster top speed
   CW.GRID = { minX: -4, maxX: 4, minY: -2, maxY: 4, minZ: -4, maxZ: 4 };

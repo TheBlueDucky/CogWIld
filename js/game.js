@@ -203,6 +203,7 @@
       this.account = new CW.Account(this);
       this.talk = new CW.Talk(this); // the chat window (js/talk.js)
       this.voice = new CW.Voice(this); // voice chat (js/voice.js)
+      this.calls = new CW.Calls(this); // calling friends and club-mates (js/calls.js)
       this.touch = new CW.Touch(this);
       this.supers = new CW.Supers(this);
       this.gadgets = new CW.Gadgets(this);
@@ -260,14 +261,23 @@
       this.applyGraphics();
       this.buildKeymap();
       if (this.touch) this.touch.apply();
-      this.audio.vol = 0.6 * this.settings.volume;
+      this.audio.vol = 0.6 * this.settings.volume * (this.duck || 1);
       if (this.music) {
-        this.music.volume = 0.3 * this.settings.volume * (this.settings.musicVol ?? 1);
+        this.music.volume = 0.3 * this.settings.volume * (this.settings.musicVol ?? 1) * (this.duck || 1);
         if (!this.settings.music) this.music.stop();
         else this.updateMusic();
       }
       this.camera.fov = this.settings.fov;
       this.camera.updateProjectionMatrix();
+      // Settings › Display: how see-through the health and info boxes are (1 = as designed, 0 = no box)
+      document.documentElement.style.setProperty('--hudBg', String(Math.max(0, Math.min(1, this.settings.hudBg ?? 1))));
+    }
+    // voice chat: the game's sounds get quieter while someone talks in a match (js/voice.js)
+    setDuck(d) {
+      if (d === (this.duck || 1)) return;
+      this.duck = d;
+      this.audio.vol = 0.6 * this.settings.volume * d;
+      if (this.music) this.music.volume = 0.3 * this.settings.volume * (this.settings.musicVol ?? 1) * d;
     }
     // Settings > Keys: pressed key -> the default key the game reads ('-' = a default key that now does nothing)
     buildKeymap() {
@@ -277,10 +287,14 @@
       for (const a of CW.KEY_ACTIONS) { const b = keys[a.id]; if (b && b !== a.def && !(a.def in map)) map[a.def] = '-'; }
       this.keymap = map;
     }
+    // Settings › Display › Toggle fullscreen: always flips it, however it was turned on (the desktop app's F11 makes the
+    // window fullscreen, not the page, so the page alone used to think it wasn't and did nothing)
     toggleFullscreen() {
       const d = document;
+      if (window.CogwildDesktop && window.CogwildDesktop.fullscreen) { window.CogwildDesktop.fullscreen(); return; }
       try {
-        if (d.fullscreenElement) d.exitFullscreen();
+        if (d.fullscreenElement || d.webkitFullscreenElement) (d.exitFullscreen || d.webkitExitFullscreen).call(d);
+        else if (window.innerHeight >= screen.height - 1 && window.innerWidth >= screen.width - 1 && !this.touch.on) this.toast('Press F11 to leave fullscreen'); // the browser's own fullscreen (F11): only the browser can end it
         else {
           const r = (d.documentElement.requestFullscreen || d.documentElement.webkitRequestFullscreen).call(d.documentElement);
           if (r && r.catch) r.catch(() => this.toast('Fullscreen is not available here'));
@@ -2356,7 +2370,7 @@
       const quiet = pmech && !this.enemiesOf(p).some((e) => e.pos.distanceTo(p.mech.pos) < 45);
       const hurt = pmech && (p.mech.integrity() < 0.6 || p.mech.parts.some((q) => !q.alive));
       const warn = pmech && this.stuckT > 2.5 ? (this.unstuckCd > 0 ? `⚠ Stuck? Unstuck ready in ${Math.ceil(this.unstuckCd)}s` : '⚠ Stuck? Press F to hop free')
-        : ei && ei.edge < 18 ? '⚠ ARENA EDGE: force field ahead' : ei && ei.ceiling < 12 ? '⚠ ALTITUDE LIMIT'
+        : ei && ei.edge < 10 ? '⚠ ARENA EDGE: force field ahead' : ei && ei.ceiling < 12 ? '⚠ ALTITUDE LIMIT'
           : hurt && quiet && !this.isPractice() ? '🔧 Damaged! Press E to hop out, then hold R next to your mech to repair' : '';
       $('edgeWarn').textContent = warn;
       $('edgeWarn').classList.toggle('hidden', !warn);

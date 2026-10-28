@@ -54,6 +54,20 @@
     if (code.startsWith('Arrow')) return { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' }[code] || code;
     return code.replace(/^Key/, '').replace(/^Digit/, '').replace(/^(Shift|Control|Alt)Left$/, '$1 (L)').replace(/^(Shift|Control|Alt)Right$/, '$1 (R)');
   };
+  // v1.9.7: the chat and voice keys can be one key ('KeyT') or two ('ShiftLeft+Tab': hold the first, press the second).
+  // Left and right Shift / Ctrl / Alt count as the same key there
+  const held = new Set();
+  window.addEventListener('keydown', (e) => held.add(e.code), true);
+  window.addEventListener('keyup', (e) => held.delete(e.code), true);
+  window.addEventListener('blur', () => held.clear());
+  const sameKey = (a, b) => a === b || (/^(Shift|Control|Alt|Meta)(Left|Right)$/.test(a) && a.replace(/(Left|Right)$/, '') === String(b).replace(/(Left|Right)$/, ''));
+  CW.keyHit = (e, bind) => {
+    if (!bind || bind === 'none') return false;
+    const [a, b] = bind.split('+');
+    return b ? sameKey(e.code, b) && [...held].some((h) => h !== e.code && sameKey(h, a)) : e.code === a;
+  };
+  CW.keyPart = (code, bind) => !!bind && bind !== 'none' && bind.split('+').some((k) => sameKey(code, k)); // letting go of either ends push-to-talk
+  CW.bindName = (bind) => (!bind || bind === 'none' ? 'No key' : bind.split('+').map((k) => CW.keyName(k).replace(/ \((L|R)\)$/, '')).join(' + '));
 
   class Meta {
     constructor(game) {
@@ -383,7 +397,7 @@
         // keys you can change or turn off (voice chat and the chat)
         const optKey = (label, id) => {
           const k = this.optKey(id);
-          return `<div class="set-row key-row"><span>${label}</span><span class="key-pair"><button class="ws-btn key-btn" data-vkey="${id}">${k === 'none' ? 'No key' : CW.keyName(k)}</button><button class="ws-btn key-off ${k === 'none' ? 'hidden' : ''}" data-vkeyoff="${id}" aria-label="No key">✕</button></span></div>`;
+          return `<div class="set-row key-row"><span>${label}</span><span class="key-pair"><button class="ws-btn key-btn" data-vkey="${id}">${CW.bindName(k)}</button><button class="ws-btn key-off ${k === 'none' ? 'hidden' : ''}" data-vkeyoff="${id}" aria-label="No key">✕</button></span></div>`;
         };
         const tabs = [['account', '👤', 'Account'], ['display', '🖥', 'Display'], ['controls', '🎮', 'Controls'], ['keys', '⌨', 'Keybinds'], ['touch', '📱', 'Touch screen'], ['sound', '🔊', 'Sound'], ['voice', '🎤', 'Voice chat'], ['chat', '💬', 'Chat'], ['online', '🌐', 'Online'], ['save', '💾', 'Save data'], ['support', '✉', 'Support'], ['help', '❓', 'Help'], ['news', '📰', 'Change logs']];
         body.innerHTML = `<div class="set-wrap"><nav class="set-tabs">${tabs.map(([id, ico, name]) => `<button class="set-tab" data-settab="${id}"><i>${ico}</i><span>${name}</span></button>`).join('')}</nav><div class="set-main">
@@ -394,6 +408,7 @@
           <label class="set-row"><span>Field of view <b id="setFovV"></b></span><input type="range" id="setFov" min="60" max="105" step="1"></label>
           <label class="set-row"><span>Camera</span><select id="setCam"><option value="first">First person (from your Camera part)</option><option value="third">Chase (behind the mech)</option></select></label>
           <div class="set-row"><span>Fullscreen</span><button class="ws-btn" id="setFull">⛶ Toggle fullscreen</button></div>
+          <label class="set-row"><span>Health and info boxes in matches <b id="setHudBgV"></b><small>100% = as they come, 0% = no box behind the text and bars</small></span><input type="range" id="setHudBg" min="0" max="1" step="0.05"></label>
           <label class="set-row chk"><input type="checkbox" id="setShake"><span>Screen shake</span></label>
           <label class="set-row chk"><input type="checkbox" id="setDmg"><span>Floating damage numbers</span></label>
           <label class="set-row chk"><input type="checkbox" id="setFps"><span>Show FPS counter</span></label>
@@ -422,6 +437,7 @@
           <label class="set-row chk"><input type="checkbox" id="setVoice"><span>Voice chat: talk with your party and the players in your match</span></label>
           <label class="set-row"><span>Who you hear</span><select id="setVcHear"><option value="game">My party and my match</option><option value="party">My party only</option></select></label>
           <label class="set-row"><span>How your mic works</span><select id="setVcMode"><option value="open">Open mic: always on (mute with the key below)</option><option value="ptt">Push to talk: only while you hold the key</option></select></label>
+          <div class="small">Keys: click, then press one key, or hold one and press another (like Shift + Tab). Backspace = no key.</div>
           ${optKey('Push to talk (hold)', 'vcPtt')}
           ${optKey('Mute / unmute your mic', 'vcMute')}
           ${optKey('Deafen: stop hearing others (also mutes you)', 'vcDeaf')}
@@ -430,10 +446,17 @@
           <label class="set-row"><span>Voice volume <b id="setVcVolV"></b></span><input type="range" id="setVcVol" min="0" max="2" step="0.05"></label>
           <div class="set-row"><span>Your mic <small class="small" id="vcCount"></small></span><div class="vc-meter"><i id="vcMeter"></i></div></div>
           <div class="small">On phones, tap 🎤 to mute (or hold it to talk with push to talk). Blocked players can't hear you or talk to you.</div>
+          <h3>📞 Calls</h3>
+          <div class="small">Call a friend or a club member who's online with 📞 Call (Friends, Clubs). No party or match needed.</div>
+          <label class="set-row"><span>Ringtone</span><select id="setRing">${CW.RINGTONES.map((r) => `<option value="${r.id}">${r.name}</option>`).join('')}<option value="custom">${s.ringName ? 'Your sound: ' + CW.esc(s.ringName) : 'Your own sound file…'}</option><option value="none">No sound</option></select></label>
+          <div class="set-row"><span>Your own ringtone<small>${s.ringName ? CW.esc(s.ringName) : 'Any sound file up to 1.5 MB, kept on this device'}</small></span><span class="key-pair"><button class="set-btn" id="setRingFile">Choose a file</button><button class="set-btn" id="setRingTry">▶ Try it</button></span></div>
+          <label class="set-row"><span>Ringtone volume <b id="setRingVolV"></b></span><input type="range" id="setRingVol" min="0" max="1" step="0.05"></label>
           </section><section class="set-sec" data-sec="chat"><h3>💬 Chat</h3>
           <label class="set-row"><span>Chat with friends, party and club</span><select id="setChatMode"><option value="free">Free chat: type anything</option><option value="quick">Quick chat only (for kids): ready-made messages, no voice chat</option></select></label>
-          <div class="small">${acct && acct.loggedIn ? 'Saved on your account, on every device.' : 'Log in to chat with friends, your party and your club.'} Matches always use quick chat (keys 1-8). Open the chat with 💬 or Enter.</div>
+          <div class="small">${acct && acct.loggedIn ? 'Saved on your account, on every device.' : 'Log in to chat with friends, your party and your club.'} While you wait for a match you can type to everyone in it; once it starts it's quick chat (keys 1-8). Open the chat with 💬 or Enter.</div>
           ${optKey('Open the chat (Enter works too)', 'chatKey')}
+          <div class="small">Click the key, then press one key, or hold one and press another (like Shift + Tab). Backspace = no key.</div>
+          <label class="set-row chk"><input type="checkbox" id="setChatStay"><span>Keep the chat open when I click outside it</span></label>
           <label class="set-row chk"><input type="checkbox" id="setChat"><span>Show other players' quick chat in matches</span></label>
           <label class="set-row chk"><input type="checkbox" id="setChatNotes"><span>Show new messages while the chat is closed</span></label>
           <h3>🚫 Blocked players</h3>
@@ -504,6 +527,20 @@
         const bindChk = (id, key) => { const el = $(id); el.checked = !!s[key]; el.onchange = () => { s[key] = el.checked; this.apply(); }; };
         bindChk('setFriendOn', 'friendOnline');
         bindChk('setChatNotes', 'chatNotes');
+        bindChk('setChatStay', 'chatStay');
+        if (s.hudBg == null) s.hudBg = 1;
+        bindRange('setHudBg', 'hudBg', (v) => Math.round(v * 100) + '%');
+        // calls: ringtone, your own sound, volume
+        const calls = this.game.calls;
+        if (s.ringVol == null) s.ringVol = 0.8;
+        $('setRing').value = s.ring === 'custom' && !calls.customRing() ? 'chime' : s.ring || 'chime';
+        $('setRing').onchange = (e) => {
+          if (e.target.value === 'custom' && !calls.customRing()) return calls.pickFile(() => this.renderPanel());
+          s.ring = e.target.value; this.apply(); calls.preview();
+        };
+        $('setRingFile').onclick = () => calls.pickFile(() => { this.renderPanel(); calls.preview(); });
+        $('setRingTry').onclick = () => calls.preview();
+        bindRange('setRingVol', 'ringVol', (v) => Math.round(v * 100) + '%');
         // chat mode lives on the account
         $('setChatMode').value = talk.mode;
         $('setChatMode').disabled = !(acct && acct.loggedIn) || !talk.freeOk && talk.mode !== 'quick';
@@ -546,8 +583,7 @@
         bindChk('setSteer', 'autoSteer'); bindChk('setInvert', 'invertY'); bindChk('setShake', 'shake'); bindChk('setDmg', 'dmgNumbers');
         $('setCam').value = s.camMode;
         $('setCam').onchange = (e) => { s.camMode = e.target.value; this.apply(); };
-        $('setReset').onclick = () => {
-          if (!confirm('Reset level, coins, stats and unlocks? Your saved blueprints are kept.')) return;
+        $('setReset').onclick = () => this.ask('Reset all progress?', 'Level, coins, stats and unlocks go back to the start. Your saved blueprints are kept.', 'Reset', () => {
           const keep = this.game.profile.settings;
           this.game.profile = { xp: 0, settings: keep };
           this.game.meta = new Meta(this.game);
@@ -555,7 +591,7 @@
           this.game.toast('Progress reset');
           this.game.renderProfile();
           this.game.meta.openPanel('settings');
-        };
+        });
       } else if (k === 'ach') {
         // anything already done unlocks now (and pays its coins)
         for (const a of CW.checkAchievements(this.game)) this.game.toast(`🏆 ${a.name}! +${a.reward} coins`);
@@ -579,6 +615,7 @@
     // What's new (Settings › Change logs, and the 📰 News button on phones)
     newsHtml() {
       return `<ul class="news">
+          <li><b>v1.9.7</b>: 📞 <b>Calls</b>: call a friend or a club member who's online, no party or match needed. Pick a ringtone, use your own sound file and set its volume in Settings › Voice chat. ⛰ Fast mechs can drive up mountains and the arena's sides (the force field is at the very top now); too slow and you roll back, too fast into the field and you flip. 🎤 Voices in matches are as clear and loud as in the lobby. 💬 Type to everyone while you wait for a match; a click outside the chat closes it (or keep it open in Settings › Chat); chat and voice keys can be two keys like Shift + Tab. 🛡 Clubs: the owner can rename the club and click its picture to change or reset it, members show when they were last online, and Direct Message. ⚙ A slider for the health and info boxes, square Settings categories, calmer buttons, and the fullscreen button always works.</li>
           <li><b>v1.9.6</b>: 🧹 A calmer lobby on PCs: Help and these change logs moved to Settings (at the bottom), the Trophy Road opens from the trophy bar and the challenges from the challenge card. In a party, every lobby button can be clicked again. Settings › Keys is now Keybinds.</li>
           <li><b>v1.9.5</b>: 👤 A new <b>profile</b>: a banner with your picture, simple default profile pictures (the emoji avatars are gone, and the ones you had became coins), and your stats in one neat box. Clicking your own picture no longer removes it. Your account options (email, username, password, log out) moved to Settings › Account. Other players' profiles are bigger and clearer. 🛡 The club screen opens the chat with one calm button. 🎮 The status panel in matches is smaller and see-through.</li>
           <li><b>v1.9.4</b>: 🔧 <b>Round and turnable parts</b> in the Workshop: Round Edge, Curved Hood, Round Corner, Round Top, Slope, plus a Fuselage, Nose Cone, Canopy, Sub Tower and Tail Fin for planes and submarines (try the new Round Coupe, Jet Fighter and Submarine examples). Press <b>R</b> to turn a part and <b>U</b> to flip it. ✈ Rotors and wings lift more, so armored mechs can fly too. 🎮 A simpler, cleaner <b>PLAY picker</b> and <b>Clubs</b> screen, <b>Esc</b> cancels a search, the chat sits down the left side on PCs, more animations, and ✉ <b>Contact us</b> opens our support page. 📱 Phones stay logged in, and the chat fits above the keyboard. 🖥 The desktop app has a dark title bar that matches the game, shows what you're playing on Discord, and never asks for your camera or location.</li>
@@ -779,26 +816,42 @@
       return k === undefined || k === '' ? OPT_KEYS[id] : k;
     }
     // Settings > Voice chat / Chat: change one of those keys (Esc cancels; Backspace or Delete = no key)
+    // v1.9.7: one key, or two (hold the first, press the second while it's down)
     listenVoiceKey(btn) {
       const s = this.settings, id = btn.dataset.vkey;
       btn.textContent = 'Press a key…';
       btn.classList.add('on');
-      const done = (e) => {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        window.removeEventListener('keydown', done, true);
-        if (e.code === 'Backspace' || e.code === 'Delete') s[id] = 'none';
-        else if (e.code !== 'Escape') {
+      let first = null;
+      const stop = () => { window.removeEventListener('keydown', down, true); window.removeEventListener('keyup', up, true); };
+      const finish = (bind) => {
+        stop();
+        if (bind) {
           // another of these keys had it: they swap
-          for (const other of Object.keys(OPT_KEYS)) if (other !== id && this.optKey(other) === e.code) s[other] = this.optKey(id);
-          s[id] = e.code;
-          const clash = CW.KEY_ACTIONS.find((a) => ((s.keys || {})[a.id] || a.def) === e.code);
-          if (clash) this.game.toast(`${CW.keyName(e.code)} is also "${clash.label}"`);
+          for (const other of Object.keys(OPT_KEYS)) if (other !== id && this.optKey(other) === bind) s[other] = this.optKey(id);
+          s[id] = bind;
+          const last = bind.split('+').pop();
+          const clash = bind.includes('+') ? null : CW.KEY_ACTIONS.find((a) => ((s.keys || {})[a.id] || a.def) === last);
+          if (clash) this.game.toast(`${CW.keyName(last)} is also "${clash.label}"`);
         }
         this.apply();
         this.renderPanel();
       };
-      window.addEventListener('keydown', done, true);
+      const down = (e) => {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (e.repeat) return;
+        if (!first) {
+          if (e.code === 'Escape') return finish(null);
+          if (e.code === 'Backspace' || e.code === 'Delete') { s[id] = 'none'; return finish(null); }
+          first = e.code;
+          btn.textContent = CW.bindName(first) + ' + …';
+          return;
+        }
+        if (e.code !== first) finish(first + '+' + e.code);
+      };
+      const up = (e) => { if (first && e.code === first) { e.preventDefault(); finish(first); } };
+      window.addEventListener('keydown', down, true);
+      window.addEventListener('keyup', up, true);
     }
     listenKey(btn) {
       const s = this.settings;

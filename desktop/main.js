@@ -66,6 +66,12 @@ function createWindow() {
 
 // the game says what you're doing (js/desktop.js → preload.js); Discord shows it
 ipcMain.on('presence', (e, info) => discord.set(info));
+// Settings › Toggle fullscreen: the same fullscreen as F11, whichever way it was turned on
+ipcMain.on('fullscreen', (e) => {
+  const w = BrowserWindow.fromWebContents(e.sender);
+  if (!w) return;
+  if (w.isFullScreen()) { e.sender.executeJavaScript('document.fullscreenElement && document.exitFullscreen()').catch(() => {}); w.setFullScreen(false); } else w.setFullScreen(true);
+});
 
 // COGWILD_SMOKE=1: hidden self-check of a built app (loads the game, connects online, prints, quits)
 async function smoke() {

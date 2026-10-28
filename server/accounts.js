@@ -186,7 +186,9 @@ class Accounts {
     const k = c.user;
     if (!k) return;
     this.leaveParty(k);
+    if (this.talk) this.talk.callDrop(k, 'left'); // a call ends when you go
     if (this.online.get(k) === c) this.online.delete(k);
+    if (this.db.users[k]) { this.db.users[k].seen = Date.now(); this.dirty(); } // "Last online" in clubs
     c.user = null;
     this.friendsChanged(k);
     const club = this.clubOf(this.db.users[k]);
@@ -838,7 +840,8 @@ class Accounts {
     const v = this.clubCard(club);
     v.list = club.members.map((k) => {
       const u = this.db.users[k];
-      return u && { name: u.name, av: u.av | 0, pv: u.pv | 0, tro: u.tro | 0, on: this.online.has(k), role: k === club.owner ? 'owner' : 'member' };
+      const on = this.online.has(k);
+      return u && { name: u.name, av: u.av | 0, pv: u.pv | 0, tro: u.tro | 0, on, seen: on ? 0 : u.seen || 0, role: k === club.owner ? 'owner' : 'member' };
     }).filter(Boolean).sort((a, b) => b.tro - a.tro);
     const me = viewer && this.db.users[viewer];
     v.log = me && club.members.includes(viewer) && this.talk ? this.talk.readable(this.clubLog.get(club.id) || [], me) : [];
@@ -892,6 +895,17 @@ class Accounts {
     const u = this.me(c), club = this.clubOf(u);
     if (!club || club.owner !== c.user) return;
     if ((u.muteUntil || 0) > Date.now()) return this.err(c, "A moderator turned off your typed chat for a while, so the club's description can't change now");
+    if (m.name != null) {
+      const name = String(m.name).replace(/\s+/g, ' ').trim();
+      if (name !== club.name) {
+        if (!CLUB_RE.test(name)) return this.err(c, 'Club names are 3-20 letters, numbers, spaces, _ or -');
+        if (BLOCKED.some((b) => name.toLowerCase().replace(/[ _-]/g, '').includes(b)) || filter.isBad(name)) return this.err(c, 'Please pick a different club name');
+        if (Object.values(this.db.clubs).some((cl) => cl !== club && cl.name.toLowerCase() === name.toLowerCase())) return this.err(c, 'That club name is taken');
+        this.clubNote(club, `✏ The club is now called ${name}`);
+        club.name = name;
+        for (const k of club.members) { const oc = this.online.get(k); if (oc && this.db.users[k]) this.send(oc, { t: 'acctMe', me: this.publicCard(this.db.users[k]) }); }
+      }
+    }
     Object.assign(club, this.clubFields(m));
     this.dirty();
     this.clubChanged(club);

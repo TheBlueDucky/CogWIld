@@ -8,6 +8,8 @@
 // Voice chat: the games talk to each other directly (WebRTC); this server only tells each game who to
 // connect to and passes their connection notes along. Two players connect when they're in the same party,
 // or in the same room and both chose to hear their match. Blocked players never connect.
+// Calls (v1.9.7): friends and club-mates can call each other without a party or a match (like Discord): callStart rings
+// the other player (30 s), callAnswer picks up or declines, callEnd hangs up. In a call both are voice peers.
 // TURN_URLS + TURN_SECRET (environment, deploy/setup-turn.sh): the voice relay on our server. With it, voice always goes
 // through the relay, so players never see each other's internet address (and it works on networks that block direct calls).
 'use strict';
@@ -25,6 +27,7 @@ const TURN_URLS = (process.env.TURN_URLS || '').split(',').map((s) => s.trim()).
 const TURN_SECRET = process.env.TURN_SECRET || '';
 const STUN = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
 const key = (name) => String(name || '').toLowerCase();
+const RING_MS = 30000; // an unanswered call stops ringing after this
 
 // free text as it may be shown: no control or direction-flipping characters, one line, 200 characters
 function cleanText(s) {
@@ -39,6 +42,7 @@ class Talk {
     this.a = a;
     this.h = h;
     this.partyLog = new Map(); // party id -> last lines
+    this.calls = new Map(); // account key -> its call { a: caller key, b: called key, live, at } (both keys point at one call)
     if (!a.db.dms) a.db.dms = {};
     if (!a.db.reports) a.db.reports = [];
     a.db.dms = Object.assign(Object.create(null), a.db.dms);
@@ -73,6 +77,7 @@ class Talk {
       chatMode: () => this.setMode(c, m), dmSend: () => this.dmSend(c, m), dmOpen: () => this.dmOpen(c, m), dmRead: () => this.dmRead(c, m),
       partySay: () => this.partySay(c, m), clubSay: () => this.clubSay(c, m), block: () => this.block(c, m, true), unblock: () => this.block(c, m, false),
       report: () => this.report(c, m), vcState: () => this.vcState(c, m), vcSig: () => this.vcSig(c, m),
+      roomSay: () => this.roomSay(c, m), callStart: () => this.callStart(c, m), callAnswer: () => this.callAnswer(c, m), callEnd: () => this.callDrop(c.user, 'hung up'),
     }[m.t];
     if (!fn) return false;
     fn();
@@ -188,6 +193,69 @@ class Talk {
     this.toGroup(club.members, msg, u, 'clubMsg');
   }
 
+  // free chat in a room while it waits for the match to start (v1.9.7); in the match it's quick chat only again.
+  // Only logged-in players who may read free text get it (not guests, not "Quick chat only", not anyone who blocked the sender)
+  roomSay(c, m) {
+    const u = this.a.me(c), room = c.room && this.h.rooms.get(c.room);
+    if (!u) return this.err(c, 'Log in to type in the chat');
+    if (!room || room.state !== 'lobby') return this.err(c, 'Typing is only open before the match starts: use quick chat (keys 1-8)');
+    if (m.x == null) return;
+    const msg = this.message(c, u, m);
+    if (!msg) return;
+    for (const id of room.players) {
+      const oc = this.h.clients.get(id), ou = oc && this.a.me(oc);
+      if (!ou || this.quick(ou) || this.blocked(u, ou)) continue;
+      this.send(oc, { t: 'roomMsg', from: c.id, msg });
+    }
+  }
+
+  // ---------------- calls (friends and club-mates, v1.9.7) ----------------
+  callView(call, k) {
+    const other = call.a === k ? call.b : call.a, o = this.db.users[other];
+    return { t: 'call', state: call.live ? 'live' : call.a === k ? 'out' : 'in', name: o ? o.name : other, av: o ? o.av | 0 : 0, pv: o ? o.pv | 0 : 0, since: call.live || 0 };
+  }
+  callSend(k, m) { const oc = this.a.online.get(k); if (oc) this.send(oc, m); }
+  callStart(c, m) {
+    const u = this.a.me(c), o = this.a.user(m.to);
+    if (!u) return this.err(c, 'Log in to call friends');
+    if (this.quick(u)) return this.err(c, 'Calls are off with Quick chat only (Settings > Chat)');
+    if (!o || o === u || !this.canDm(u, o)) return this.err(c, 'You can call friends and players in your club');
+    const ok = key(o.name);
+    if (this.blocked(u, o) || this.quick(o)) return this.err(c, `You can't call ${o.name}`);
+    if (!this.a.online.has(ok)) return this.err(c, `${o.name} is offline`);
+    if (this.calls.has(c.user)) this.callDrop(c.user, 'hung up');
+    if (this.calls.has(ok)) return this.err(c, `${o.name} is in another call`);
+    const now = Date.now();
+    if (now - (c.callAt || 0) < 3000) return this.err(c, 'Wait a moment before calling again');
+    c.callAt = now;
+    const call = { a: c.user, b: ok, live: 0, at: now };
+    this.calls.set(c.user, call);
+    this.calls.set(ok, call);
+    this.callSend(c.user, this.callView(call, c.user));
+    this.callSend(ok, this.callView(call, ok));
+  }
+  callAnswer(c, m) {
+    const call = this.calls.get(c.user);
+    if (!call || call.live || call.b !== c.user) return;
+    if (!m.yes) return this.callDrop(c.user, 'declined');
+    call.live = Date.now();
+    this.callSend(call.a, this.callView(call, call.a));
+    this.callSend(call.b, this.callView(call, call.b));
+  }
+  // why: 'hung up', 'declined', 'no answer', 'left'
+  callDrop(k, why) {
+    const call = k && this.calls.get(k);
+    if (!call) return;
+    this.calls.delete(call.a);
+    this.calls.delete(call.b);
+    const by = this.db.users[k];
+    for (const x of [call.a, call.b]) this.callSend(x, { t: 'call', state: 'end', why, by: by ? by.name : k, missed: !call.live && x === call.b && why !== 'declined' });
+  }
+  inCall(c, o) {
+    const call = c.user && this.calls.get(c.user);
+    return !!call && !!call.live && (call.a === o.user || call.b === o.user) && o.user !== c.user;
+  }
+
   // ---------------- block and report ----------------
   block(c, m, on) {
     const u = this.a.me(c), o = this.a.user(m.name);
@@ -241,6 +309,9 @@ class Talk {
   }
   // who each voice player should be connected to; sent again whenever it changes
   voiceTick() {
+    // calls nobody answered stop ringing
+    const now = Date.now();
+    for (const [k, call] of this.calls) if (!call.live && call.a === k && now - call.at > RING_MS) this.callDrop(k, 'no answer');
     const on = [...this.h.clients.values()].filter((c) => c.vc && c.user);
     for (const c of on) {
       const u = this.a.me(c), pid = this.a.partyOf.get(c.user);
@@ -249,6 +320,7 @@ class Talk {
         const ou = this.a.me(o);
         if (!ou || this.blocked(u, ou)) return false;
         if (pid && this.a.partyOf.get(o.user) === pid) return true;
+        if (this.inCall(c, o)) return true;
         return !!c.room && c.room === o.room && c.vc.hear === 'game' && o.vc.hear === 'game';
       }).map((o) => ({ id: o.id, name: o.name, party: !!pid && this.a.partyOf.get(o.user) === pid }));
       const sig = peers.map((p) => p.id + (p.party ? 'p' : '')).sort().join();

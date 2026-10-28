@@ -1763,6 +1763,75 @@
   html:not(.compact) .set-tabs { gap: 4px; }
   html:not(.compact) .set-tab { padding: 6px 12px; font-size: 14px; }
   .quests-card > .badge { top: -6px; right: -6px; }
+
+  /* v1.9.7 (asked for): every button hovers with the light gray-blue line of "Club chat" (not cyan); action buttons
+     (Save, Send, Add…) have light blue text on the usual gray line; club boxes, buttons and text fields have no fill
+     of their own, only a thin line; Settings categories sit at the far left and are square */
+  button:not(:disabled):not(.play-btn):not(.t-btn):hover, .quests-card:hover, a.btn:hover, #panel .pill:not(:disabled):hover, #panel .cl-badge:hover { outline: 1px solid var(--muted2) !important; outline-offset: -1px; }
+  .side-btn:hover, .quests-card:hover { border-color: var(--muted2) !important; }
+  .pill.go, .set-btn.go, .fr-add .ws-btn, .chat-form .ws-btn, .lb-form button, .cl-new .pill.go { background: transparent !important; border-color: var(--line2) !important; color: var(--hl) !important; box-shadow: none !important; }
+  #panel .club-card, #panel .club-row, #panel .cl-new, #panel .cl-settings { background: transparent !important; border: 1px solid var(--line2) !important; box-shadow: none !important; }
+  #panel .cl-pick:hover { background: transparent !important; }
+  #panel .pill, #panel .pill.soft, #panel .pill:hover, #panel .pill.soft:hover { background: transparent; }
+  #panel .pill.soft { border-color: var(--line2); }
+  #panel .cl-search input, #panel .cl-grid input, #panel .cl-grid select, #panel .fr-add input { background: transparent; border: 1px solid var(--line2); }
+  #panel .cl-grid select option { background: var(--bg1); }
+  #panel .cl-badge { background: transparent; }
+  .pill.line { background: transparent; border: 1px solid var(--line2); color: var(--txt); padding: 5px 12px; font-size: 13px; }
+  .cl-chatrow { display: flex; margin: 0 0 4px; }
+  .cl-who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .cl-who b { flex: none !important; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cl-last { display: flex; align-items: center; gap: 6px; color: var(--muted2); font-size: 12px; font-weight: 600; }
+  #panel .cl-head { position: relative; }
+  .cl-pic-edit { position: relative; cursor: pointer; border-radius: 50%; line-height: 1; }
+  .cl-pic-edit:hover { outline: 1px solid var(--muted2); outline-offset: 4px; }
+  .cl-pic-ico { position: absolute; right: -6px; bottom: -4px; font-style: normal; font-size: 12px; width: 22px; height: 22px; display: grid; place-items: center; background: var(--bg1); border: 1px solid var(--line2); border-radius: 50%; }
+  .cl-picmenu { position: absolute; left: 12px; top: calc(100% - 8px); z-index: 3; display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 6px; background: var(--bg1); border: 1px solid var(--line2); border-radius: var(--rad); box-shadow: 0 10px 28px rgba(0, 0, 0, .45); animation: cwFade .15s ease-out both; }
+  .cl-picmenu .pill { justify-content: flex-start; }
+  .cl-edit { grid-template-columns: 1fr 1fr 1fr; }
+  .cl-edit .cl-desc-in { grid-column: 1 / 3; }
+  .cl-pic-tip { margin-top: 8px; }
+  .compact .cl-edit { grid-template-columns: 1fr 1fr; }
+  .compact .cl-edit .cl-desc-in, .compact .cl-edit #clNameEdit { grid-column: 1 / -1; }
+  .compact .cl-member .pill.line { padding: 4px 8px; font-size: 12px; }
+  /* Settings: categories at the far left, square; every button there has no fill, only the gray line */
+  #panel.full[data-kind=settings] #panelBody { max-width: none; margin: 0; }
+  #panel.full[data-kind=settings] .set-tabs { padding: 0 2px 6px 0; }
+  .set-tab { border-radius: 0 !important; }
+  #panel.full[data-kind=settings] .set-main { max-width: 1040px; padding: 0 12px 0 10px; }
+  #panel .set-sec .ws-btn { background: transparent !important; border: 1px solid var(--line2) !important; box-shadow: none !important; color: var(--txt); }
+  #panel .set-sec .ws-btn.on { color: var(--hl); }
+  .set-row > .set-btn, .set-row > .ws-btn { min-width: 104px; text-align: center; }
+  .set-row > span > small { display: block; color: var(--muted); font-size: 12px; font-weight: 600; }
+  /* the room screen: type to the room while it waits */
+  .lb-form { display: flex; gap: 6px; width: min(560px, 100%); margin: 6px auto 0; }
+  .lb-form input { flex: 1; min-width: 0; padding: 8px 10px; border-radius: 8px; background: transparent; color: var(--txt); border: 1px solid var(--line2); font: 600 14px 'Nunito', sans-serif; }
+  .chat-sub .chat-call { margin-left: auto; padding: 4px 10px !important; font-size: 13px !important; }
+  /* the health and info boxes in matches: Settings › Display (--hudBg 1 = as designed, 0 = no box) */
+  #status { background: rgba(10, 15, 34, calc(.2 * var(--hudBg, 1))) !important; border-color: rgba(255, 255, 255, calc(.08 * var(--hudBg, 1))) !important; backdrop-filter: blur(calc(2px * var(--hudBg, 1))); -webkit-backdrop-filter: blur(calc(2px * var(--hudBg, 1))); }
+  #topInfo { background: rgba(11, 15, 30, calc(.42 * var(--hudBg, 1))) !important; border-color: rgba(255, 255, 255, calc(.1 * var(--hudBg, 1))) !important; }
+  #minimap { border-color: rgba(255, 255, 255, calc(.15 * var(--hudBg, 1))) !important; }
+  /* calls (js/calls.js): a card at the top like Discord's; in a call a small bar */
+  .call-card { position: absolute; top: 64px; left: 50%; transform: translateX(-50%); z-index: 40; display: flex; align-items: center; gap: 12px; min-width: 320px; padding: 10px 12px 10px 10px; background: #121a33; border: 1px solid var(--line2); border-radius: 14px; box-shadow: 0 14px 40px rgba(0, 0, 0, .5); animation: cwFade .2s ease-out both; }
+  .call-card .cc-face { flex: none; width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; font-size: 34px; line-height: 1; }
+  .call-card .cc-face img, .call-card .cc-face .dpic { width: 52px; height: 52px; border-radius: 50%; }
+  .call-card.in .cc-face { animation: ccPulse 1.4s ease-out infinite; }
+  @keyframes ccPulse { 0% { box-shadow: 0 0 0 0 rgba(61, 220, 132, .6); } 100% { box-shadow: 0 0 0 18px rgba(61, 220, 132, 0); } }
+  .cc-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .cc-txt b { font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cc-txt small { color: var(--muted2); font-size: 13px; font-weight: 600; }
+  .cc-btns { display: flex; gap: 8px; }
+  .cc-btn { width: 44px; height: 44px; padding: 0; border-radius: 50%; border: 1px solid transparent; display: grid; place-items: center; font-size: 19px; color: #fff; cursor: pointer; transition: transform .12s; }
+  .cc-btn:active { transform: scale(.92); }
+  .cc-btn.yes { background: #23a55a; }
+  .cc-btn.no { background: #da373c; }
+  .cc-btn.mic { background: transparent; border-color: var(--line2); }
+  .cc-btn.mic.off { background: rgba(218, 55, 60, .22); }
+  .call-card.live { min-width: 0; gap: 10px; padding: 6px 8px 6px 6px; }
+  .call-card.live .cc-face, .call-card.live .cc-face img, .call-card.live .cc-face .dpic { width: 34px; height: 34px; font-size: 22px; }
+  .call-card.live .cc-txt b { font-size: 14px; }
+  .call-card.live .cc-btn { width: 34px; height: 34px; font-size: 15px; }
+  .compact .call-card { top: 46px; min-width: 260px; }
 </style>
 </head>
 <body>
@@ -1933,6 +2002,7 @@
     </div>
     <div id="lbChat" class="lb-chat"></div>
     <div id="lbQuick" class="quick-chat"></div>
+    <form id="lbForm" class="lb-form hidden"><input id="lbIn" maxlength="200" autocomplete="off" placeholder="Say something to the room…"><button class="tod-btn">Send</button></form>
     <div id="lbHint"></div>
     <div class="menu-btns">
       <button id="lbLeave" class="btn">← Leave</button>
@@ -2123,6 +2193,8 @@
     <div class="chat-quick hidden" id="chatQuick"></div>
     <form class="chat-form hidden" id="chatForm"><input id="chatInput" maxlength="200" autocomplete="off" spellcheck="true" placeholder="Type a message…"><button class="ws-btn on">Send</button></form>
   </div>
+  <!-- CALLS (js/calls.js): ringing, calling, in a call -->
+  <div id="callCard" class="call-card hidden" role="dialog" aria-live="polite" aria-label="Call"></div>
   <!-- VOICE CHAT: who's talking, and the first-time question (js/voice.js) -->
   <div id="vcTalk" class="hidden"></div>
   <div id="vcAsk" class="hidden">
@@ -2227,34 +2299,35 @@
 </div>
 
 <!-- three.js: from the CDN, or the local copy in js/vendor/ when offline (desktop build / no internet) -->
-<script src="js/vendor/three.min.js?v=38"></script>
-<script src="js/economy.js?v=38"></script>
-<script src="js/parts.js?v=38"></script>
-<script src="js/bugs.js?v=38"></script>
-<script src="js/i18n.js?v=38"></script>
-<script src="js/platform.js?v=38"></script>
-<script src="js/featured.js?v=38"></script>
-<script src="js/world.js?v=38"></script>
-<script src="js/entities.js?v=38"></script>
-<script src="js/meta.js?v=38"></script>
-<script src="js/extras.js?v=38"></script>
-<script src="js/modes.js?v=38"></script>
-<script src="js/tutorial.js?v=38"></script>
-<script src="js/clips.js?v=38"></script>
-<script src="js/gamepad.js?v=38"></script>
-<script src="js/workshop.js?v=38"></script>
-<script src="js/config.js?v=38"></script>
-<script src="js/net.js?v=38"></script>
-<script src="js/account.js?v=38"></script>
-<script src="js/touch.js?v=38"></script>
-<script src="js/supers.js?v=38"></script>
-<script src="js/gadgets.js?v=38"></script>
-<script src="js/replay.js?v=38"></script>
-<script src="js/gallery.js?v=38"></script>
-<script src="js/pics.js?v=38"></script>
-<script src="js/talk.js?v=38"></script>
-<script src="js/voice.js?v=38"></script>
-<script src="js/game.js?v=38"></script>
-<script src="js/desktop.js?v=38"></script>
+<script src="js/vendor/three.min.js?v=39"></script>
+<script src="js/economy.js?v=39"></script>
+<script src="js/parts.js?v=39"></script>
+<script src="js/bugs.js?v=39"></script>
+<script src="js/i18n.js?v=39"></script>
+<script src="js/platform.js?v=39"></script>
+<script src="js/featured.js?v=39"></script>
+<script src="js/world.js?v=39"></script>
+<script src="js/entities.js?v=39"></script>
+<script src="js/meta.js?v=39"></script>
+<script src="js/extras.js?v=39"></script>
+<script src="js/modes.js?v=39"></script>
+<script src="js/tutorial.js?v=39"></script>
+<script src="js/clips.js?v=39"></script>
+<script src="js/gamepad.js?v=39"></script>
+<script src="js/workshop.js?v=39"></script>
+<script src="js/config.js?v=39"></script>
+<script src="js/net.js?v=39"></script>
+<script src="js/account.js?v=39"></script>
+<script src="js/touch.js?v=39"></script>
+<script src="js/supers.js?v=39"></script>
+<script src="js/gadgets.js?v=39"></script>
+<script src="js/replay.js?v=39"></script>
+<script src="js/gallery.js?v=39"></script>
+<script src="js/pics.js?v=39"></script>
+<script src="js/talk.js?v=39"></script>
+<script src="js/voice.js?v=39"></script>
+<script src="js/calls.js?v=39"></script>
+<script src="js/game.js?v=39"></script>
+<script src="js/desktop.js?v=39"></script>
 </body>
 </html>

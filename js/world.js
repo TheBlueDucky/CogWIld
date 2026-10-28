@@ -505,12 +505,12 @@
       tex.repeat.set(30, 1);
       this.wallTex = tex;
       this.wallMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending });
-      const L = CW.ARENA_HALF * 2, H = CW.CEILING + 20;
+      const L = CW.FIELD * 2, H = CW.CEILING + 60;
       const walls = new THREE.Group();
       for (let i = 0; i < 4; i++) {
         const w = new THREE.Mesh(new THREE.PlaneGeometry(L, H), this.wallMat);
         const a = (i * Math.PI) / 2;
-        w.position.set(Math.sin(a) * CW.ARENA_HALF, H / 2 - 20, Math.cos(a) * CW.ARENA_HALF);
+        w.position.set(Math.sin(a) * CW.FIELD, H / 2 - 20, Math.cos(a) * CW.FIELD);
         w.rotation.y = a;
         w.renderOrder = 3;
         walls.add(w);
@@ -531,7 +531,7 @@
       if (!this.wallTex) return;
       this.wallTex.offset.x += dt * 0.15;
       if (!pos) { this.wallMat.opacity = 0; this.walls.visible = false; this.ceiling.material.opacity = 0; return; }
-      const edge = CW.ARENA_HALF - Math.max(Math.abs(pos.x), Math.abs(pos.z));
+      const edge = CW.FIELD - Math.max(Math.abs(pos.x), Math.abs(pos.z));
       this.wallMat.opacity = 0.7 * Math.max(0, 1 - edge / 28);
       this.walls.visible = this.wallMat.opacity > 0.01;
       this.ceiling.material.opacity = 0.5 * Math.max(0, 1 - (CW.CEILING - pos.y) / 25);

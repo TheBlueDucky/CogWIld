@@ -7,8 +7,9 @@
 // Settings > Voice: on/off, who you hear, open mic or push-to-talk, the keys (push-to-talk B, mute M, deafen N; any can
 // be turned off), microphone, speakers/headphones and volume. The first time (and after an update or on a new account)
 // the game asks whether you want it.
-// Voices play through the game's 3D sound: in the lobby they're normal; in a match each voice comes from where that
-// player is (quieter far away, from the left or right, in front or behind).
+// Voices play through the game's sound: in the lobby straight ahead; in a match from the side that player is on (left or
+// right), always at full volume however far away they are (v1.9.7: as clear as in the lobby). While someone talks in a
+// match the game's own sounds get a little quieter. A call (js/calls.js) is someone to talk to as well.
 (function () {
   const CW = window.CW;
   const $ = (id) => document.getElementById(id);
@@ -49,7 +50,7 @@
     // voice is on in Settings and may be used here
     get wanted() { return !!this.s.voice && this.supported && !CW.PORTAL && !!this.acct.loggedIn && this.game.talk.mode !== 'quick'; }
     // ...and there's someone to talk to: your party, or your room/match when you hear your match
-    get inContext() { return !!this.acct.party || (this.s.vcHear !== 'party' && !!this.net.room); }
+    get inContext() { return !!this.acct.party || (this.game.calls && this.game.calls.live) || (this.s.vcHear !== 'party' && !!this.net.room); }
     get shouldJoin() { return this.wanted && this.inContext && this.net.status === 'online'; }
     get muted() { return !!this.s.vcMuted; }
     get deaf() { return !!this.s.vcDeafened; }
@@ -76,11 +77,12 @@
       window.addEventListener('keydown', (e) => {
         if (!this.s.voice || !this.wanted || typing(e) || e.repeat) return;
         if (this.game.state === 'workshop') return; // the Workshop has its own keys (M = mirror)
-        if (e.code === this.key('vcPtt') && this.talkMode === 'ptt' && !this.ptt) { this.ptt = true; this.applyMic(); }
-        if (e.code === this.key('vcMute')) this.toggleMute();
-        if (e.code === this.key('vcDeaf')) this.toggleDeaf();
+        const hit = (id) => { const ok = CW.keyHit(e, this.key(id)); if (ok && this.key(id).includes('+')) e.preventDefault(); return ok; }; // Shift + Tab must not move the focus
+        if (hit('vcPtt') && this.talkMode === 'ptt' && !this.ptt) { this.ptt = true; this.applyMic(); }
+        if (hit('vcMute')) this.toggleMute();
+        if (hit('vcDeaf')) this.toggleDeaf();
       });
-      window.addEventListener('keyup', (e) => { if (e.code === this.key('vcPtt') && this.ptt) { this.ptt = false; this.applyMic(); } });
+      window.addEventListener('keyup', (e) => { if (this.ptt && CW.keyPart(e.code, this.key('vcPtt'))) { this.ptt = false; this.applyMic(); } });
       window.addEventListener('blur', () => { if (this.ptt) { this.ptt = false; this.applyMic(); } });
       // the first-time question
       $('vcYes').onclick = () => { this.answer(true); };
@@ -123,7 +125,7 @@
         return;
       }
       this.askStamp = stamp;
-      const pc = !this.game.touch.on, k = (id) => (this.key(id) === 'none' ? null : CW.keyName(this.key(id)));
+      const pc = !this.game.touch.on, k = (id) => (this.key(id) === 'none' ? null : CW.bindName(this.key(id)));
       $('vcAskKeys').innerHTML = pc
         ? `Your mic is only used while you're in a party or a match. ${k('vcMute') ? `Press <b>${k('vcMute')}</b> to mute` : 'Click 🎤 to mute'}${k('vcDeaf') ? `, <b>${k('vcDeaf')}</b> to stop hearing others` : ''}, or switch to push-to-talk${k('vcPtt') ? ` (hold <b>${k('vcPtt')}</b>)` : ''} in Settings › 🎤 Voice chat.`
         : "Your mic is only used while you're in a party or a match. Tap 🎤 to mute, 🎧 to stop hearing others. More in Settings › 🎤 Voice chat.";
@@ -272,11 +274,11 @@
           const ctx = this.audioCtx();
           peer.gain = ctx.createGain();
           peer.pan = ctx.createPanner();
-          peer.pan.panningModel = 'HRTF'; // all around: left/right, front/behind
-          peer.pan.distanceModel = 'inverse';
-          peer.pan.refDistance = 10; // full volume up close, then quieter with distance
-          peer.pan.rolloffFactor = 1.3;
-          peer.pan.maxDistance = 1000;
+          peer.pan.panningModel = 'equalpower'; // left / right only: clean like the lobby (HRTF muffled voices)
+          peer.pan.distanceModel = 'linear';
+          peer.pan.rolloffFactor = 0; // v1.9.7: never quieter with distance
+          peer.pan.refDistance = 1;
+          peer.pan.maxDistance = 10000;
           ctx.createMediaStreamSource(stream).connect(peer.gain).connect(peer.pan).connect(ctx.destination);
         } catch (err) {
           // no 3D sound here: plain playback
@@ -351,11 +353,16 @@
       else if (L.setPosition) { L.setPosition(pos.x, pos.y, pos.z); L.setOrientation(fwd.x, fwd.y, fwd.z, up.x, up.y, up.z); }
       for (const [id, p] of this.peers) {
         if (!p.pan) continue;
-        let at = pos.clone().add(fwd); // right in front: normal volume, both ears
+        let at = pos.clone().add(fwd); // right in front: both ears
         if (inMatch) {
           const c = g.combatants.find((x) => x.human && x.owner === id);
           const body = c && ((c.pilot && c.pilot.pos) ? c.pilot : c.mech);
-          if (body && body.pos) at = body.pos;
+          // only the direction counts (a point 2 m away that way), and only half-way to the side, so a voice is never
+          // in one ear only
+          if (body && body.pos) {
+            const d = body.pos.clone().sub(pos);
+            if (d.lengthSq() > 0.01) at = pos.clone().add(d.normalize().add(fwd).normalize().multiplyScalar(2));
+          }
         }
         if (p.pan.positionX) set3(p.pan, ['positionX', 'positionY', 'positionZ'], [at.x, at.y, at.z]);
         else p.pan.setPosition(at.x, at.y, at.z);
@@ -381,6 +388,10 @@
       }
       const me = this.myLevel > 0.06;
       if (me !== this.meTalking) { this.meTalking = me; changed = true; }
+      // in a match, the game's own sounds get quieter while someone talks (back up half a second after)
+      const someone = this.game.state === 'match' && [...this.peers.values()].some((p) => p.talking);
+      if (someone) this.duckUntil = performance.now() + 500;
+      this.game.setDuck(performance.now() < (this.duckUntil || 0) ? 0.55 : 1);
       if (changed) this.render();
       const meter = $('vcMeter');
       if (meter) meter.style.width = Math.min(100, Math.round(this.myLevel * 250)) + '%';

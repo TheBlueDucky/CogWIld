@@ -2,6 +2,7 @@
 (function () {
   const CW = window.CW;
   const V3 = THREE.Vector3;
+  const CLIFF = 3.2; // ground steeper than this (~73°) is a wall face: no speed gets a mech up it (v1.9.7)
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
   const wrapA = (a) => (Number.isFinite(a) ? ((((a + Math.PI) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)) - Math.PI : 0);
   CW.sameTeam = (a, b) => !!a && !!b && (a === b || a.team === b.team);
@@ -205,11 +206,13 @@
       if (this.legs > 0 && grounded && !inWater && inp.upPressed && this.rotors === 0) this.vel.y = 11;
 
       // --- integrate with slope limits ---
-      // arena walls: bounce back off the force field
-      const lim = CW.ARENA_HALF - 1.5;
+      // arena walls: bounce back off the force field (at the top of the slopes around the arena, CW.FIELD)
+      const lim = CW.FIELD - 1.5;
       let nx = this.pos.x + this.vel.x * dt;
       let nz = this.pos.z + this.vel.z * dt;
       if (Math.abs(nx) > lim || Math.abs(nz) > lim) {
+        // raced up the side into it: the mech flips over backwards (and rolls back down)
+        if ((this.climbVy || 0) > 5 && !(this.flipT > 0)) { this.flipT = 1; this.vel.y = Math.max(this.vel.y, 7); }
         if (Math.abs(nx) > lim) this.vel.x = -Math.sign(nx) * Math.max(6, Math.abs(this.vel.x) * 0.6);
         if (Math.abs(nz) > lim) this.vel.z = -Math.sign(nz) * Math.max(6, Math.abs(this.vel.z) * 0.6);
         nx = clamp(nx, -lim, lim);
@@ -227,16 +230,34 @@
         // jets can shove a mech up steeper ground than wheels alone
         const jetPush = Math.min(0.6, ((this.thrust * pr) / this.mass) * 0.004);
         const maxSlope = (this.legs > 0 ? 2.4 : this.bigWheels > 0 ? 1.25 : this.wheels > 0 ? 0.8 : 0.55) + jetPush;
-        if (rise > 0.7 || (rise > 0.01 && rise > step * maxSlope)) {
-          nx = this.pos.x; nz = this.pos.z;
-          this.vel.x *= -0.2; this.vel.z *= -0.2;
+        // v1.9.7: ground steeper than the wheels can drive is climbed on speed alone, like a skateboard up a ramp: it
+        // slows you down, and once you're too slow you roll back. Only real cliffs (steeper than ~73°) stop you dead.
+        // Going over the top fast throws you into the air.
+        const slope = step > 1e-4 ? rise / step : rise > 0.01 ? 99 : 0;
+        const hs = Math.hypot(this.vel.x, this.vel.z);
+        if (rise > 0.01 && slope > maxSlope) {
+          if (slope > CLIFF || hs < 5) {
+            nx = this.pos.x; nz = this.pos.z;
+            const back = slope > CLIFF ? 0.2 : 0.5;
+            this.vel.x *= -back; this.vel.z *= -back;
+            this.climbVy = 0;
+          } else {
+            const sinOf = (t) => t / Math.sqrt(1 + t * t);
+            const slow = g * (sinOf(slope) - 0.85 * sinOf(maxSlope)) * 2.4 * dt;
+            const k = Math.max(0, 1 - slow / hs);
+            this.vel.x *= k; this.vel.z *= k;
+            this.climbVy = rise / dt;
+          }
+        } else {
+          if ((this.climbVy || 0) > 7 && rise < step * 0.3) this.vel.y = Math.max(this.vel.y, Math.min(16, this.climbVy * 0.6));
+          this.climbVy = rise > 0.01 && step > 1e-4 ? rise / dt : 0;
         }
       }
       // a wall face (ground much higher than your feet) stops you, even in a hop or a bump:
       // without this, the ground check below would lift you straight onto the top of the wall
       if (nx !== this.pos.x || nz !== this.pos.z) {
         const wall = world.groundAt(nx, nz, bottom + 0.5);
-        if (wall > bottom + 0.9 && wall > ground + 0.6) {
+        if (wall > bottom + Math.max(0.9, Math.hypot(nx - this.pos.x, nz - this.pos.z) * CLIFF) && wall > ground + 0.6) {
           nx = this.pos.x; nz = this.pos.z;
           this.vel.x *= -0.2; this.vel.z *= -0.2;
         }
@@ -286,7 +307,11 @@
         tp = clamp(this.vel.y * 0.03, -0.4, 0.4);
         tr = -inp.turn * 0.35;
       }
-      const k = 1 - Math.exp(-6 * dt);
+      if (this.flipT > 0) {
+        this.flipT = Math.max(0, this.flipT - dt);
+        tp = -2.6 * Math.sin(Math.PI * (1 - this.flipT)); // over on its back and down again
+      }
+      const k = 1 - Math.exp(-(this.flipT > 0 ? 10 : 6) * dt);
       this.pitch += (tp - this.pitch) * k;
       this.roll += (tr - this.roll) * k;
 
@@ -726,7 +751,7 @@
         this.vel.y *= Math.exp(-3 * dt);
       }
       if (inp.jump && (this.grounded || inWater)) this.vel.y = inWater ? 6 : 8.5;
-      const lim = CW.ARENA_HALF - 1;
+      const lim = CW.FIELD - 1;
       const nx = clamp(this.pos.x + this.vel.x * dt, -lim, lim), nz = clamp(this.pos.z + this.vel.z * dt, -lim, lim);
       // cliffs are walls on foot too: ground that rises much faster than you walk (or above your knees) stops you,
       // instead of lifting you up the mountain in a moment
@@ -1149,7 +1174,7 @@
           p.mesh.scale.setScalar(1 + (1 - p.life / p.maxLife) * 2.6);
           p.vel.multiplyScalar(Math.exp(-2.5 * dt));
         }
-        if (Math.abs(p.pos.x) > CW.ARENA_HALF || Math.abs(p.pos.z) > CW.ARENA_HALF || p.pos.y > CW.CEILING + 10) p.life = 0; // stopped by the force field
+        if (Math.abs(p.pos.x) > CW.FIELD || Math.abs(p.pos.z) > CW.FIELD || p.pos.y > CW.CEILING + 10) p.life = 0; // stopped by the force field
         if (p.kind === 'rocket') {
           p.trail -= dt;
           if (p.trail <= 0) { p.trail = 0.025; this.burst(p.pos, { n: 1, color: 'smoke', speed: 0.5, life: 0.6, size: 0.3, grow: 1.2 }); }

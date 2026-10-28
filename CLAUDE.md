@@ -5,7 +5,7 @@ You build a mech from parts in the Workshop, then fight online (bots fill empty 
 It runs in the browser (three.js r128, no build step), as a Windows app (Electron) and an Android app (Capacitor),
 and on game portals (itch.io, CrazyGames, Poki). The online server is zero-dependency Node.js.
 
-**Live:** https://cogwild.duckdns.org (download page `/download`) · **Code:** https://github.com/TheBlueDucky/CogWIld (public; commits as theblueduckymc@gmail.com) · **Current version:** v1.9.6 · **Online protocol:** `cogwild-net-10`
+**Live:** https://cogwild.duckdns.org (download page `/download`) · **Code:** https://github.com/TheBlueDucky/CogWIld (public; commits as theblueduckymc@gmail.com) · **Current version:** v1.9.7 · **Online protocol:** `cogwild-net-10`
 The user is not a programmer: explain things in plain words, test everything yourself, and show screenshots as proof.
 
 ## How the user wants things done
@@ -41,7 +41,20 @@ The user is not a programmer: explain things in plain words, test everything you
   Profile (v1.9.5): banner (`heroHtml`), picture picker (your own picture is only changed/removed with its own buttons; a default
   over it asks first via `meta.ask`), stats 5 × 3 (`.pf-stats`, 15 stats). Account rows live in Settings › Account (`accountHtml`/
   `bindAccount`, `#setAcctBox`, `.set-btn` minimal buttons). Other players: `playerPanel` (banner with online ring, 4 number cards,
-  club + "Playing since"). The match status panel is small and see-through (CSS "v1.9.5"). Brawl Stars-like, but not a copy. Must fit phones (Galaxy A57 sideways
+  club + "Playing since"). The match status panel is small and see-through (CSS "v1.9.5").
+  v1.9.7 (CSS block "v1.9.7"): every button hovers with the gray-blue `--muted2` line (not cyan); action buttons (Save, Send, Add)
+  = light blue text on the plain gray line, no fill; club boxes/buttons/fields have no fill, only a line (`.pill.line` = Direct Message);
+  Settings categories square at the far left; Settings buttons equal width; no browser pop-ups anywhere (`meta.ask`).
+  Club: Club chat under the club card, members show "Online" / "Last online … ago" (`CW.ago`, server `seen`), 📞 Call + Direct
+  Message; the owner renames the club (clubEdit `name`) and clicks the picture for Change / Reset picture (`#clPicMenu`).
+  Chat: a click outside closes it (`settings.chatStay` keeps it open); chat/voice keys can be two keys (`'ShiftLeft+Tab'`:
+  `CW.keyHit`, `CW.keyPart`, `CW.bindName` in meta.js); rooms waiting for their match have free chat (`roomSay` → `roomMsg`,
+  accounts only, not for "Quick chat only" readers; `#lbForm` on the room screen). HUD box slider `settings.hudBg` → `--hudBg`.
+  Calls (`js/calls.js`, server talk.js `callStart/callAnswer/callEnd`, 30 s ring, friends or club-mates, never blocked): a card at the
+  top (Accept / Decline; in a call a bar with the time, 🎤, hang up); a live call counts as voice context; ringtones are WebAudio
+  (`CW.RINGTONES`) or your own file (localStorage `cogwild.ringtone`, ≤1.5 MB), `settings.ring/ringVol`. Voices in matches: no
+  distance falloff (rolloff 0), equal-power left/right only; game sounds duck to 55% while someone talks (`game.setDuck`).
+  Fullscreen button: desktop app → ipc `fullscreen` (window, same as F11); browser F11 can't be left by script (toast). Brawl Stars-like, but not a copy. Must fit phones (Galaxy A57 sideways
   ≈ 915×412; also check 780×350).
 - **Driving (v1.8, they asked for it):** mechs drive like racing-game cars: A/D steer (`inp.manual`: the wheel turns in
   smoothly and snaps straight on release), front wheels visibly steer, S brakes then reverses, the body leans in turns.
@@ -78,6 +91,7 @@ The user is not a programmer: explain things in plain words, test everything you
 | `js/net.js` | online: rooms, matchmaking, sync (host runs bots/rules; each player runs their own mech), host migration, spectating |
 | `js/account.js` | login/sign-up box (Google in the player's browser: `startGoogle`), wallet (server coins), Cog Pass panel, clubs, friends, party, Trophy Road, leaderboard |
 | `js/talk.js` | the chat window (💬 / Enter): Match (quick chat only), Party, Club, Friends (private messages); tap a name: profile / block / report |
+| `js/calls.js` | calls between friends / club-mates (v1.9.7): ringing card, ringtones (built-in or your own file), in-call bar |
 | `js/voice.js` | voice chat (WebRTC audio, through the server's TURN relay): only joined in a party (or a room when hearing "my match"), mic opened only while unmuted/undeafened; push-to-talk B, mute M, deafen N (any can be "No key"), devices, the first-time "Use voice chat?" question |
 | `js/pics.js` | picking your own / your club's picture: square cropper (shown as a circle), sends a 256×256 JPEG |
 | `js/meta.js` | shop, challenges, settings, panels, the PLAY panel (modes/arenas/weekly/ranked/gadgets), What's new |
@@ -205,6 +219,9 @@ apps would break with the new server; they then get an "update" prompt.
   the pointer's clientX path in the menus and sets `mouseFix` = DPR only when the ratio ≈ DPR; the mousemove handler also drops one huge made-up jump
   (>250 px and >8× the recent average). Synthetic Electron input has movementX 0, so `tests/mouse-speed-test.js` dispatches MouseEvents itself.
 - Usernames: `acctRename` (Profile › Change username, once a week, capital letters any time) re-keys the account everywhere (friends/requests/blocked/unread, clubs, DMs + club chat authors, tokens, email map, online, party, picture file).
+- Climbing (v1.9.7): ground steeper than a mech's drive slope is climbed on speed (slows you; under 5 m/s you roll back);
+  steeper than `CLIFF` 3.2 (~73°) is a wall face. Cresting fast throws you up (`climbVy`). The force field is `CW.FIELD` 192 (top of
+  the edge slopes 166→195); `CW.ARENA_HALF` 176 stays the playing area for spawns/bots/map. Racing into the field = a backflip (`flipT`).
 - Bridges: `world.groundAt(x, z, refY)` counts a deck only within 0.9 of `refY` (2.2 near the ends): otherwise anything
   under a bridge popped up onto it. Pilots treat ground rising > 0.5 m within 0.5 m ahead as a wall (no creeping up cliffs),
   and step onto mech parts only up to 0.55 m (jump onto them). Getting out picks a spot at the mech's own height.

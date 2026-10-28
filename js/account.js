@@ -15,6 +15,15 @@
   CW.AVATAR_COLORS = ['#3d6fe0', '#1f9e8a', '#d6455a', '#e07f2a', '#7c55e0', '#c99a14', '#1d93c4', '#5d6a85'];
   CW.AVATARS = CW.AVATAR_COLORS.map((c) => `<span class="dpic" style="background:${c}"><svg viewBox="0 0 32 32" aria-hidden="true"><g fill="#fff"><circle cx="16" cy="6.2" r="1.7"/><rect x="15.2" y="7" width="1.6" height="3.6" rx=".8"/><rect x="8" y="10.2" width="16" height="13" rx="4.2"/><rect x="5.6" y="14" width="2.6" height="5.4" rx="1.3"/><rect x="23.8" y="14" width="2.6" height="5.4" rx="1.3"/></g><g fill="${c}"><circle cx="12.6" cy="16.2" r="2.1"/><circle cx="19.4" cy="16.2" r="2.1"/><rect x="13" y="19.8" width="6" height="1.7" rx=".85"/></g></svg></span>`);
   CW.FREE_AVATARS = CW.AVATARS.length;
+  // "5 min ago", "3 h ago", "2 days ago" (club members' Last online)
+  CW.ago = (t) => {
+    const s = Math.max(0, (Date.now() - t) / 1000);
+    if (s < 90) return 'just now';
+    if (s < 3600) return `${Math.round(s / 60)} min ago`;
+    if (s < 86400) return `${Math.round(s / 3600)} h ago`;
+    const d = Math.round(s / 86400);
+    return d === 1 ? '1 day ago' : d < 60 ? `${d} days ago` : 'a long time ago';
+  };
   // club badges
   CW.CLUB_BADGES = ['🛡', '⚙', '🔥', '⚡', '🐉', '🦅', '🌟', '💀', '👑', '🚀', '🌊', '🍀'];
   CW.avatar = (i) => (i == null || i < 0 ? '🧑‍✈️' : CW.AVATARS[(i | 0) % CW.AVATARS.length]);
@@ -115,6 +124,7 @@
       this.party = null;
       this.renderChips();
       this.game.voice.onDisconnect();
+      this.game.calls.onDisconnect();
       this.game.talk.refresh();
       // stay connected: retry with a growing pause
       if (this.net.canConnect()) {
@@ -126,7 +136,7 @@
     }
     onMessage(m) {
       const g = this.game;
-      if (g.talk.onMessage(m) || g.voice.onMessage(m)) return; // chat and voice chat
+      if (g.talk.onMessage(m) || g.voice.onMessage(m) || g.calls.onMessage(m)) return; // chat, voice chat and calls
       if (g.gallery && g.gallery.onMessage(m)) return; // the mech gallery
       switch (m.t) {
         case 'acctOk': this.onLogin(m); break;
@@ -499,7 +509,7 @@
         <div class="party-row">${p.members.map((f) => `<span class="party-m ${f.name === p.leader ? 'lead' : ''}" aria-label="${esc(f.name)}${f.name === p.leader ? ' (leader)' : ''}">${CW.face(f)}<small>${f.name === p.leader ? '👑 ' : ''}${esc(f.name)}</small></span>`).join('')}</div>
         <div class="small">${lead ? 'You lead: press PLAY and your party comes along.' : `${esc(p.leader)} picks the match. You'll follow them in.`}</div>
         <div class="pc-chat"><div class="pc-log" id="pcLog"></div>
-          ${this.game.talk.freeOk && !this.game.touch.on ? '<form class="pc-form" id="pcForm"><input id="pcIn" maxlength="200" autocomplete="off" placeholder="💬 Message your party…"></form>' : '<button class="ws-btn pc-open" id="pcOpen">💬 Party chat</button>'}</div>`;
+          ${this.game.talk.freeOk && !this.game.touch.on ? '<form class="pc-form" id="pcForm"><input id="pcIn" maxlength="200" autocomplete="off" placeholder="Message your party…"></form>' : '<button class="ws-btn pc-open" id="pcOpen">💬 Party chat</button>'}</div>`;
       $('partyLeave').onclick = () => this.net.send({ t: 'partyLeave' });
       // PC: type right here; phones (and Quick chat only): the party chat opens (full screen on phones)
       if ($('pcForm')) $('pcForm').onsubmit = (e) => { e.preventDefault(); const x = $('pcIn').value.trim(); if (x && this.game.talk.sayTo('party', { x })) $('pcIn').value = ''; };
@@ -888,33 +898,47 @@
       const facts = (cl) => `<span>🏆 ${cl.tro}</span><span>👥 ${cl.members}/30</span>${cl.open ? '' : '<span>🔒 Closed</span>'}${cl.minTro ? `<span>Needs 🏆 ${cl.minTro}</span>` : ''}`;
       const row = (cl) => `<div class="club-row cl-pick" data-peek="${esc(cl.id)}" role="button" tabindex="0" aria-label="See ${esc(cl.name)}"><span class="cl-face">${CW.clubFace(cl)}</span><span class="cl-txt"><b>${esc(cl.name)}</b><small class="cl-facts">${facts(cl)}</small></span>${canJoin(cl) ? `<button class="pill go" data-join="${esc(cl.id)}">Join</button>` : ''}<span class="cl-arrow">›</span></div>`;
       const iOwn = (cl) => cl.list.some((x) => x.name === this.me.name && x.role === 'owner');
-      const members = (cl, mine) => cl.list.map((p) => `<div class="club-row cl-member"><span class="cl-face">${CW.face(p)}</span><b class="fr-name" data-view="${esc(p.name)}">${esc(p.name)}${p.role === 'owner' ? ' 👑' : ''}</b><span class="cl-meta"><i class="cl-dot ${p.on ? 'on' : ''}"></i>🏆 ${p.tro}</span>${mine && p.name !== this.me.name ? `<button class="pill icon" data-dm="${esc(p.name)}" aria-label="Message ${esc(p.name)}">💬</button>` : ''}${mine && iOwn(this.club) && p.name !== this.me.name ? `<button class="pill icon quiet" data-kick="${esc(p.name)}" aria-label="Remove from the club">✕</button>` : ''}</div>`).join('');
-      const head = (cl, acts) => `<div class="club-card cl-head"><span class="club-badge">${CW.clubFace(cl)}</span><div class="cl-txt"><b class="cl-name">${esc(cl.name)}</b>${cl.desc ? `<div class="cl-desc">${esc(cl.desc)}</div>` : ''}<small class="cl-facts">${facts(cl)}</small></div>${acts || ''}</div>`;
+      // v1.9.7: each member shows when they were last online; club-mates get Direct Message (and 📞 Call while online)
+      const seen = (p) => `<small class="cl-last"><i class="cl-dot ${p.on ? 'on' : ''}"></i>${p.on ? 'Online' : p.seen ? `Last online ${CW.ago(p.seen)}` : 'Offline'}</small>`;
+      const members = (cl, mine) => cl.list.map((p) => {
+        const other = mine && p.name !== this.me.name;
+        return `<div class="club-row cl-member"><span class="cl-face">${CW.face(p)}</span><span class="cl-who"><b class="fr-name" data-view="${esc(p.name)}">${esc(p.name)}${p.role === 'owner' ? ' 👑' : ''}</b>${seen(p)}</span><span class="cl-meta">🏆 ${p.tro}</span>${other && p.on ? `<button class="pill line" data-call="${esc(p.name)}" aria-label="Call ${esc(p.name)}">📞 Call</button>` : ''}${other ? `<button class="pill line" data-dm="${esc(p.name)}">Direct Message</button>` : ''}${other && iOwn(this.club) ? `<button class="pill icon quiet" data-kick="${esc(p.name)}" aria-label="Remove from the club">✕</button>` : ''}</div>`;
+      }).join('');
+      // the owner clicks the club's picture to change or reset it (v1.9.7: no separate buttons)
+      const head = (cl, acts, edit) => `<div class="club-card cl-head"><span class="club-badge ${edit ? 'cl-pic-edit' : ''}" ${edit ? 'id="clPicBtn" role="button" tabindex="0" aria-label="Change the club picture"' : ''}>${CW.clubFace(cl)}${edit ? '<i class="cl-pic-ico">📷</i>' : ''}</span>
+        ${edit ? `<div class="cl-picmenu ${this.clPicMenu ? '' : 'hidden'}" id="clPicMenu"><button class="pill line" id="clPicNew">📷 ${cl.pv ? 'Change picture' : 'Upload a picture'}</button>${cl.pv ? '<button class="pill line" id="clPicDel">↺ Reset picture</button>' : ''}</div>` : ''}
+        <div class="cl-txt"><b class="cl-name">${esc(cl.name)}</b>${cl.desc ? `<div class="cl-desc">${esc(cl.desc)}</div>` : ''}<small class="cl-facts">${facts(cl)}</small></div>${acts || ''}</div>`;
       if (this.club) {
         const cl = this.club;
         const owner = iOwn(cl);
         // the club's chat opens with 💬 Club chat (v1.9.5: no preview here)
         const unread = this.game.talk.unreadIn('club');
-        body.innerHTML = head(cl, `<div class="cl-acts"><button class="pill soft" id="clChat">💬 Club chat${unread ? `<i class="badge inline">${unread}</i>` : ''}</button></div>`) + `
+        // v1.9.7: the club chat sits on the left under the club, above the members
+        body.innerHTML = head(cl, '', owner) + `<div class="cl-chatrow"><button class="pill soft" id="clChat">💬 Club chat${unread ? `<i class="badge inline">${unread}</i>` : ''}</button></div>
           <h3>Members <span class="small">${cl.members}/30</span></h3><div class="cl-list">${members(cl, true)}</div>
           ${owner ? `<details class="cl-settings" id="clSet" ${this.clSetOpen ? 'open' : ''}><summary>⚙ Club settings</summary>
-            <div class="cl-grid"><select id="clOpen"><option value="1" ${cl.open ? 'selected' : ''}>🔓 Open: anyone can join</option><option value="0" ${cl.open ? '' : 'selected'}>🔒 Closed</option></select>
+            <div class="cl-grid cl-edit"><input id="clNameEdit" maxlength="20" placeholder="Club name" aria-label="Club name" value="${esc(cl.name)}"><select id="clOpen"><option value="1" ${cl.open ? 'selected' : ''}>🔓 Open: anyone can join</option><option value="0" ${cl.open ? '' : 'selected'}>🔒 Closed</option></select>
             <select id="clMin">${[0, 50, 100, 200, 300, 500, 750, 1000, 1500, 2000].map((v) => `<option value="${v}" ${v === cl.minTro ? 'selected' : ''}>Needs 🏆 ${v}</option>`).join('')}</select>
-            <input id="clDesc" maxlength="80" placeholder="Description" value="${esc(cl.desc || '')}"><button class="pill go" id="clSave">Save</button></div>
-            <div class="cl-pic"><button class="pill" id="clPic">📷 ${cl.pv ? 'Change' : 'Add'} club picture</button>${cl.pv ? '<button class="pill quiet" id="clPicDel">Remove picture</button>' : ''}<span class="small">A square picture, shown as a circle instead of the badge</span></div>
+            <input id="clDesc" class="cl-desc-in" maxlength="80" placeholder="Description" aria-label="Description" value="${esc(cl.desc || '')}"><button class="pill go" id="clSave">Save</button></div>
+            <div class="small cl-pic-tip">Click the club's picture to change or reset it.</div>
           </details>` : ''}
           <div class="cl-foot"><button class="pill quiet" id="clLeave">Leave club</button></div>`;
         $('clChat').onclick = () => this.game.talk.open('club');
         on('[data-dm]', (b) => this.game.talk.openDm(b.dataset.dm));
+        on('[data-call]', (b) => this.game.calls.start(b.dataset.call));
         if (owner) {
           $('clSet').ontoggle = () => { this.clSetOpen = $('clSet').open; }; // stays open when the list updates
-          $('clPic').onclick = () => CW.pickPicture((data) => net.send({ t: 'picSet', kind: 'c', data }));
-          if ($('clPicDel')) $('clPicDel').onclick = () => net.send({ t: 'picSet', kind: 'c', data: null });
+          const menu = (open) => { this.clPicMenu = open; if ($('clPicMenu')) $('clPicMenu').classList.toggle('hidden', !open); };
+          $('clPicBtn').onclick = (e) => { e.stopPropagation(); menu(!this.clPicMenu); };
+          $('clPicBtn').onkeydown = (e) => { if (e.key === 'Enter') $('clPicBtn').click(); };
+          $('clPicNew').onclick = (e) => { e.stopPropagation(); menu(false); CW.pickPicture((data) => net.send({ t: 'picSet', kind: 'c', data })); };
+          if ($('clPicDel')) $('clPicDel').onclick = (e) => { e.stopPropagation(); menu(false); net.send({ t: 'picSet', kind: 'c', data: null }); };
+          body.onclick = (e) => { if (this.clPicMenu && !e.target.closest('#clPicMenu')) menu(false); }; // (the panel's body is shared: menu() checks it's still there)
         }
-        on('[data-kick]', (b) => { if (confirm(`Remove ${b.dataset.kick} from the club?`)) net.send({ t: 'clubKick', name: b.dataset.kick }); });
+        on('[data-kick]', (b) => this.game.meta.ask(`Remove ${b.dataset.kick} from the club?`, 'They can join again later if the club is open.', 'Remove', () => net.send({ t: 'clubKick', name: b.dataset.kick })));
         on('[data-view]', (b) => this.showPlayer(b.dataset.view, 'clubs'));
-        $('clLeave').onclick = () => { if (confirm(`Leave ${cl.name}?${owner && cl.members > 1 ? ' The member with the most trophies becomes the owner.' : ''}`)) net.send({ t: 'clubLeave' }); };
-        if (owner) $('clSave').onclick = () => net.send({ t: 'clubEdit', open: $('clOpen').value === '1', minTro: +$('clMin').value, desc: $('clDesc').value, badge: cl.badge });
+        $('clLeave').onclick = () => this.game.meta.ask(`Leave ${cl.name}?`, owner && cl.members > 1 ? 'The member with the most trophies becomes the owner.' : '', 'Leave', () => net.send({ t: 'clubLeave' }));
+        if (owner) $('clSave').onclick = () => net.send({ t: 'clubEdit', name: $('clNameEdit').value, open: $('clOpen').value === '1', minTro: +$('clMin').value, desc: $('clDesc').value, badge: cl.badge });
         return;
       }
       if (this.peek) {
@@ -1047,9 +1071,12 @@
       };
       q('profDelForm').onsubmit = (e) => {
         e.preventDefault();
-        if (!q('pdPass').value || !confirm(`Really delete ${me.name} forever?`)) return;
-        this.net.send({ t: 'acctDelete', pass: q('pdPass').value });
-        q('pdPass').value = '';
+        const pass = q('pdPass').value;
+        if (!pass) return;
+        g.meta.ask(`Delete ${me.name} forever?`, 'Your account, trophies, friends and cloud backup are removed. This cannot be undone.', 'Delete', () => {
+          this.net.send({ t: 'acctDelete', pass });
+          q('pdPass').value = '';
+        });
       };
     }
     // someone else's profile (v1.9.5): a banner with their picture and whether they're online, big number cards,
@@ -1091,6 +1118,7 @@
           ${f.on && inRoom ? `<button class="ws-btn" data-inv="${esc(f.name)}" aria-label="Invite to the room you're in">📨 Invite</button>` : ''}
           ${f.room && (!net.room || net.room.code !== f.room) ? `<button class="ws-btn on" data-join="${esc(f.room)}" aria-label="Join their room">▶ Join</button>` : ''}
           ${f.watch ? `<button class="ws-btn on" data-watch="${esc(f.name)}" aria-label="Watch their match (they'll see you're watching)">👁 Watch</button>` : ''}
+          ${f.on ? `<button class="ws-btn" data-call="${esc(f.name)}" aria-label="Call ${esc(f.name)}">📞 Call</button>` : ''}
           <button class="ws-btn" data-dm="${esc(f.name)}" aria-label="Message ${esc(f.name)}">💬 Message${this.game.talk.unread[f.name] ? ` <i class="badge inline">${this.game.talk.unread[f.name]}</i>` : ''}</button>
           <button class="ws-btn" data-rem="${esc(f.name)}" aria-label="Remove friend">✖</button></div>`).join('') : '<div class="small">No friends yet. Add someone by their username!</div>') +
         (this.reqOut.length ? `<h3>Sent requests</h3>${this.reqOut.map((n) => `<div class="fr-row"><b>${esc(n)}</b><span class="small">waiting…</span><button class="ws-btn" data-dec="${esc(n)}">Cancel</button></div>`).join('')}` : '');
@@ -1102,7 +1130,8 @@
       on('[data-inv]', (b) => net.send({ t: 'invite', name: b.dataset.inv }));
       on('[data-join]', (b) => { this.game.meta.closePanel(); net.openOnline(b.dataset.join); });
       on('[data-watch]', (b) => { this.game.meta.closePanel(); net.spectate(b.dataset.watch); });
-      on('[data-rem]', (b) => { if (confirm(`Remove ${b.dataset.rem} from your friends?`)) net.send({ t: 'friendRemove', name: b.dataset.rem }); });
+      on('[data-rem]', (b) => this.game.meta.ask(`Remove ${b.dataset.rem} from your friends?`, '', 'Remove', () => net.send({ t: 'friendRemove', name: b.dataset.rem })));
+      on('[data-call]', (b) => this.game.calls.start(b.dataset.call));
       on('[data-view]', (b) => this.showPlayer(b.dataset.view, 'friends'));
       on('[data-dm]', (b) => this.game.talk.openDm(b.dataset.dm));
     }
