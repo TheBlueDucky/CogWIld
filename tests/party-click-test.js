@@ -33,6 +33,13 @@ app.whenReady().then(async () => {
         const r = el.getBoundingClientRect(), hit = document.elementFromPoint((r.left + r.width / 2) * z, (r.top + r.height / 2) * z);
         out[id] = el.contains(hit) ? 'ok' : (hit ? (hit.id || hit.className || hit.tagName) : 'none');
       }
+      // the party card must not lie over any side button
+      const pr = document.getElementById('partyBar').getBoundingClientRect();
+      for (const b of document.querySelectorAll('.lobby-side .side-btn')) {
+        if (b.offsetParent === null) continue;
+        const r = b.getBoundingClientRect();
+        if (r.left < pr.right && r.right > pr.left && r.top < pr.bottom && r.bottom > pr.top) out['overlap ' + b.id] = 'party card';
+      }
       return out;
     })()`);
     const bad = Object.entries(res).filter(([, v]) => v !== 'ok' && v !== 'hidden');

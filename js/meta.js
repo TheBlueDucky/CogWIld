@@ -124,8 +124,7 @@
       $('pCoins').textContent = p.coins;
       if (document.activeElement !== $('pName')) $('pName').value = p.name || '';
       const claim = this.claimable();
-      $('badgeChallenges').textContent = claim;
-      $('badgeChallenges').classList.toggle('hidden', claim === 0);
+      for (const id of ['badgeChallenges', 'badgeChallenges2']) { $(id).textContent = claim; $(id).classList.toggle('hidden', claim === 0); }
       this.renderDaily();
       // the corner card shows one challenge (one you can claim first, else the next unfinished one)
       const list = p.challenges.list;
@@ -386,7 +385,7 @@
           const k = this.optKey(id);
           return `<div class="set-row key-row"><span>${label}</span><span class="key-pair"><button class="ws-btn key-btn" data-vkey="${id}">${k === 'none' ? 'No key' : CW.keyName(k)}</button><button class="ws-btn key-off ${k === 'none' ? 'hidden' : ''}" data-vkeyoff="${id}" aria-label="No key">✕</button></span></div>`;
         };
-        const tabs = [['account', '👤', 'Account'], ['display', '🖥', 'Display'], ['controls', '🎮', 'Controls'], ['keys', '⌨', 'Keys'], ['touch', '📱', 'Touch screen'], ['sound', '🔊', 'Sound'], ['voice', '🎤', 'Voice chat'], ['chat', '💬', 'Chat'], ['online', '🌐', 'Online'], ['save', '💾', 'Save data'], ['support', '✉', 'Support']];
+        const tabs = [['account', '👤', 'Account'], ['display', '🖥', 'Display'], ['controls', '🎮', 'Controls'], ['keys', '⌨', 'Keybinds'], ['touch', '📱', 'Touch screen'], ['sound', '🔊', 'Sound'], ['voice', '🎤', 'Voice chat'], ['chat', '💬', 'Chat'], ['online', '🌐', 'Online'], ['save', '💾', 'Save data'], ['support', '✉', 'Support'], ['help', '❓', 'Help'], ['news', '📰', 'Change logs']];
         body.innerHTML = `<div class="set-wrap"><nav class="set-tabs">${tabs.map(([id, ico, name]) => `<button class="set-tab" data-settab="${id}"><i>${ico}</i><span>${name}</span></button>`).join('')}</nav><div class="set-main">
           <section class="set-sec" data-sec="account"><h3>👤 Account</h3><div id="setAcctBox">${acct ? acct.accountHtml() : ''}</div>
           </section><section class="set-sec" data-sec="display"><h3>🖥 Display</h3>
@@ -445,7 +444,9 @@
             <button class="ws-btn" id="setImport">📥 Restore save</button>
             <button class="ws-btn" id="setReset">Reset all progress…</button>
           </div></section><section class="set-sec" data-sec="support"><h3>✉ Support</h3>${this.supportHtml()}
-          <div class="small" style="margin-top:8px">Cogwild ${CW.VERSION} · <a href="privacy.html" target="_blank" rel="noopener">Privacy</a> · <a href="terms.html" target="_blank" rel="noopener">Terms</a></div></section></div></div>`;
+          <div class="small" style="margin-top:8px">Cogwild ${CW.VERSION} · <a href="privacy.html" target="_blank" rel="noopener">Privacy</a> · <a href="terms.html" target="_blank" rel="noopener">Terms</a></div></section>
+          <section class="set-sec" data-sec="help"><h3>❓ Help</h3>${this.howtoHtml()}</section>
+          <section class="set-sec" data-sec="news"><h3>📰 Change logs</h3>${this.newsHtml()}</section></div></div>`;
         this.bindSupport(body);
         // one category at a time (the last one you looked at)
         const showTab = (id) => {
@@ -568,8 +569,17 @@
         };
         body.innerHTML = `<div class="small">${n} / ${CW.ACHIEVEMENTS.length} unlocked. Each one pays coins.</div><div class="ach-grid">${CW.ACHIEVEMENTS.map((a) => `<div class="ach ${got[a.id] ? 'got' : ''}"><b>${got[a.id] ? '🏆' : '🔒'} ${a.name}</b><span class="small">${a.desc}</span>${got[a.id] ? '' : prog(a)}<div class="small">+${a.reward} 🪙</div></div>`).join('')}</div>`;
       } else if (k === 'news') {
-        body.innerHTML = `<ul class="news">
-          <li><b>v1.9.6</b>: 🎉 In a party, the Replays, Help, Gallery and News buttons can be clicked again (the party card was in the way).</li>
+        body.innerHTML = this.newsHtml();
+      } else if (k === 'howto') {
+        body.innerHTML = this.supportHtml() + this.howtoHtml();
+        this.bindSupport(body);
+      }
+    }
+
+    // What's new (Settings › Change logs, and the 📰 News button on phones)
+    newsHtml() {
+      return `<ul class="news">
+          <li><b>v1.9.6</b>: 🧹 A calmer lobby on PCs: Help and these change logs moved to Settings (at the bottom), the Trophy Road opens from the trophy bar and the challenges from the challenge card. In a party, every lobby button can be clicked again. Settings › Keys is now Keybinds.</li>
           <li><b>v1.9.5</b>: 👤 A new <b>profile</b>: a banner with your picture, simple default profile pictures (the emoji avatars are gone, and the ones you had became coins), and your stats in one neat box. Clicking your own picture no longer removes it. Your account options (email, username, password, log out) moved to Settings › Account. Other players' profiles are bigger and clearer. 🛡 The club screen opens the chat with one calm button. 🎮 The status panel in matches is smaller and see-through.</li>
           <li><b>v1.9.4</b>: 🔧 <b>Round and turnable parts</b> in the Workshop: Round Edge, Curved Hood, Round Corner, Round Top, Slope, plus a Fuselage, Nose Cone, Canopy, Sub Tower and Tail Fin for planes and submarines (try the new Round Coupe, Jet Fighter and Submarine examples). Press <b>R</b> to turn a part and <b>U</b> to flip it. ✈ Rotors and wings lift more, so armored mechs can fly too. 🎮 A simpler, cleaner <b>PLAY picker</b> and <b>Clubs</b> screen, <b>Esc</b> cancels a search, the chat sits down the left side on PCs, more animations, and ✉ <b>Contact us</b> opens our support page. 📱 Phones stay logged in, and the chat fits above the keyboard. 🖥 The desktop app has a dark title bar that matches the game, shows what you're playing on Discord, and never asks for your camera or location.</li>
           <li><b>v1.9.3</b>: 🎯 Aiming with the mouse turns the same on every computer: on some Chromebooks and zoomed screens it turned much too fast, and a sudden jump could spin you all the way around.</li>
@@ -651,9 +661,10 @@
           <li><b>v0.4</b>: First-person Camera part, Dash, Laser, Spikes, Booster, decor, coins, shop, daily challenges.</li>
           <li><b>v0.3</b>: Rush Build & Workshop Clash modes, 1v1 / 3v3 / 2v2v2v2 / 8 FFA, Test Drive, undo/redo, paint.</li>
           <li><b>Coming later</b>: real online multiplayer with friends.</li></ul>`;
-      } else if (k === 'howto') {
-        body.innerHTML = `${this.supportHtml()}
-          <div class="howto">
+    }
+    // how to play (Settings › Help, and the ❓ Help button on phones)
+    howtoHtml() {
+      return `<div class="howto">
           <div><h3>🎯 Goal</h3><p>Build a mech, fight, and be the last pilot (or team) standing. A wrecked mech ejects its pilot: you can still fight on foot!</p></div>
           <div><h3>🎮 Mech controls</h3><p><b>W</b> drive · <b>S</b> brake / reverse · <b>A/D</b> steer · <b>Mouse</b> aim · <b>Click</b> fire<br><b>Shift</b> DASH (with A/D on Legs = sidestep) · Flying: hold <b>Space</b> to climb, <b>C</b> (or Q / Ctrl) to fly down · <b>Space</b> = jump on Legs<br><b>E</b> exit mech · <b>V</b> switch camera · <b>F</b> unstuck · <b>Tab</b> scores · <b>Esc</b> pause</p></div>
           <div><h3>🎮 Controller</h3><p><b>Left stick</b> drive · <b>Right stick</b> look · <b>RT</b> fire · <b>A</b> up/jump · <b>B / LT</b> down · <b>X</b> dash · <b>Y</b> exit/enter · <b>LB</b> repair · <b>RB</b> camera · <b>View</b> scoreboard · <b>Start</b> pause · <b>D-pad ↑</b> save clip. In menus: D-pad + A, B = back.</p></div>
@@ -672,8 +683,6 @@
           <div><h3>💰 Progress</h3><p>Matches give XP and coins. Daily challenges and the daily reward give more. Spend coins in the Shop on paints and dash trails.</p></div>
           <div><h3>⚡ Sudden death</h3><p>After 4 minutes all cores overheat, so no match lasts forever.</p></div>
           </div>`;
-        this.bindSupport(body);
-      }
     }
 
     apply() {

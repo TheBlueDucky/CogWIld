@@ -486,8 +486,7 @@
         $('badgeEvent').classList.toggle('hidden', !ready);
       }
       const road = this.roadReady();
-      $('badgeRoad').textContent = road;
-      $('badgeRoad').classList.toggle('hidden', !road);
+      for (const id of ['badgeRoad', 'badgeRoad2']) { $(id).textContent = road; $(id).classList.toggle('hidden', !road); }
       if (g.state === 'menu') g.meta.renderMenu();
     }
     renderParty() {

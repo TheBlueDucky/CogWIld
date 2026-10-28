@@ -57,9 +57,12 @@ The user is not a programmer: explain things in plain words, test everything you
   whole mech in ~4 s whatever its size. A flying mech in the air shows "Hold Space to climb · C to fly down" (`#flyHint`).
   Support: Settings › Support and the top of Help (email theblueduckymc@gmail.com, `meta.supportHtml`). Particles are soft
   sprites (additive glow; smoke/spray normal), the hit flash lights only the part that was hit.
-- Lobby layout: left = Shop, Workshop, Challenges, Achievements, Help; right = Friends, Clubs, Leaderboard, Trophy
-  Road, News; top-left chip = Profile (stats live in Profile); bottom-left = party card, Cog Pass bar, one challenge;
-  bottom-right = featured chip, mode/arena card, PLAY.
+- Lobby layout: left = Shop, Workshop, Achievements, Replays; right = Friends, Clubs, Leaderboard, Gallery (v1.9.6 on PCs: Help and
+  News moved to Settings › Help / Change logs at the bottom, the Trophy Road opens from the trophy bar and the challenges from the
+  challenge card, both with their badges; phones (`html.compact`) keep all the buttons in 2 columns). Top-left chip = Profile;
+  bottom-left = party card (on PCs no leader line and 2 chat lines, so it fits under the buttons), Cog Pass bar, one challenge;
+  bottom-right = featured chip, mode/arena card, PLAY. `.lobby-bottom` and `.lb-left` don't catch clicks, only their cards do
+  (they used to cover Gallery/News in a party; `tests/party-click-test.js`). Settings › Keys is called Keybinds.
 
 ## Files
 | Path | What |

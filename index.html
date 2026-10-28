@@ -1751,8 +1751,18 @@
      (Gallery, News…), and the left buttons go into two columns so the party card never covers them */
   .lobby-bottom, .lb-left { pointer-events: none; }
   .lobby-bottom > :not(.lb-left), .lb-left > * { pointer-events: auto; }
-  #menu:has(#partyBar:not(.hidden)) .lobby-side.left { display: grid; grid-template-columns: repeat(2, auto); align-content: start; }
-  #menu:has(#partyBar:not(.hidden)) .lb-left .quests-card { display: none; }
+  /* PCs (v1.9.6): a calmer lobby: Help and News live in Settings (Help, Change logs), the Trophy Road opens from the
+     trophy bar and the challenges from the challenge card; phones (compact) keep all the buttons */
+  html:not(.compact) #btnHowto, html:not(.compact) #btnNews, html:not(.compact) #btnRoad, html:not(.compact) #btnChallenges { display: none; }
+  html.compact #badgeRoad2, html.compact #badgeChallenges2 { display: none; }
+  .road-bar, .quests-card { position: relative; }
+  /* the party card stays where it is on PCs: a bit shorter (the 👑 shows the leader; 2 chat lines, the rest scrolls) */
+  html:not(.compact) .party-bar > .small { display: none; }
+  html:not(.compact) .pc-log { max-height: 38px; }
+  /* 13 Settings categories since Help and Change logs moved there: a little shorter so they all fit */
+  html:not(.compact) .set-tabs { gap: 4px; }
+  html:not(.compact) .set-tab { padding: 6px 12px; font-size: 14px; }
+  .quests-card > .badge { top: -6px; right: -6px; }
 </style>
 </head>
 <body>
@@ -1781,7 +1791,7 @@
       <div class="lt-left">
         <button id="acctChip" class="bs-chip acct-chip guest" aria-label="Your profile and account">👤 <b>Log in</b></button>
         <div class="bs-chip name-chip">🧑‍✈️ <input id="pName" maxlength="16" spellcheck="false" placeholder="Pilot name" aria-label="Pilot name"></div>
-        <button id="roadBar" class="road-bar" aria-label="Trophy Road: win matches you find with PLAY for trophies and rewards"><span class="rb-tro">🏆 <b id="pTro">0</b></span><span class="rb-track"><i id="rbFill"></i></span><span class="rb-next" id="rbNext">Trophy Road</span></button>
+        <button id="roadBar" class="road-bar" aria-label="Trophy Road: win matches you find with PLAY for trophies and rewards"><span class="rb-tro">🏆 <b id="pTro">0</b></span><span class="rb-track"><i id="rbFill"></i></span><span class="rb-next" id="rbNext">Trophy Road</span><i id="badgeRoad2" class="badge hidden">0</i></button>
       </div>
       <div class="lt-right">
         <button id="btnRanks" class="bs-chip lvl-chip" aria-label="Your level and rank: level up to unlock parts and movement types"><span class="lvl-star"><b id="pLevel">1</b></span><span class="lvl-info"><b id="pRank">Mono</b><span class="xpbar mini"><i id="pXp"></i></span></span></button>
@@ -1827,7 +1837,7 @@
         </div>
         <button id="btnPass" class="pass-bar" aria-label="Cog Pass: free rewards every season"><span class="pb-ico">🎟</span><span class="pb-main"><b>Cog Pass</b><small id="pbTier">Season 1</small></span><span class="pb-track"><i id="pbFill"></i></span><i id="badgePass" class="badge hidden">0</i></button>
         <button id="btnEvent" class="pass-bar event-bar hidden" aria-label="Seasonal event: decorations and rewards"><span class="pb-ico" id="evIco">🎃</span><span class="pb-main"><b id="evName">Event</b><small id="evInfo"></small></span><span class="pb-track"><i id="evFill"></i></span><i id="badgeEvent" class="badge hidden">!</i></button>
-        <div class="card quests-card" id="questsCard" aria-label="See all of today's challenges">
+        <div class="card quests-card" id="questsCard" aria-label="See all of today's challenges"><i id="badgeChallenges2" class="badge hidden">0</i>
           <h3>🎯 Challenge <small id="questsMore">see all ›</small></h3>
           <div id="menuChallenges"></div>
           <div id="menuTip" class="tip"></div>

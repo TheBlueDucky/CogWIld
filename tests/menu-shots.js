@@ -20,7 +20,7 @@ app.whenReady().then(async () => {
     await win.loadURL('http://localhost:8781/');
     await js(`localStorage.clear(); localStorage.setItem('cogwild.profile', JSON.stringify({ xp: 99999999, coins: 900, settings: { tutorialDone: true, music: 0, sfx: 0 } })); location.reload();`);
     await wait(3500);
-    const name = 'ms' + w + Math.floor(Math.random() * 100000);
+    const name = 'Ms' + w + Math.floor(Math.random() * 1000); // short: long numbers look like phone numbers to the name filter
     await js(`${G}.net.connect().then(() => ${G}.net.send({ t: 'acctRegister', name: '${name}', pass: 'shotpass1' }))`);
     await wait(2500);
     // a few matches' worth of pass points (capped by the server) so some tiers are reached
