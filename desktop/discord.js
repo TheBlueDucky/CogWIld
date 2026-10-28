@@ -8,7 +8,7 @@
 const net = require('net');
 const path = require('path');
 
-const APP_ID = process.env.COGWILD_DISCORD_ID || ''; // tests use a fake Discord (tests/discord-test.js)
+const APP_ID = process.env.COGWILD_DISCORD_ID || '1565017370466975785'; // tests use a fake Discord (tests/discord-test.js)
 const LOGO = 'https://cogwild.duckdns.org/img/icon-512.png';
 const BUTTONS = [
   { label: 'Get it on Microsoft Store', url: 'https://apps.microsoft.com/detail/9P58PTK2Z93L' },
