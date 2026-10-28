@@ -34,7 +34,14 @@ The user is not a programmer: explain things in plain words, test everything you
   while waiting for one and on results; above the touch layer. Voices play through WebAudio PannerNodes (HRTF): in a match from
   that player's mech/pilot, heard from the camera; otherwise straight ahead. Android app: voice uses the loudspeaker
   (CogwildNative.setVoiceAudio).
-  Players' own pictures and club pictures are circles; "Quick chat only" players see the preset avatars instead. Brawl Stars-like, but not a copy. Must fit phones (Galaxy A57 sideways
+  Players' own pictures and club pictures are circles; "Quick chat only" players see the default pictures instead. Since v1.9.5 the
+  avatars are 8 default pictures (`CW.AVATARS`: a robot head on a colored circle, inline SVG `.dpic`; old `av` numbers wrap `% 8`),
+  nothing to buy: the emoji avatars left the Shop, the Trophy Road (those steps pay their price in coins, the steps keep their order)
+  and the Cog Pass (coins); wallets that owned some got their price back once (`wallet()` → `avBack` note, `E.OLD_AVATARS`).
+  Profile (v1.9.5): banner (`heroHtml`), picture picker (your own picture is only changed/removed with its own buttons; a default
+  over it asks first via `meta.ask`), stats 5 × 3 (`.pf-stats`, 15 stats). Account rows live in Settings › Account (`accountHtml`/
+  `bindAccount`, `#setAcctBox`, `.set-btn` minimal buttons). Other players: `playerPanel` (banner with online ring, 4 number cards,
+  club + "Playing since"). The match status panel is small and see-through (CSS "v1.9.5"). Brawl Stars-like, but not a copy. Must fit phones (Galaxy A57 sideways
   ≈ 915×412; also check 780×350).
 - **Driving (v1.8, they asked for it):** mechs drive like racing-game cars: A/D steer (`inp.manual`: the wheel turns in
   smoothly and snaps straight on release), front wheels visibly steer, S brakes then reverses, the body leans in turns.
@@ -81,7 +88,7 @@ The user is not a programmer: explain things in plain words, test everything you
 | `server/pics.js` | own profile + club pictures: square JPEGs ≤64 KB in DATA_DIR/pics, served at `/pic/u/<name>.jpg`, `/pic/c/<id>.jpg` (`pv` = version) |
 | `server/gallery.js` | shared mechs in `db.gallery` (legal mechs, filtered names, 12 per account, likes/copies once each, 3 reports hide one) |
 | `server/admin.js`, `admin.html`, `js/admin.js` | the moderation page `/admin` (needs `ADMIN_TOKEN`, made by `deploy/set-admin.ps1`): reports, mute, ban, forced quick chat, dismiss, hide/show/delete mechs, 📈 Stats and 🐞 Bugs tabs; 5 wrong keys lock it 15 min |
-| `server/support.js`, `support.html`, `js/support.js` | the support page `/support` ("Contact us" in Settings › Support / Help): Google sign-in in the browser (same secret flow as the game; auth-done.js comes back when sessionStorage `cw.support.s` matches), then a message → `db.support` (500 kept, 5 per email a day, 20 per network an hour) → /admin › ✉ Support with "Answer by email" (mailto). No Google: Gmail compose link |
+| `server/support.js`, `support.html`, `js/support.js` | the support page `/support` ("Contact us" in Settings › Support / Help): Google sign-in in the browser (same secret flow as the game; auth-done.js comes back when sessionStorage `cw.support.s` matches), then a message → `db.support` (500 kept, 5 per email a day, 20 per network an hour) → /admin › ✉ Support with "Answer in Gmail" (opens Gmail's compose page in the browser, not the PC's mail app). No Google: Gmail compose link |
 | `js/desktop.js`, `desktop/preload.js`, `desktop/discord.js` | desktop app only: `CW.titleBar(h)` (the game's own dark title bar; main.js uses `titleBarStyle: 'hidden'` + `titleBarOverlay`, hides it in fullscreen; `#app` moves down by `--tbh`, `game.view`/`measure()` = the game's area) and the Discord status (preload `CogwildDesktop.presence` → ipc → discord.js talks to Discord's local pipe; `APP_ID` = the user's "Cogwild" Discord application 1565017370466975785, made 28 Oct 2026; its App Icon is the logo). main.js also allows only mic/fullscreen/pointer lock/clipboard (never camera or location) |
 | `server/stats.js`, `js/bugs.js` | players per day (`db.stats`: counts, platforms `hello.plat`, modes from `earn` match `mode`/`on`, came-back-next-day/week from per-day player codes) and automatic bug reports (`db.bugs`, grouped by message+place, scrubbed of emails/links/ids, 20 per connection, kept on the device while offline) |
 | `server/talk.js` | typed chat (DMs in `db.dms`, club chat in `db.clubChat`, both deleted after 7 days; party lines in memory; DMs between friends or club-mates), Quick chat only (`u.cm`), block (`u.blocked`), reports (`db.reports`), voice peers + signaling, TURN logins |

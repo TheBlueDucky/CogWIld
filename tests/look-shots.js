@@ -37,6 +37,29 @@ app.whenReady().then(async () => {
     await js(`${G}.net.send({ t: 'clubCreate', name: 'Bolt ' + '${name}'.slice(4), badge: 4, desc: 'Fast mechs only' }); true`);
     await wait(1500);
     if (want('lobby')) await shot('lobby');
+    // v1.9.5: your profile, another player's profile, Settings › Account, the match status panel
+    if (want('profile')) {
+      await js(`${G}.meta.openPanel('profile'); true`);
+      await wait(900);
+      await shot('profile');
+      await js(`document.querySelector('#panelBody').scrollTop = 9999; true`);
+      await wait(300);
+      await shot('profile-end');
+      await js(`${G}.account.showPlayer('${name}', 'friends'); true`);
+      await wait(1200);
+      await shot('player');
+      await js(`${G}.meta.openPanel('settings'); true`);
+      await wait(700);
+      await shot('settings-account');
+      await js(`${G}.meta.closePanel(); true`);
+    }
+    if (want('hud')) {
+      await js(`${G}.playOffline('clash', 'canyon'); true`);
+      await wait(6000);
+      await shot('hud');
+      await js(`${G}.showMenu(); true`);
+      await wait(800);
+    }
     if (want('note')) {
       await js(`${G}.account.note('⬆ A new version of Cogwild is out! Online play needs the update.', [{ label: 'Download update', main: true }, { label: 'Later' }], 60000); true`);
       await wait(600);

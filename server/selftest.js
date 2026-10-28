@@ -391,7 +391,9 @@ async function main() {
   const wg2 = await ec.next('wallet');
   check(wg.gift === 50 && !wg2.gift && wg2.w.coins === wg.w.coins, 'the daily gift pays once a day');
   ec.send({ t: 'profileSet', av: 41 });
-  check((await ec.next('acctMe')).me.av < 24, 'premium avatars must be owned');
+  check((await ec.next('acctMe')).me.av === 7, 'only the 8 default pictures can be picked (v1.9.5)');
+  ec.send({ t: 'buy', kind: 'avatars', id: 'av24' });
+  check(/isn't for sale/.test((await ec.next('acctErr')).msg), 'the old avatars are no longer sold');
   ec.send({ t: 'roadClaim', at: 10 });
   check(!(await ec.next('wallet')).road, 'Trophy Road needs the trophies');
   ec.send({ t: 'passClaim', tier: 1 });
@@ -865,6 +867,16 @@ async function main() {
     for (const p of [ga, gb, gc, gd, gd2, gg]) p.ws.close();
   }
 
+  console.log('old avatars become coins');
+  {
+    // v1.9.5: a wallet with old emoji avatars (bought, from the Road or the Pass) gets their price back once
+    const { Accounts } = require('./accounts');
+    const A = Object.assign(Object.create(Accounts.prototype), { dirty() {} });
+    const u = { w: { coins: 10, xp: 0, owned: { paints: [], trails: ['spark'], avatars: ['av24', 'av40', 'bogus'] }, gift: { day: '', streak: 0 }, earn: { day: 'x', total: 0, ads: 0, off: 0, offXp: 0, last: 0 }, ch: { day: '', got: [] }, ach: [], road: [], pass: null } };
+    const v1 = A.walletView(u), v2 = A.walletView(u);
+    check(v1.coins === 910 && v1.avBack === 900 && !v1.owned.avatars.length, `owned avatars turn into their price in coins (${v1.avBack})`);
+    check(v2.coins === 910 && !v2.avBack, 'only once');
+  }
   console.log('weekly event + ranked');
   const E = require('../js/economy.js');
   // v1.9.4 part looks: a turn and a shape pass through the server, anything odd is dropped

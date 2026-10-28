@@ -267,6 +267,7 @@
     }
 
     // every number we keep about your play (the Stats panel and your Profile)
+    // your stats: 15 small tiles, 5 × 3, in one outlined box (v1.9.5)
     statsHtml() {
       const p = this.game.profile, s = p.stats;
       const rows = [
@@ -274,10 +275,22 @@
         ['Mechs wrecked', s.wrecks], ['Pilots eliminated', s.elims], ['Times eliminated', s.deaths], ['Best wreck streak', s.bestStreak],
         ['Enemy parts blown off', s.parts], ['Spike rams', s.rams], ['Dashes', s.dashes],
         ['Time flying', Math.round(s.airTime) + ' s'], ['Time in water', Math.round(s.waterTime) + ' s'],
-        ['Rush Build matches', s.rush], ['Workshop Clash matches', s.clash], ['Coins earned', s.coinsEarned], ['Level', this.game.level()],
-        ['Achievements', `${Object.keys(p.achievements || {}).length}/${CW.ACHIEVEMENTS.length}`],
+        ['Rush Build matches', s.rush], ['Workshop Clash matches', s.clash], ['Coins earned', s.coinsEarned],
       ];
-      return `<div class="stat-grid">${rows.map(([a, b]) => `<div><b>${b}</b><span>${a}</span></div>`).join('')}</div>`;
+      return `<div class="pf-stats">${rows.map(([a, b]) => `<div><b>${b}</b><span>${a}</span></div>`).join('')}</div>`;
+    }
+    // a yes/no question in the same pop-up as "Buy it?" (fn runs on yes)
+    ask(title, desc, ok, fn, look) {
+      $('confirmLook').innerHTML = look || '';
+      $('confirmTitle').textContent = title;
+      $('confirmKind').textContent = '';
+      $('confirmPrice').innerHTML = '';
+      $('confirmDesc').textContent = desc || '';
+      $('confirmOk').textContent = ok || 'OK';
+      $('confirmOk').disabled = false;
+      $('confirmOk').onclick = () => { this.closeConfirm(); fn(); };
+      $('confirm').classList.remove('hidden');
+      setTimeout(() => $('confirmOk').focus(), 30);
     }
 
     renderPanel() {
@@ -329,8 +342,7 @@
           <h3>🌟 Mech finishes <span class="small">change how your mech's paint looks: chrome, gold, glowing neon…</span></h3><div class="shop-grid">${sale('finishes').map((it) => item('finishes', it)).join('')}</div>
           <h3>💥 Wreck effects <span class="small">what you see when you wreck an enemy</span></h3><div class="shop-grid">${sale('wrecks').map((it) => item('wrecks', it)).join('')}</div>
           <h3>🎨 Paints <span class="small">for your mechs, in the Workshop's Paint section</span></h3><div class="shop-grid">${sale('paints').map((it) => item('paints', it)).join('')}</div>
-          <h3>✨ Dash trails</h3><div class="shop-grid">${sale('trails').map((it) => item('trails', it)).join('')}</div>
-          <h3>🙂 Avatars <span class="small">${this.game.account.loggedIn ? 'shown on your profile, in rooms and on the leaderboard' : 'log in to wear them'}</span></h3><div class="shop-grid">${sale('avatars').map((it) => item('avatars', it)).join('')}</div>`;
+          <h3>✨ Dash trails</h3><div class="shop-grid">${sale('trails').map((it) => item('trails', it)).join('')}</div>`;
         if ($('shopGift')) $('shopGift').onclick = () => { $('shopGift').disabled = true; this.claimDaily(); };
         body.querySelectorAll('.shop-item[data-act]').forEach((b) => {
           const it = CW.SHOP[b.dataset.kind].find((x) => x.id === b.dataset.id);
@@ -376,8 +388,7 @@
         };
         const tabs = [['account', '👤', 'Account'], ['display', '🖥', 'Display'], ['controls', '🎮', 'Controls'], ['keys', '⌨', 'Keys'], ['touch', '📱', 'Touch screen'], ['sound', '🔊', 'Sound'], ['voice', '🎤', 'Voice chat'], ['chat', '💬', 'Chat'], ['online', '🌐', 'Online'], ['save', '💾', 'Save data'], ['support', '✉', 'Support']];
         body.innerHTML = `<div class="set-wrap"><nav class="set-tabs">${tabs.map(([id, ico, name]) => `<button class="set-tab" data-settab="${id}"><i>${ico}</i><span>${name}</span></button>`).join('')}</nav><div class="set-main">
-          <section class="set-sec" data-sec="account"><h3>👤 Account</h3>
-          <div class="set-row"><span>${acct && acct.loggedIn ? `Logged in as <b>${CW.esc(acct.me.name)}</b> · progress backed up to the cloud` : 'Playing as a guest (progress saved on this device only)'}</span><button class="ws-btn on" id="setAcct">${acct && acct.loggedIn ? 'Profile' : 'Log in / Sign up'}</button></div>
+          <section class="set-sec" data-sec="account"><h3>👤 Account</h3><div id="setAcctBox">${acct ? acct.accountHtml() : ''}</div>
           </section><section class="set-sec" data-sec="display"><h3>🖥 Display</h3>
           <label class="set-row"><span>🌐 Language</span><select id="setLang" translate="no">${CW.LANGS.map(([id, n]) => `<option value="${id}" ${CW.I18N.lang === id ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
           <label class="set-row"><span>Graphics quality</span><select id="setGfx"><option value="auto">Auto (recommended)</option><option value="low">Low (fast, for older laptops and phones)</option><option value="medium">Medium</option><option value="high">High (shadows + max detail)</option></select></label>
@@ -445,7 +456,7 @@
         };
         body.querySelectorAll('[data-settab]').forEach((b) => (b.onclick = () => showTab(b.dataset.settab)));
         showTab(this.setTab || 'account');
-        $('setAcct').onclick = () => { if (acct.loggedIn) this.openPanel('profile'); else { this.closePanel(); acct.openLogin(); } };
+        if (acct) acct.bindAccount($('setAcctBox'));
         $('setFull').onclick = () => this.game.toggleFullscreen();
         $('setTouch').value = s.touch;
         $('setTouch').onchange = (e) => { s.touch = e.target.value; this.apply(); };
@@ -558,6 +569,7 @@
         body.innerHTML = `<div class="small">${n} / ${CW.ACHIEVEMENTS.length} unlocked. Each one pays coins.</div><div class="ach-grid">${CW.ACHIEVEMENTS.map((a) => `<div class="ach ${got[a.id] ? 'got' : ''}"><b>${got[a.id] ? '🏆' : '🔒'} ${a.name}</b><span class="small">${a.desc}</span>${got[a.id] ? '' : prog(a)}<div class="small">+${a.reward} 🪙</div></div>`).join('')}</div>`;
       } else if (k === 'news') {
         body.innerHTML = `<ul class="news">
+          <li><b>v1.9.5</b>: 👤 A new <b>profile</b>: a banner with your picture, simple default profile pictures (the emoji avatars are gone, and the ones you had became coins), and your stats in one neat box. Clicking your own picture no longer removes it. Your account options (email, username, password, log out) moved to Settings › Account. Other players' profiles are bigger and clearer. 🛡 The club screen opens the chat with one calm button. 🎮 The status panel in matches is smaller and see-through.</li>
           <li><b>v1.9.4</b>: 🔧 <b>Round and turnable parts</b> in the Workshop: Round Edge, Curved Hood, Round Corner, Round Top, Slope, plus a Fuselage, Nose Cone, Canopy, Sub Tower and Tail Fin for planes and submarines (try the new Round Coupe, Jet Fighter and Submarine examples). Press <b>R</b> to turn a part and <b>U</b> to flip it. ✈ Rotors and wings lift more, so armored mechs can fly too. 🎮 A simpler, cleaner <b>PLAY picker</b> and <b>Clubs</b> screen, <b>Esc</b> cancels a search, the chat sits down the left side on PCs, more animations, and ✉ <b>Contact us</b> opens our support page. 📱 Phones stay logged in, and the chat fits above the keyboard. 🖥 The desktop app has a dark title bar that matches the game, shows what you're playing on Discord, and never asks for your camera or location.</li>
           <li><b>v1.9.3</b>: 🎯 Aiming with the mouse turns the same on every computer: on some Chromebooks and zoomed screens it turned much too fast, and a sudden jump could spin you all the way around.</li>
           <li><b>v1.9.2</b>: 🐞 When something in the game breaks, it now tells us by itself (just the error, never your name or chat), so bugs get fixed faster.</li>

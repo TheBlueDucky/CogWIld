@@ -27,7 +27,7 @@ const CLUB_MAX = 30, CLUB_BADGES = 12;
 const CLUB_RE = /^[A-Za-z0-9][A-Za-z0-9 _-]{1,18}[A-Za-z0-9]$/;
 const PARTY_MAX = 4;
 const MAX_SAVE = 200 * 1024; // bytes of cloud save per player
-const AVATARS = E.AVATAR_COUNT; // the client has the emoji list (24 free, the rest from the Shop, Trophy Road and Cog Pass)
+const AVATARS = E.AVATAR_COUNT; // the default profile pictures (v1.9.5; the client draws them: CW.avatar), all free
 const TOKENS_KEPT = 20; // logins that stay valid at once (phone, PC, website, Store app…; was 5, which logged phones out)
 // shorter Quick Matches don't move trophies (no farming by quitting early)
 const QUICK_MIN_SECS = parseFloat(process.env.TROPHY_MIN_SECS || '40');
@@ -611,6 +611,8 @@ class Accounts {
     if (!u) return this.err(c, 'No player with that name');
     const card = this.publicCard(u);
     card.created = u.created;
+    const club = u.club && this.db.clubs[u.club];
+    if (club) card.clubFace = { id: club.id, badge: club.badge | 0, pv: club.pv | 0 }; // their club's picture or badge (v1.9.5)
     card.online = this.online.has(key(u.name));
     card.rank = this.rankOf(u);
     this.send(c, { t: 'profile', p: card });
@@ -966,6 +968,14 @@ class Accounts {
     for (const f of ['total', 'ads', 'off', 'offXp', 'last']) if (!Number.isFinite(w.earn[f])) w.earn[f] = 0; // wallets from older versions
     if (!Number.isFinite(w.coins)) w.coins = 0;
     if (w.ch.day !== d) w.ch = { day: d, got: [] };
+    // v1.9.5: the emoji avatars are gone (default pictures instead); whoever had some gets their price back, once
+    if (Array.isArray(w.owned.avatars) && w.owned.avatars.length) {
+      const back = w.owned.avatars.reduce((sum, id) => sum + ((E.OLD_AVATARS.find((x) => x.id === id) || {}).price || 0), 0);
+      w.coins += back;
+      w.avBack = (w.avBack || 0) + back; // told to the player once (walletView)
+      w.owned.avatars = [];
+      this.dirty();
+    }
     return w;
   }
   // progress from before this device had a server wallet: counts once, worth at most `cap` coins in total
@@ -990,7 +1000,9 @@ class Accounts {
   walletView(u) {
     const w = this.wallet(u);
     const ev = eventNow();
-    return { coins: w.coins, xp: w.xp, owned: w.owned, gift: w.gift, road: w.road, pass: w.pass, ch: w.ch.got, ach: w.ach, season: E.season(), fresh: w.imp === false,
+    const avBack = w.avBack || 0;
+    if (avBack) delete w.avBack;
+    return { avBack, coins: w.coins, xp: w.xp, owned: w.owned, gift: w.gift, road: w.road, pass: w.pass, ch: w.ch.got, ach: w.ach, season: E.season(), fresh: w.imp === false,
       ev: ev ? (w.ev && w.ev.k === ev.key ? { k: w.ev.k, pts: w.ev.pts, claimed: w.ev.claimed } : { k: ev.key, pts: 0, claimed: [] }) : null };
   }
   // the backup stored with the account carries the server's coins, XP and unlocks, never the device's

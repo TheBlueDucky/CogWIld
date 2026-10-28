@@ -135,12 +135,13 @@
   let showDone = false;
   function supportHtml(list) {
     const shown = list.filter((t) => showDone || !t.done);
-    const reply = (t) => 'mailto:' + encodeURIComponent(t.email) + '?subject=' + encodeURIComponent('Re: your Cogwild message') + '&body=' + encodeURIComponent(`Hi${t.user || t.name ? ' ' + (t.user || t.name) : ''},\n\n\n\n— BlueDucky Games\n\n> ${t.text.split('\n').join('\n> ')}`);
+    // Gmail in the browser (not the computer's mail app), a new email to the address they signed in with
+    const reply = (t) => 'https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(t.email) + '&su=' + encodeURIComponent('Re: your Cogwild message') + '&body=' + encodeURIComponent(`Hi${t.user || t.name ? ' ' + (t.user || t.name) : ''},\n\n\n\n— BlueDucky Games\n\n> ${t.text.split('\n').join('\n> ')}`);
     return `<div class="row" style="margin-bottom:8px"><label class="small"><input type="checkbox" id="supDone" ${showDone ? 'checked' : ''}> Show answered ones too</label></div>` + (shown.map((t) => `<div class="card">
         <div class="row"><span class="tag ${t.done ? '' : 'bad'}">${t.done ? '✓ answered' : 'new'}</span><b>${esc(t.kindName)}</b><span class="small">${when(t.at)}</span></div>
         <div class="small">From <b>${esc(t.email)}</b>${t.name ? ` · account <span class="name" data-player="${esc(t.name)}">${esc(t.name)}</span>` : ''}${t.user && t.user !== t.name ? ` · says they are "${esc(t.user)}"` : ''} · game ${esc(t.ver || '?')}${t.dev ? ' on ' + esc(PLAT[t.dev] || t.dev) : ''}</div>
         <div class="lines" style="white-space:pre-wrap">${esc(t.text)}</div>
-        <div class="row" style="margin-top:6px"><a class="btn" href="${esc(reply(t))}" target="_blank" rel="noopener">✉ Answer by email</a>${t.done ? `<button data-supopen="${esc(t.id)}">Mark as new</button>` : `<button class="good" data-supdone="${esc(t.id)}">✓ Answered</button>`}</div>
+        <div class="row" style="margin-top:6px"><a class="btn" href="${esc(reply(t))}" target="_blank" rel="noopener">✉ Answer in Gmail</a>${t.done ? `<button data-supopen="${esc(t.id)}">Mark as new</button>` : `<button class="good" data-supdone="${esc(t.id)}">✓ Answered</button>`}</div>
       </div>`).join('') || '<div class="card">No new support messages. 🎉</div>');
   }
 

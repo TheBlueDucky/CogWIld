@@ -10,14 +10,14 @@
   const load = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } };
   const keep = (k, v) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* ignore */ } };
 
-  // the first 24 avatars are free; 24+ come from the Shop and the Trophy Road
-  CW.AVATARS = ['🤖', '🦆', '🐸', '🦊', '🐼', '🐯', '🐙', '🦖', '👾', '🐵', '🐧', '🦁', '🐲', '🦉', '🐺', '🐱', '🐶', '🐻', '🦄', '🐝', '🐢', '🦈', '👽', '🎃',
-    '🐉', '🦅', '🦂', '🐊', '🦍', '🦓', '🦩', '🦚', '🐳', '🦑', '🐞', '🦔', '🤠', '🥷', '🧙', '👑',
-    '🛸', '🦾', '⚡', '🌋', '🪐', '🏴‍☠️', '🧊', '🎯']; // 40+: Cog Pass
-  CW.FREE_AVATARS = 24;
+  // v1.9.5: default profile pictures (like Discord's): a little robot head on a colored circle, 8 colors, all free.
+  // They replaced the emoji avatars; older avatar numbers (up to 47) wrap around onto these 8
+  CW.AVATAR_COLORS = ['#3d6fe0', '#1f9e8a', '#d6455a', '#e07f2a', '#7c55e0', '#c99a14', '#1d93c4', '#5d6a85'];
+  CW.AVATARS = CW.AVATAR_COLORS.map((c) => `<span class="dpic" style="background:${c}"><svg viewBox="0 0 32 32" aria-hidden="true"><g fill="#fff"><circle cx="16" cy="6.2" r="1.7"/><rect x="15.2" y="7" width="1.6" height="3.6" rx=".8"/><rect x="8" y="10.2" width="16" height="13" rx="4.2"/><rect x="5.6" y="14" width="2.6" height="5.4" rx="1.3"/><rect x="23.8" y="14" width="2.6" height="5.4" rx="1.3"/></g><g fill="${c}"><circle cx="12.6" cy="16.2" r="2.1"/><circle cx="19.4" cy="16.2" r="2.1"/><rect x="13" y="19.8" width="6" height="1.7" rx=".85"/></g></svg></span>`);
+  CW.FREE_AVATARS = CW.AVATARS.length;
   // club badges
   CW.CLUB_BADGES = ['🛡', '⚙', '🔥', '⚡', '🐉', '🦅', '🌟', '💀', '👑', '🚀', '🌊', '🍀'];
-  CW.avatar = (i) => CW.AVATARS[i] || '🧑‍✈️';
+  CW.avatar = (i) => (i == null || i < 0 ? '🧑‍✈️' : CW.AVATARS[(i | 0) % CW.AVATARS.length]);
   // players' own pictures and club pictures live on the server (server/pics.js); shown as circles
   CW.serverOrigin = () => (CW.SERVER_URL ? CW.SERVER_URL.replace(/^ws(s?):/, 'http$1:').replace(/\/ws$/, '') : location.origin);
   CW.picUrl = (kind, id, pv) => `${CW.serverOrigin()}/pic/${kind}/${encodeURIComponent(String(id).toLowerCase())}.jpg?v=${pv | 0}`;
@@ -34,7 +34,9 @@
   // a picture that can't load (offline, a portal that blocks it) falls back to the avatar or badge
   document.addEventListener('error', (e) => {
     const t = e.target;
-    if (t && t.classList && t.classList.contains('pfp')) t.replaceWith(document.createTextNode(t.dataset.badge != null ? CW.CLUB_BADGES[+t.dataset.badge] || '🛡' : CW.avatar(+t.dataset.av)));
+    if (!t || !t.classList || !t.classList.contains('pfp')) return;
+    if (t.dataset.badge != null) t.replaceWith(document.createTextNode(CW.CLUB_BADGES[+t.dataset.badge] || '🛡'));
+    else { t.insertAdjacentHTML('afterend', CW.avatar(+t.dataset.av)); t.remove(); }
   }, true);
   // trophy tiers shown on profiles and the leaderboard
   CW.TIERS = [
@@ -141,7 +143,7 @@
           this.loginView('name');
           break;
         case 'acctNewPass': this.loginView('reset'); break;
-        case 'acctEmailSet': this.myEmail = m.email; g.toast(`📧 ${m.email} is now your login`); this.linkStep = null; this.rerender(); break;
+        case 'acctEmailSet': this.myEmail = m.email; g.toast(`📧 ${m.email} is now your login`); this.linkStep = null; this.rerender(); this.renderAccountBox(); break;
         case 'guestOk':
           if (m.token) keep('cogwild.guest', m.token);
           this.guestOn = true;
@@ -161,7 +163,7 @@
           if ($('acctErr') && !$('acct').classList.contains('hidden')) { $('acctErr').textContent = m.msg; $('acctErr').classList.remove('ok'); }
           else g.toast('⚠ ' + m.msg);
           break;
-        case 'acctMe': this.me = m.me; if (m.me && m.me.name) { g.profile.name = m.me.name; g.saveProfile(); } this.renderChips(); this.rerender(); break;
+        case 'acctMe': this.me = m.me; if (m.me && m.me.name) { g.profile.name = m.me.name; g.saveProfile(); } this.renderChips(); this.rerender(); this.renderAccountBox(); break;
         case 'wallet': this.onWallet(m); break;
         case 'club': this.club = m.club; this.peek = null; this.rerender(); g.talk.refresh(); break;
         case 'clubs': this.clubs = m.list; this.rerender(); break;
@@ -182,7 +184,7 @@
           this.reqIn = m.reqIn;
           this.reqOut = m.reqOut;
           // a friend just came online
-          if (g.settings.friendOnline !== false) for (const f of m.list) { const o = before.find((x) => x.name === f.name); if (o && !o.on && f.on) this.note(`${CW.avatar(f.av)} ${esc(f.name)} is online`); }
+          if (g.settings.friendOnline !== false) for (const f of m.list) { const o = before.find((x) => x.name === f.name); if (o && !o.on && f.on) this.note(`${CW.face(f)} ${esc(f.name)} is online`); }
           this.renderChips();
           this.rerender();
           g.talk.refresh();
@@ -596,6 +598,7 @@
     applyWallet(w) {
       const p = this.game.profile;
       this.wallet = w;
+      if (w.avBack) this.note(`🪙 Avatars are now simple profile pictures. The avatars you had became <b>${w.avBack | 0} coins</b>.`, [{ label: 'OK' }], 20000);
       p.coins = w.coins;
       p.owned = { paints: w.owned.paints.slice(), trails: w.owned.trails.slice(), avatars: w.owned.avatars.slice(), finishes: (w.owned.finishes || []).slice(), wrecks: (w.owned.wrecks || []).slice() };
       if (!p.owned.trails.includes(p.trail)) p.trail = 'spark';
@@ -738,7 +741,7 @@
       const E = CW.ECON;
       const ss = E.season();
       if (!this.wallet) {
-        body.innerHTML = `<div class="small">The Cog Pass is a free reward track that starts over every 4 weeks, with paints, trails and avatars you can't buy in the Shop. It needs an internet connection.</div>`;
+        body.innerHTML = `<div class="small">The Cog Pass is a free reward track that starts over every 4 weeks, with paints and trails you can't buy in the Shop. It needs an internet connection.</div>`;
         return;
       }
       const ps = this.wallet.pass;
@@ -876,12 +879,6 @@
       if (k === 'player') return this.playerPanel(body);
       if (k === 'clubs') return this.clubsPanel(body);
     }
-    card(p, extra) {
-      const t = CW.tier(p.tro);
-      return `<div class="prof-card"><div class="prof-av">${CW.face(p)}</div><div class="prof-main"><div class="prof-name">${esc(p.name)}</div>
-        <div class="prof-tier">${t.icon} ${t.name} · 🏆 <b>${p.tro}</b> <span class="small">(best ${p.best})</span></div>
-        <div class="small">⭐ Level ${p.lv || 1} · ${p.wins} Quick Match wins · ${p.played} played${extra || ''}</div>${p.club ? `<div class="small">🛡 Club: <b>${esc(p.club)}</b></div>` : ''}${p.rp != null ? `<div class="small">🏅 Ranked: ${CW.ECON.RANKED.rank(p.rp).icon} ${CW.ECON.RANKED.rank(p.rp).name} · ${p.rp} RP</div>` : ''}</div></div>`;
-    }
     // ======================= clubs =======================
     // v1.9.4: simpler club screens: a header with the actions, plain lists, small icon buttons, settings folded away
     clubsPanel(body) {
@@ -897,10 +894,9 @@
       if (this.club) {
         const cl = this.club;
         const owner = iOwn(cl);
-        // the last few club chat lines; the whole chat is in 💬
-        const talk = this.game.talk;
-        const log = (cl.log || []).filter((l) => !talk.isBlocked(l.f)).slice(-4).map((l) => (l.f ? `<div><b>${esc(l.f)}:</b> ${esc(talk.text(l))}</div>` : `<div class="small">${esc(talk.text(l))}</div>`)).join('') || '<div class="small">No messages yet.</div>';
-        body.innerHTML = head(cl, '<div class="cl-acts"><button class="pill go" id="clChat">💬 Club chat</button></div>') + `<div class="club-chat" id="clubChat">${log}</div>
+        // the club's chat opens with 💬 Club chat (v1.9.5: no preview here)
+        const unread = this.game.talk.unreadIn('club');
+        body.innerHTML = head(cl, `<div class="cl-acts"><button class="pill soft" id="clChat">💬 Club chat${unread ? `<i class="badge inline">${unread}</i>` : ''}</button></div>`) + `
           <h3>Members <span class="small">${cl.members}/30</span></h3><div class="cl-list">${members(cl, true)}</div>
           ${owner ? `<details class="cl-settings" id="clSet" ${this.clSetOpen ? 'open' : ''}><summary>⚙ Club settings</summary>
             <div class="cl-grid"><select id="clOpen"><option value="1" ${cl.open ? 'selected' : ''}>🔓 Open: anyone can join</option><option value="0" ${cl.open ? '' : 'selected'}>🔒 Closed</option></select>
@@ -909,9 +905,6 @@
             <div class="cl-pic"><button class="pill" id="clPic">📷 ${cl.pv ? 'Change' : 'Add'} club picture</button>${cl.pv ? '<button class="pill quiet" id="clPicDel">Remove picture</button>' : ''}<span class="small">A square picture, shown as a circle instead of the badge</span></div>
           </details>` : ''}
           <div class="cl-foot"><button class="pill quiet" id="clLeave">Leave club</button></div>`;
-        const box = $('clubChat');
-        box.scrollTop = box.scrollHeight;
-        talk.markSeen('club'); // the newest club messages are on screen
         $('clChat').onclick = () => this.game.talk.open('club');
         on('[data-dm]', (b) => this.game.talk.openDm(b.dataset.dm));
         if (owner) {
@@ -952,81 +945,133 @@
       on('[data-join]', (b) => net.send({ t: 'clubJoin', id: b.dataset.join }));
       $('clCreate').onclick = () => net.send({ t: 'clubCreate', name: $('clName').value, desc: $('clNewDesc').value, badge: this.newBadge, open: true });
     }
+    // v1.9.5: your profile: a banner with your picture, the default pictures to pick from, and your stats (5 × 3).
+    // The account things (email, username, password, log out, delete) live in Settings › Account (accountHtml)
+    heroHtml(p, opts = {}) {
+      const t = CW.tier(p.tro), rk = p.rp != null ? CW.ECON.RANKED.rank(p.rp) : null;
+      const tag = (label, value) => `<span class="pf-tag"><small>${label}</small><b>${value}</b></span>`;
+      return `<div class="pf-hero ${opts.cls || ''}"><div class="pf-pic ${opts.status || ''}">${CW.face(p)}${opts.edit ? '<button class="pf-edit" id="pfPicEdit" aria-label="Change your picture">📷</button>' : ''}</div>
+        <div class="pf-id"><div class="pf-name">${esc(p.name)}</div>${opts.sub ? `<div class="pf-sub">${opts.sub}</div>` : ''}
+        ${opts.tags === false ? '' : `<div class="pf-tags">${tag('Trophies', `${t.icon} ${p.tro}`)}${tag('Best', p.best)}${tag('Level', p.lv || 1)}${rk ? tag('Ranked', `${rk.icon} ${rk.name}`) : ''}</div>`}</div>${opts.acts || ''}</div>`;
+    }
     profilePanel(body) {
       const g = this.game;
-      if (!this.me) { body.innerHTML = '<div class="small">You are playing as a guest.</div><button class="btn" id="profLogin">👤 Log in or sign up</button><h3>Stats</h3>' + g.meta.statsHtml(); $('profLogin').onclick = () => { g.meta.closePanel(); this.openLogin(); }; return; }
+      if (!this.me) {
+        body.innerHTML = `<div class="pf-guest"><span>Playing as a guest: your progress is saved on this device only.</span><button class="set-btn go" id="profLogin">Log in or sign up</button></div><h3>Stats</h3>${g.meta.statsHtml()}`;
+        $('profLogin').onclick = () => { g.meta.closePanel(); this.openLogin(); };
+        return;
+      }
       const me = this.me;
-      const s = g.profile.stats;
       const kids = this.game.talk.mode === 'quick';
-      body.innerHTML = this.card(me) +
-        `<h3>Your picture</h3><div class="pic-row">${kids ? '<span class="small">Own pictures are off with Quick chat only (Settings › Chat).</span>'
-          : `<button class="ws-btn" id="profPic">📷 ${me.pv ? 'Change' : 'Use'} your own picture</button>${me.pv ? '<button class="ws-btn" id="profPicDel">Remove it</button>' : ''}<span class="small">Square, shown as a circle. Only you can use it.</span>`}</div>
-        <h3>Pick your avatar</h3><div class="av-grid">${CW.AVATARS.map((a, i) => {
-          const prem = CW.SHOP.avatars.find((x) => x.idx === i);
-          const locked = prem && !g.profile.owned.avatars.includes(prem.id);
-          return `<button class="av-btn ${i === me.av && !me.pv ? 'on' : ''} ${locked ? 'locked' : ''}" ${locked ? 'data-shop="1" aria-label="Unlock it in the Shop or on the Trophy Road"' : `data-av="${i}"`}>${a}${locked ? '<i>🔒</i>' : ''}</button>`;
-        }).join('')}</div>
-        <h3>Stats</h3>${g.meta.statsHtml()}
-        <h3>Account</h3>
-        <div class="small">${this.sync.dirty ? '☁ Backing up your progress…' : '☁ Your progress is backed up to your account.'} Log in on any device (web, Windows or Android) to play with it.</div>
-        <div class="small" style="margin-top:6px">📧 ${this.myEmail ? `You log in with <b>${esc(this.myEmail)}</b>` : 'No email yet: add one so you can always log in with a code'}</div>
-        ${this.mailLogin() ? `<form id="linkForm" class="mail-link">${this.linkStep === 'code'
-          ? `<input id="linkCode" inputmode="numeric" maxlength="6" placeholder="Code from the email"><button class="ws-btn on">Confirm</button>`
-          : `<input id="linkMail" type="email" maxlength="254" placeholder="you@gmail.com" value="${esc(this.myEmail || '')}"><button class="ws-btn">${this.myEmail ? 'Change email' : 'Add email'}</button>`}</form>` : ''}
-        <div class="menu-btns" style="justify-content:flex-start;margin-top:8px">
-          <button class="ws-btn" id="profRename">✏ Change username</button>
-          ${this.hasPass ? '<button class="ws-btn" id="profPass">🔑 Change password</button>' : ''}
-          <button class="ws-btn" id="profOut">🚪 Log out</button>
-          <button class="ws-btn" id="profDel">🗑 Delete account…</button>
+      const own = me.pv && !kids;
+      body.innerHTML = this.heroHtml(me, { edit: !kids, sub: me.club ? `🛡 ${esc(me.club)}` : '' }) + `
+        <h3>Profile picture</h3>
+        <div class="pf-pics">
+          ${kids ? '' : `<button class="pf-pick own ${own ? 'on' : ''}" id="pfOwn" aria-label="${own ? 'Your own picture' : 'Use your own picture'}">${own ? CW.face(me) : '<span class="pf-add">＋</span>'}</button>`}
+          ${CW.AVATARS.map((a, i) => `<button class="pf-pick ${!own && (me.av | 0) % CW.AVATARS.length === i ? 'on' : ''}" data-av="${i}" aria-label="Default picture ${i + 1}">${a}</button>`).join('')}
         </div>
-        <form id="profRenameForm" class="acct-mini hidden"><input id="prName" maxlength="16" autocomplete="off" spellcheck="false" placeholder="New username" value="${esc(me.name)}"><button class="ws-btn on">Save username</button><div class="small">3-16 letters, numbers or _. You can change it once a week (changing only capital letters is always fine). Friends, clubs and messages keep working.</div></form>
-        <form id="profPassForm" class="acct-mini hidden"><input type="password" id="ppOld" placeholder="Current password" autocomplete="current-password"><input type="password" id="ppNew" placeholder="New password (6+)" autocomplete="new-password"><button class="ws-btn on">Save new password</button><div class="small">Other devices will be logged out.</div></form>
-        <form id="profDelForm" class="acct-mini hidden"><div class="small">This removes <b>${esc(me.name)}</b>, its trophies, friends and cloud backup <b>forever</b>.</div><input type="${this.hasPass ? 'password' : 'text'}" id="pdPass" placeholder="${this.hasPass ? 'Your password' : 'Type your username to confirm'}" autocomplete="off"><button class="ws-btn bad">Delete my account</button></form>`;
-      // picking an avatar also stops using your own picture
-      body.querySelectorAll('[data-av]').forEach((b) => (b.onclick = () => { this.net.send({ t: 'profileSet', av: +b.dataset.av }); if (me.pv) this.net.send({ t: 'picSet', kind: 'u', data: null }); }));
-      body.querySelectorAll('[data-shop]').forEach((b) => (b.onclick = () => g.meta.openPanel('shop')));
-      if ($('profPic')) $('profPic').onclick = () => CW.pickPicture((data) => this.net.send({ t: 'picSet', kind: 'u', data }));
-      if ($('profPicDel')) $('profPicDel').onclick = () => this.net.send({ t: 'picSet', kind: 'u', data: null });
-      $('profOut').onclick = () => this.logout();
-      if ($('profPass')) $('profPass').onclick = () => { $('profPassForm').classList.toggle('hidden'); $('ppOld').focus(); };
-      $('profRename').onclick = () => { $('profRenameForm').classList.toggle('hidden'); $('prName').focus(); $('prName').select(); };
-      $('profRenameForm').onsubmit = (e) => {
+        <div class="pf-pic-note">${kids ? 'Own pictures are off with Quick chat only (Settings › Chat).'
+          : own ? '<button class="set-btn" id="pfChange">Change your picture</button><button class="set-btn" id="pfRemove">Remove it</button>' : 'Pick a picture, or ＋ to use your own (square, shown as a circle).'}</div>
+        <h3>Stats</h3>${g.meta.statsHtml()}
+        <div class="pf-foot"><button class="set-btn" id="pfAccount">⚙ Account settings</button></div>`;
+      const upload = () => CW.pickPicture((data) => this.net.send({ t: 'picSet', kind: 'u', data }));
+      // a default picture; if you use your own, it asks first (picking one removes your own picture)
+      body.querySelectorAll('[data-av]').forEach((b) => (b.onclick = () => {
+        const av = +b.dataset.av;
+        if (!own) return this.net.send({ t: 'profileSet', av });
+        g.meta.ask('Use this picture?', 'Your own picture will be removed.', 'Use it', () => { this.net.send({ t: 'profileSet', av }); this.net.send({ t: 'picSet', kind: 'u', data: null }); }, CW.avatar(av));
+      }));
+      // your own picture: clicking it never removes it (that's what "Remove it" is for)
+      if ($('pfOwn')) $('pfOwn').onclick = () => { if (!own) upload(); };
+      if ($('pfPicEdit')) $('pfPicEdit').onclick = upload;
+      if ($('pfChange')) $('pfChange').onclick = upload;
+      if ($('pfRemove')) $('pfRemove').onclick = () => g.meta.ask('Remove your picture?', 'Your default picture shows instead.', 'Remove', () => this.net.send({ t: 'picSet', kind: 'u', data: null }), CW.avatar(me.av));
+      $('pfAccount').onclick = () => { g.meta.setTab = 'account'; g.meta.openPanel('settings'); };
+    }
+    // Settings › Account: who you are, email, username, password, log out, delete (minimal rows like the rest of Settings)
+    accountHtml() {
+      if (!this.me) return `<div class="set-row"><span>Playing as a guest<small>Progress is saved on this device only. An account keeps it on every device.</small></span><button class="set-btn go" id="acLogin">Log in / Sign up</button></div>`;
+      const me = this.me;
+      return `<div class="set-row"><span>Logged in as <b>${esc(me.name)}</b><small>${this.sync.dirty ? 'Backing up your progress…' : 'Your progress is backed up: log in on any device to play with it'}</small></span><button class="set-btn" id="acProfile">Profile</button></div>
+        ${this.mailLogin() ? `<div class="set-row"><span>Email<small>${this.myEmail ? `You log in with ${esc(this.myEmail)}` : 'None yet: add one so you can always log in'}</small></span><button class="set-btn" data-acform="linkForm">${this.myEmail ? 'Change' : 'Add'}</button></div>
+        <form id="linkForm" class="set-form ${this.linkStep ? '' : 'hidden'}">${this.linkStep === 'code'
+          ? '<input id="linkCode" inputmode="numeric" maxlength="6" placeholder="Code from the email"><button class="set-btn go">Confirm</button>'
+          : `<input id="linkMail" type="email" maxlength="254" placeholder="you@gmail.com" value="${esc(this.myEmail || '')}"><button class="set-btn go">Send a code</button>`}</form>` : ''}
+        <div class="set-row"><span>Username<small>You can change it once a week</small></span><button class="set-btn" data-acform="profRenameForm">Change</button></div>
+        <form id="profRenameForm" class="set-form hidden"><input id="prName" maxlength="16" autocomplete="off" spellcheck="false" placeholder="New username" value="${esc(me.name)}"><button class="set-btn go">Save</button><div class="small">3-16 letters, numbers or _. Friends, clubs and messages keep working.</div></form>
+        ${this.hasPass ? `<div class="set-row"><span>Password<small>Other devices are logged out when you change it</small></span><button class="set-btn" data-acform="profPassForm">Change</button></div>
+        <form id="profPassForm" class="set-form hidden"><input type="password" id="ppOld" placeholder="Current password" autocomplete="current-password"><input type="password" id="ppNew" placeholder="New password (6+)" autocomplete="new-password"><button class="set-btn go">Save</button></form>` : ''}
+        <div class="set-row"><span>Log out<small>On this device</small></span><button class="set-btn" id="profOut">Log out</button></div>
+        <div class="set-row"><span>Delete account<small>Removes your account, trophies, friends and cloud backup forever</small></span><button class="set-btn bad" data-acform="profDelForm">Delete…</button></div>
+        <form id="profDelForm" class="set-form hidden"><input type="${this.hasPass ? 'password' : 'text'}" id="pdPass" placeholder="${this.hasPass ? 'Your password' : 'Type your username to confirm'}" autocomplete="off"><button class="set-btn bad">Delete my account</button></form>`;
+    }
+    // redraw Settings › Account when something there changed (email code sent, renamed…)
+    renderAccountBox() {
+      const box = $('setAcctBox');
+      if (!box) return;
+      box.innerHTML = this.accountHtml();
+      this.bindAccount(box);
+    }
+    bindAccount(root) {
+      const g = this.game, me = this.me;
+      const q = (id) => root.querySelector('#' + id);
+      if (q('acLogin')) q('acLogin').onclick = () => { g.meta.closePanel(); this.openLogin(); };
+      if (!me) return;
+      q('acProfile').onclick = () => g.meta.openPanel('profile');
+      root.querySelectorAll('[data-acform]').forEach((b) => (b.onclick = () => {
+        const f = q(b.dataset.acform);
+        f.classList.toggle('hidden');
+        const inp = f.querySelector('input');
+        if (inp && !f.classList.contains('hidden')) { inp.focus(); if (inp.select) inp.select(); }
+      }));
+      q('profOut').onclick = () => { this.logout(); this.renderAccountBox(); };
+      q('profRenameForm').onsubmit = (e) => {
         e.preventDefault();
-        const name = $('prName').value.trim();
+        const name = q('prName').value.trim();
         if (!/^[A-Za-z0-9_]{3,16}$/.test(name)) return g.toast('Usernames are 3-16 letters, numbers or _');
         this.net.send({ t: 'acctRename', name });
       };
-      if ($('linkForm')) $('linkForm').onsubmit = (e) => {
+      if (q('linkForm')) q('linkForm').onsubmit = (e) => {
         e.preventDefault();
-        if (this.linkStep === 'code') return this.net.send({ t: 'emailCode', email: this.linkMail, code: $('linkCode').value.trim() });
-        this.linkMail = $('linkMail').value.trim();
+        if (this.linkStep === 'code') return this.net.send({ t: 'emailCode', email: this.linkMail, code: q('linkCode').value.trim() });
+        this.linkMail = q('linkMail').value.trim();
         this.linkStep = 'code';
         this.net.send({ t: 'emailStart', email: this.linkMail });
-        this.rerender();
+        this.renderAccountBox();
       };
-      $('profDel').onclick = () => { $('profDelForm').classList.toggle('hidden'); $('pdPass').focus(); };
-      $('profPassForm').onsubmit = (e) => {
+      if (q('profPassForm')) q('profPassForm').onsubmit = (e) => {
         e.preventDefault();
-        if ($('ppNew').value.length < 6) return g.toast('New passwords need at least 6 characters');
-        this.net.send({ t: 'acctPass', old: $('ppOld').value, pass: $('ppNew').value });
-        $('profPassForm').reset();
-        $('profPassForm').classList.add('hidden');
+        if (q('ppNew').value.length < 6) return g.toast('New passwords need at least 6 characters');
+        this.net.send({ t: 'acctPass', old: q('ppOld').value, pass: q('ppNew').value });
+        q('profPassForm').reset();
+        q('profPassForm').classList.add('hidden');
       };
-      $('profDelForm').onsubmit = (e) => {
+      q('profDelForm').onsubmit = (e) => {
         e.preventDefault();
-        if (!$('pdPass').value || !confirm(`Really delete ${me.name} forever?`)) return;
-        this.net.send({ t: 'acctDelete', pass: $('pdPass').value });
-        $('pdPass').value = '';
+        if (!q('pdPass').value || !confirm(`Really delete ${me.name} forever?`)) return;
+        this.net.send({ t: 'acctDelete', pass: q('pdPass').value });
+        q('pdPass').value = '';
       };
     }
+    // someone else's profile (v1.9.5): a banner with their picture and whether they're online, big number cards,
+    // their club and when they joined; Add friend / Message right on the banner
     playerPanel(body) {
       const p = this.viewing;
       if (!p) { body.innerHTML = '<div class="small">Loading…</div>'; return; }
       const isFriend = this.friends.some((f) => f.name === p.name);
       const isMe = this.me && this.me.name === p.name;
-      body.innerHTML = this.card(p, ` · ${p.online ? '🟢 online' : '⚫ offline'}${p.rank ? ` · #${p.rank} in the world` : ''}`) +
-        (isMe || isFriend || !this.me ? '' : `<button class="ws-btn on" id="plAdd">➕ Add friend</button>`) + ` <button class="ws-btn" id="plBack">← Back</button>`;
-      if ($('plAdd')) $('plAdd').onclick = () => this.net.send({ t: 'friendAdd', name: p.name });
+      const acts = isMe ? '' : `<div class="pf-acts">${!this.me ? '' : isFriend ? '<button class="set-btn" id="plMsg">💬 Message</button><span class="pf-friend">✓ Friends</span>' : '<button class="set-btn go" id="plAdd">＋ Add friend</button>'}</div>`;
+      const sub = `<span class="pf-online ${p.online ? 'on' : ''}"><i></i>${p.online ? 'Online' : 'Offline'}</span>${p.rank ? `<span>#${p.rank} in the world</span>` : ''}`;
+      const wr = p.played ? Math.round((p.wins / p.played) * 100) + '%' : '—';
+      const t = CW.tier(p.tro), rk = p.rp != null ? CW.ECON.RANKED.rank(p.rp) : null;
+      const card = (label, value, extra) => `<div class="pp-card"><small>${label}</small><b>${value}</b>${extra ? `<span>${extra}</span>` : ''}</div>`;
+      const since = p.created ? new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long' }) : '';
+      body.innerHTML = `<div class="pp">${this.heroHtml(p, { cls: 'pp-hero', status: p.online ? 'on' : '', sub, acts, tags: false })}
+        <div class="pp-cards">${card('Trophies', p.tro, `${t.icon} ${t.name} · best ${p.best}`)}${card('Level', p.lv || 1)}${card('Wins', p.wins, `${p.played} played`)}${card('Win rate', wr, rk ? `Ranked: ${rk.icon} ${rk.name}` : '')}</div>
+        <div class="pp-more">${p.club ? `<div class="pp-club"><span class="pp-cf">${p.clubFace ? CW.clubFace(p.clubFace) : '🛡'}</span><span><small>Club</small><b>${esc(p.club)}</b></span></div>` : ''}${since ? `<div class="pp-club"><span class="pp-cf">📅</span><span><small>Playing since</small><b>${since}</b></span></div>` : ''}</div>
+        <div class="pf-foot left"><button class="set-btn" id="plBack">← Back</button></div></div>`;
+      if ($('plAdd')) $('plAdd').onclick = () => { this.net.send({ t: 'friendAdd', name: p.name }); $('plAdd').disabled = true; $('plAdd').textContent = 'Request sent'; };
+      if ($('plMsg')) $('plMsg').onclick = () => this.game.talk.openDm(p.name);
       $('plBack').onclick = () => this.game.meta.openPanel(this.backTo || 'friends');
     }
     showPlayer(name, back) { this.backTo = back; this.viewing = null; this.game.meta.openPanel('player'); this.net.send({ t: 'profile', name }); }

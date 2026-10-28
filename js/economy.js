@@ -105,8 +105,11 @@
       { id: 'ev_petals', name: 'Petal Storm', icon: '🌸', desc: 'Wrecks burst into blossom petals', price: 600, event: 'spring' },
       { id: 'ev_splash', name: 'Big Splash', icon: '🌊', desc: 'Wrecks burst into a splash of water', price: 600, event: 'summer' },
     ],
-    // premium avatars (CW.AVATARS index 24+), shown on your profile, in rooms and on the leaderboard
-    avatars: [
+    // the emoji avatars were removed in v1.9.5 (default pictures instead, js/account.js); nothing is sold here any more
+    avatars: [],
+  };
+  // v1.9.5: the old emoji avatars (sold, on the Trophy Road and the Cog Pass) became coins: owners get their price back
+  const OLD_AVATARS = [
       { id: 'av24', idx: 24, name: 'Dragon', price: 400 }, { id: 'av25', idx: 25, name: 'Eagle', price: 250 }, { id: 'av26', idx: 26, name: 'Scorpion', price: 250 },
       { id: 'av27', idx: 27, name: 'Croc', price: 250 }, { id: 'av28', idx: 28, name: 'Gorilla', price: 300 }, { id: 'av29', idx: 29, name: 'Zebra', price: 200 },
       { id: 'av30', idx: 30, name: 'Flamingo', price: 200 }, { id: 'av31', idx: 31, name: 'Peacock', price: 300 }, { id: 'av32', idx: 32, name: 'Whale', price: 300 },
@@ -117,9 +120,8 @@
       { id: 'av42', idx: 42, name: 'Volt', price: 500, pass: true }, { id: 'av43', idx: 43, name: 'Eruption', price: 500, pass: true },
       { id: 'av44', idx: 44, name: 'Planet', price: 500, pass: true }, { id: 'av45', idx: 45, name: 'Pirate', price: 500, pass: true },
       { id: 'av46', idx: 46, name: 'Ice Cube', price: 500, pass: true }, { id: 'av47', idx: 47, name: 'Bullseye', price: 500, pass: true },
-    ],
-  };
-  const AVATAR_COUNT = 48, FREE_AVATARS = 24;
+  ];
+  const AVATAR_COUNT = 8, FREE_AVATARS = 8; // default pictures, all free
   const item = (kind, id) => (SHOP[kind] || []).find((x) => x.id === id) || null;
   const dealPrice = (it) => Math.max(10, Math.round((it.price * 0.7) / 10) * 10);
   // 3 things you don't own yet at 30% off, the same for everyone each day
@@ -140,7 +142,7 @@
     const add = (to, step) => { while (marks[marks.length - 1] + step <= to) marks.push(marks[marks.length - 1] + step); };
     add(500, 25); add(1500, 50); add(3000, 100); add(6000, 250); add(10000, 500);
     const byPrice = (list) => list.filter((it) => it.price > 0 && !it.pass && !it.event).slice().sort((x, y) => x.price - y.price);
-    const items = { paint: byPrice(SHOP.paints).map((x) => x.id), trail: byPrice(SHOP.trails).map((x) => x.id), avatar: byPrice(SHOP.avatars).map((x) => x.id) };
+    const items = { paint: byPrice(SHOP.paints).map((x) => x.id), trail: byPrice(SHOP.trails).map((x) => x.id), avatar: byPrice(OLD_AVATARS).map((x) => x.id) };
     const order = ['paint', 'trail', 'avatar'];
     let k = 0;
     return marks.map((at, i) => {
@@ -149,6 +151,8 @@
       // the others: the next unlock (paint, trail, avatar in turn), coins once they run out
       for (let tries = 0; tries < 3; tries++) {
         const kind = order[k++ % 3];
+        // an old avatar step pays its price in coins instead (the steps keep their order)
+        if (items[kind].length && kind === 'avatar') { const id = items[kind].shift(); return { at, coins: Math.max(coins, OLD_AVATARS.find((x) => x.id === id).price) }; }
         if (items[kind].length) return { at, [kind]: items[kind].shift(), coins: at % 1000 === 0 ? coins : 0 };
       }
       return { at, coins: coins * 2 };
@@ -172,7 +176,7 @@
   const PASS = { tiers: 30, perTier: 100, match: 50, challenge: 25, gift: 20 };
   // each season: 2 paints, 2 trails and 2 avatars from the pass-only pool, in turn; coins on the other tiers
   function passRewards(seasonId) {
-    const pool = { paints: SHOP.paints.filter((x) => x.pass), trails: SHOP.trails.filter((x) => x.pass), avatars: SHOP.avatars.filter((x) => x.pass) };
+    const pool = { paints: SHOP.paints.filter((x) => x.pass), trails: SHOP.trails.filter((x) => x.pass), avatars: [] };
     const kinds = ['paints', 'trails', 'avatars', 'paints', 'trails', 'avatars'];
     const used = { paints: 0, trails: 0, avatars: 0 };
     const out = [];
@@ -181,8 +185,8 @@
       if (t % 5 === 0) {
         const kind = kinds[t / 5 - 1];
         const list = pool[kind];
-        r[kind] = list[((seasonId - 1) * 2 + used[kind]++) % list.length].id;
-        r.coins = t === PASS.tiers ? 1000 : 0;
+        if (list.length) { r[kind] = list[((seasonId - 1) * 2 + used[kind]++) % list.length].id; r.coins = t === PASS.tiers ? 1000 : 0; }
+        else r.coins = t === PASS.tiers ? 1500 : 500; // was an avatar (v1.9.5: coins)
       }
       out.push(r);
     }
@@ -380,7 +384,7 @@
     return Object.assign({}, CUP.rewards.find((r) => rank <= r.upTo));
   }
 
-  const api = { CUP, cup, cupPoints, cupScore, cupReward, EVENTS, EVENT_PTS, event, nextEvent, eventRewards, TALK_QUICK, xpFor, levelOf, domainsAt, PARTS, partLook, mechPower, BUDGET, RUSH_BUDGET, MAX_PARTS, GRID, mechProblem, CHALLENGES, DAILY_CHALLENGES, dailyChallenges, ACH, SHOP, AVATAR_COUNT, FREE_AVATARS, item, dealPrice, dailyDeals, ROAD, giftAmount, EARN, EARN_PER_DAY, MATCH_GAP, day, nextMidnight, seeded, hash, season, PASS, passRewards, WEEKLY, week, RANKED };
+  const api = { CUP, cup, cupPoints, cupScore, cupReward, EVENTS, EVENT_PTS, event, nextEvent, eventRewards, TALK_QUICK, xpFor, levelOf, domainsAt, PARTS, partLook, mechPower, BUDGET, RUSH_BUDGET, MAX_PARTS, GRID, mechProblem, CHALLENGES, DAILY_CHALLENGES, dailyChallenges, ACH, SHOP, OLD_AVATARS, AVATAR_COUNT, FREE_AVATARS, item, dealPrice, dailyDeals, ROAD, giftAmount, EARN, EARN_PER_DAY, MATCH_GAP, day, nextMidnight, seeded, hash, season, PASS, passRewards, WEEKLY, week, RANKED };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.CW = root.CW || {}; root.CW.ECON = api; root.CW.SHOP = SHOP; root.CW.ROAD = ROAD; }
 })(this);
