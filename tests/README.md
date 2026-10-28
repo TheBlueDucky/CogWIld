@@ -37,6 +37,7 @@ Then run one with `desktop/node_modules/.bin/electron tests/<file>.js` (screensh
 | `mouse-speed-test.js` | aiming turns the same everywhere: a browser that reports mouse movement × the pixel ratio (Chromebooks) is noticed in the menus and divided back, normal browsers left alone, one made-up huge jump ignored, real fast flicks kept |
 | `v194-test.js` | v1.9.4: Workshop shapes + turning (placing, mirror, share codes, test drive, other players' mechs), Esc cancels a search, the PC chat docked on the left, Contact us → support page, the desktop title bar, the PLAY picker, phones staying logged in, flying weight |
 | `v195-test.js` | v1.9.5: default pictures (no avatars in the Shop), the profile (pictures, own picture never removed by a click, a default asks first, stats 5 × 3), Settings › Account rows, another player's profile, the club without a chat preview, the smaller status panel |
+| `party-click-test.js` | in a party (the tallest party card) every lobby button can still be clicked: Replays, Help, Gallery, News… (`SIZES=1280x720,1600x900,915x412`) |
 | `desktop-test.js` | the desktop app's window: only the small `CogwildDesktop` bridge, the game's own title bar (game fits under it), the Discord status hearing what you do, location + camera always denied (checked without touching a device) |
 | `look-shots.js` | not a test: screenshots of the v1.9.4+ screens (`SHOTS=search,clubs,arenas,chat,workshop,note,profile,hud`, `SIZES=1280x720,915x412`) |
 | `phone-test.js` | lobby, settings and match HUD at phone size with touch controls (`W=780 H=350`) |

@@ -1747,6 +1747,12 @@
   .compact .pf-pic .dpic, .compact .pf-pic img.pfp { width: 64px; height: 64px; }
   .compact .pf-name { font-size: 21px; }
   .compact .pp-card b { font-size: 21px; }
+  /* in a party the lobby's bottom row is taller: its empty space must not catch clicks meant for the side buttons
+     (Gallery, News…), and the left buttons go into two columns so the party card never covers them */
+  .lobby-bottom, .lb-left { pointer-events: none; }
+  .lobby-bottom > :not(.lb-left), .lb-left > * { pointer-events: auto; }
+  #menu:has(#partyBar:not(.hidden)) .lobby-side.left { display: grid; grid-template-columns: repeat(2, auto); align-content: start; }
+  #menu:has(#partyBar:not(.hidden)) .lb-left .quests-card { display: none; }
 </style>
 </head>
 <body>
