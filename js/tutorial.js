@@ -125,7 +125,7 @@
     // at the phone button to use (with a pulsing ring around it)
     point(s) {
       const arrow = $('tutArrow'), ring = $('tutRing');
-      const W = innerWidth, H = innerHeight;
+      const V = this.game.view || { x: 0, y: 0, w: innerWidth, h: innerHeight }, W = V.w, H = V.h;
       let at = null, label = '', edge = false, angle = 90; // angle: the way the arrow points (90 = down)
       const target = s.world && s.world(this);
       if (target) {
@@ -147,7 +147,7 @@
       }
       const el = this.phone && s.touch && !target ? document.querySelector('#touch:not(.hidden) ' + s.touch) : null;
       if (el && el.offsetParent !== null) {
-        const r = el.getBoundingClientRect();
+        const b = el.getBoundingClientRect(), r = { left: b.left - V.x, top: b.top - V.y, width: b.width, height: b.height };
         if (s.touch === '#tLook') {
           // the look area is the whole right side: point at its middle
           at = { x: r.left + r.width * 0.55, y: r.top + r.height * 0.45 };

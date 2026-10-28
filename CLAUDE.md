@@ -21,11 +21,15 @@ The user is not a programmer: explain things in plain words, test everything you
   no fat outlines, no bright fills), menu titles gray-blue (`--muted2 #9fb3d9`) in sentence case and not too bold,
   dark text fields (`color-scheme: dark`), less rounded corners (`--rad 10px`), a cyan outline on hover for clickable
   buttons (not PLAY, not settings rows: their text turns the title gray-blue `--muted2` on hover), no gold/yellow focus outlines,
-  Esc closes any menu/pop-up (also the Workshop). No hover text on anything (no `title=`; use `aria-label`).
+  Esc closes any menu/pop-up (also the Workshop, and cancels a match search). No hover text on anything (no `title=`; use `aria-label`).
+  v1.9.4 look: calm `.pill` buttons (Clubs), the PLAY picker (`.pick2`: 4 special cards, modes, arenas, gadgets, "More ways to play"
+  cards) hovers with the gray-blue `--muted2` line, not cyan; pop-ups (`.note`) have a quiet line, no bright blue frame; the
+  Gallery button is 🌍; extra animations (lobby buttons pop in, icons hop on hover, PLAY shines, picks bounce, parts pop in).
   Shop cards are clickable as a whole (gray-blue `--muted2` outline all around on hover) and ask "Buy it?" first.
   Shop, Cog Pass (sideways tier track, Brawl Stars-like; mouse-drag scrolls it) and Settings (a button per category) are full screens.
-  The chat is small and see-through (top-left, ⠿ drags it anywhere, saved in settings.chatPos); on phones in the menu it opens
-  full screen (☰ Menu = back) and goes upright while typing. No ready-made lines except for "Quick chat only" (and the Match tab).
+  The chat on PCs is a panel down the whole left side that doesn't move (`body.talk-dock`, v1.9.4, like a launcher's friends list);
+  on phones it's small and see-through (⠿ drags it, settings.chatPos), and in the menu it opens full screen (☰ Menu = back),
+  goes upright while typing and fits above the keyboard (`talk.fitKeyboard`, Android: MainActivity pads the view by the IME inset). No ready-made lines except for "Quick chat only" (and the Match tab).
   The party card has its own mini chat (PC: type there; phones: tap = full-screen party chat). 💬 🎤 🎧 (#hudTalk) show in matches,
   while waiting for one and on results; above the touch layer. Voices play through WebAudio PannerNodes (HRTF): in a match from
   that player's mech/pilot, heard from the camera; otherwise straight ahead. Android app: voice uses the loudspeaker
@@ -56,7 +60,7 @@ The user is not a programmer: explain things in plain words, test everything you
 | `index.html` | all screens + all CSS (later style blocks override earlier ones: "v1.4 look", "v1.5 theme", then lobby/phone blocks near the end of the first `<style>`) |
 | `js/economy.js` | **shared with the server**: shop catalog, deals, Trophy Road, Cog Pass seasons, weekly events, Ranked, levels/XP, part costs/levels/HP/DPS, mech rules (`mechProblem`), daily challenges, achievement rewards. Change prices/rewards here only. |
 | `js/featured.js` | shared: today's featured mode + arena |
-| `js/parts.js` | part definitions + meshes (Body parts: body, plate, nose, cabin, fender, spoiler, lights, exhaust; `wheel`/`bigwheel` with `radius`, big wheels reach below their cell: `s.bottom`), presets (Scout Buggy, Monster Truck, Street Racer…), `CW.analyze/validate`, `CW.VERSION`, `CW.esc`, `CW.timeLeft` |
+| `js/parts.js` | part definitions + meshes (Body parts: body, plate, nose, cabin, fender, spoiler, lights, exhaust; `wheel`/`bigwheel` with `radius`, big wheels reach below their cell: `s.bottom`), shapes `CW.STYLES` + turning (see "v1.9.4 Workshop"), presets (Scout Buggy, Monster Truck, Street Racer…, Round Coupe, Jet Fighter, Submarine), `CW.analyze/validate`, `CW.VERSION`, `CW.esc`, `CW.timeLeft` |
 | `js/game.js` | the game: modes table (`MODES`, `FORMATS`, `CW.MM_FORMAT`), lobby + lobby stage (party/searching mechs), match loop, bots (`botAim` = human-like aiming), camera (stays out of walls), HUD, results, Esc handling (`closeTop`), touch aim assist |
 | `js/entities.js` | mechs, pilots, physics (walls block instead of lifting you), projectiles, fx |
 | `js/modes.js` | objectives: King of the Hill, Gold Rush, Combat Race, Boss Battle, Bounty Hunt |
@@ -77,6 +81,8 @@ The user is not a programmer: explain things in plain words, test everything you
 | `server/pics.js` | own profile + club pictures: square JPEGs ≤64 KB in DATA_DIR/pics, served at `/pic/u/<name>.jpg`, `/pic/c/<id>.jpg` (`pv` = version) |
 | `server/gallery.js` | shared mechs in `db.gallery` (legal mechs, filtered names, 12 per account, likes/copies once each, 3 reports hide one) |
 | `server/admin.js`, `admin.html`, `js/admin.js` | the moderation page `/admin` (needs `ADMIN_TOKEN`, made by `deploy/set-admin.ps1`): reports, mute, ban, forced quick chat, dismiss, hide/show/delete mechs, 📈 Stats and 🐞 Bugs tabs; 5 wrong keys lock it 15 min |
+| `server/support.js`, `support.html`, `js/support.js` | the support page `/support` ("Contact us" in Settings › Support / Help): Google sign-in in the browser (same secret flow as the game; auth-done.js comes back when sessionStorage `cw.support.s` matches), then a message → `db.support` (500 kept, 5 per email a day, 20 per network an hour) → /admin › ✉ Support with "Answer by email" (mailto). No Google: Gmail compose link |
+| `js/desktop.js`, `desktop/preload.js`, `desktop/discord.js` | desktop app only: `CW.titleBar(h)` (the game's own dark title bar; main.js uses `titleBarStyle: 'hidden'` + `titleBarOverlay`, hides it in fullscreen; `#app` moves down by `--tbh`, `game.view`/`measure()` = the game's area) and the Discord status (preload `CogwildDesktop.presence` → ipc → discord.js talks to Discord's local pipe; `APP_ID` empty = off). main.js also allows only mic/fullscreen/pointer lock/clipboard (never camera or location) |
 | `server/stats.js`, `js/bugs.js` | players per day (`db.stats`: counts, platforms `hello.plat`, modes from `earn` match `mode`/`on`, came-back-next-day/week from per-day player codes) and automatic bug reports (`db.bugs`, grouped by message+place, scrubbed of emails/links/ids, 20 per connection, kept on the device while offline) |
 | `server/talk.js` | typed chat (DMs in `db.dms`, club chat in `db.clubChat`, both deleted after 7 days; party lines in memory; DMs between friends or club-mates), Quick chat only (`u.cm`), block (`u.blocked`), reports (`db.reports`), voice peers + signaling, TURN logins |
 | `auth.html`, `js/auth-done.js` | the page Google sends players back to (`/auth/google/done`); posts the token to `/auth/google/finish` |
@@ -133,6 +139,16 @@ The user is not a programmer: explain things in plain words, test everything you
   engine `i18n_engine.js`). After editing: `python tools/i18n/i18n_check.py es fr …` then `python tools/i18n/i18n_build.py` (writes js/i18n.js and
   js/lang/*.js). `tests/i18n-extract.js` lists what the game shows. Long Help/News texts stay English.
 
+## v1.9.4 Workshop (Oct 2026)
+- **Shapes** (`p.s`): other looks of a Body part (`CW.STYLES`: body:edge/curve/corner/dome/slope/tube, nose:cone, cabin:canopy/tower,
+  spoiler:fin). Same cost/weight/HP as the part, so the server and older games treat them as that part (old games draw the plain one):
+  **no new part types, no NET_VERSION bump**. The part list shows them under their part (`CW.pdef(id)`, ids like `'body:edge'`).
+- **Turning** (`p.r`): 0-3 quarter turns from above, +4 upside down (`CW.turnMesh`); only `CW.canTurn` parts (Structure, Body, Decor,
+  wing, float, shield): wheels/weapons/movers always face forward. R / Shift+R / U, ⟳ Turn / ⇅ Flip. Mirror copies use `CW.mirrorTurn`.
+- Every place that draws or passes parts keeps them: `CW.partMesh(p)`, `CW.cleanPart`, `CW.partArr`/`partFromArr` (codes, gallery,
+  replays: `[t, x, y, z, r, s]`), net `safeBp`, server `E.partLook` (server.js cleanParts, party mechs, gallery).
+- Flying: `ROTOR_LIFT` 14 (was 10), `WING_LIFT` 1 (was 0.7), so armored mechs fly.
+
 ## Server (Oracle Cloud)
 - VM **DuckysSrv**, **il-jerusalem-1** (home region: Always Free A1 + the free 200 GB boot volume; moved from paid
   Ashburn on 24 Oct 2026), **reserved** IP **84.13.68.152** (never changes), Ubuntu, also runs their Minecraft servers.
@@ -146,7 +162,7 @@ The user is not a programmer: explain things in plain words, test everything you
 ### Deploy (website + server)
 ```bash
 K="/c/Users/tomer/OneDrive/Desktop/OracleServer/ssh-key-2026-10-21.key"; PACK=/tmp/cogwild-upload.tgz
-tar --force-local -czf "$PACK" index.html auth.html favicon.svg js fonts img server deploy privacy.html terms.html credits.html download.html admin.html manifest.webmanifest sw.js
+tar --force-local -czf "$PACK" index.html auth.html support.html favicon.svg js fonts img server deploy privacy.html terms.html credits.html download.html admin.html manifest.webmanifest sw.js
 scp -q -i "$K" "$PACK" ubuntu@84.13.68.152:/tmp/cogwild.tgz
 ssh -i "$K" ubuntu@84.13.68.152 "sudo cp /opt/cogwild/data/db.json /opt/cogwild/data/backups/db-before-X.json; rm -rf ~/cogwild-src && mkdir -p ~/cogwild-src && tar -xzf /tmp/cogwild.tgz -C ~/cogwild-src && sed -i 's/\r$//' ~/cogwild-src/deploy/*.sh && sudo bash ~/cogwild-src/deploy/setup.sh cogwild.duckdns.org"
 ```
@@ -196,6 +212,9 @@ apps would break with the new server; they then get an "update" prompt.
 - Optional cleanup of old downloads on the server (1.0–1.6.3).
 - Confirm the Oracle alert email subscription.
 - Store launch: Google Play closed test (12 testers × 14 days), itch.io/CrazyGames/Poki submissions (zips in `dist/`).
+- Discord status: create the "Cogwild" application at discord.com/developers (name = what shows after "Playing", App Icon = the logo),
+  then put its Application ID (public, not a secret) in `desktop/discord.js` `APP_ID` and rebuild the apps. Until then it's off.
+- Google Play Data safety: also "Developer communications" for the support page (v1.9.4, STORE_PAGE.md).
 - Microsoft Store: **submitted for certification on 24 Oct 2026** (v1.8.3, identity TheBlueDucky.CogWild, Store ID 9P58PTK2Z93L, listing name "CogWild", publisher TheBlueDucky; settings in desktop/package.json). After it's live: add a "Get it from Microsoft" link (https://apps.microsoft.com/detail/9P58PTK2Z93L) to download.html. Each update = higher version + `build-apps.ps1 -Only store` + a new submission (1-3 days); avoid NET_VERSION bumps right before one, Store players can't update until it passes. The Store copy (`process.windowsStore` → `?store=1` → `CW.STORE`) sends updates to its Store page (`CW.STORE_ID`).
 - The Mac builds were never tried on a real Mac (built on Windows); Linux arm64 was smoke-tested in Docker on DuckysSrv.
 - New parts must also go into `js/economy.js` PARTS (cost, type, level, HP, DPS) or the server refuses mechs with them; adding part types needs a NET_VERSION bump (old games crash on unknown parts).

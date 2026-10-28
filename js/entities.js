@@ -23,10 +23,9 @@
       this.fin = bp.fin || (opts.combatant && opts.combatant.isPlayer && game.profile ? game.profile.finish : '') || '';
       this.parts = CW.connected(CW.ensureCamera(bp.parts).parts).map((p) => {
         const def = CW.PARTS[p.t];
-        const obj = CW.buildPartMesh(p.t, this.color, this.fin);
-        obj.position.set(p.x, p.y, p.z);
+        const obj = CW.partMesh(p, this.color, this.fin);
         this.group.add(obj);
-        return { t: p.t, x: p.x, y: p.y, z: p.z, hp: def.hp, maxHp: def.hp, obj, alive: true, cd: Math.random() * 0.4, wp: new V3() };
+        return { t: p.t, x: p.x, y: p.y, z: p.z, r: p.r, s: p.s, hp: def.hp, maxHp: def.hp, obj, alive: true, cd: Math.random() * 0.4, wp: new V3() };
       });
       this.core = this.parts.find((p) => p.t === 'core');
       this.camPart = this.parts.find((p) => p.t === 'camera');
@@ -629,8 +628,7 @@
     }
 
     rebuildPart(p, quiet) {
-      const obj = CW.buildPartMesh(p.t, this.color, this.fin);
-      obj.position.set(p.x, p.y, p.z);
+      const obj = CW.partMesh(p, this.color, this.fin);
       this.group.add(obj);
       p.obj = obj;
       p.alive = true;

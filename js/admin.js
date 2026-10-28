@@ -25,6 +25,7 @@
       $('stats').textContent = `${s.today | 0} players today · ${s.accounts} accounts · ${s.online} online · ${s.rooms} rooms · ${s.gallery} gallery mechs`;
       document.querySelector('[data-tab="reports"]').textContent = `🚩 Reports (${s.openReports})`;
       document.querySelector('[data-tab="bugs"]').textContent = `🐞 Bugs (${s.openBugs | 0})`;
+      document.querySelector('[data-tab="support"]').textContent = `✉ Support (${s.openSupport | 0})`;
       say('');
       render();
     } catch (e) {
@@ -75,6 +76,9 @@
     } else if (tab === 'bugs') {
       v.innerHTML = '<div class="card small">Loading…</div>';
       api('bugs').then((r) => { if (tab === 'bugs') { v.innerHTML = bugsHtml(r.bugs); bind(v); } }).catch((e) => { v.innerHTML = `<div class="card">${esc(e.message)}</div>`; });
+    } else if (tab === 'support') {
+      v.innerHTML = '<div class="card small">Loading…</div>';
+      api('support').then((r) => { if (tab === 'support') { v.innerHTML = supportHtml(r.list); bind(v); } }).catch((e) => { v.innerHTML = `<div class="card">${esc(e.message)}</div>`; });
     } else {
       v.innerHTML = `<div class="card row"><input id="findName" placeholder="Username" maxlength="20"><button id="findGo" class="on">Find</button></div><div id="playerBox"></div>`;
       $('findGo').onclick = () => showPlayer($('findName').value.trim());
@@ -127,8 +131,25 @@
       </div>`).join('');
   }
 
+  // ---- ✉ Support: messages players wrote on /support (signed in with Google), answered by email ----
+  let showDone = false;
+  function supportHtml(list) {
+    const shown = list.filter((t) => showDone || !t.done);
+    const reply = (t) => 'mailto:' + encodeURIComponent(t.email) + '?subject=' + encodeURIComponent('Re: your Cogwild message') + '&body=' + encodeURIComponent(`Hi${t.user || t.name ? ' ' + (t.user || t.name) : ''},\n\n\n\n— BlueDucky Games\n\n> ${t.text.split('\n').join('\n> ')}`);
+    return `<div class="row" style="margin-bottom:8px"><label class="small"><input type="checkbox" id="supDone" ${showDone ? 'checked' : ''}> Show answered ones too</label></div>` + (shown.map((t) => `<div class="card">
+        <div class="row"><span class="tag ${t.done ? '' : 'bad'}">${t.done ? '✓ answered' : 'new'}</span><b>${esc(t.kindName)}</b><span class="small">${when(t.at)}</span></div>
+        <div class="small">From <b>${esc(t.email)}</b>${t.name ? ` · account <span class="name" data-player="${esc(t.name)}">${esc(t.name)}</span>` : ''}${t.user && t.user !== t.name ? ` · says they are "${esc(t.user)}"` : ''} · game ${esc(t.ver || '?')}${t.dev ? ' on ' + esc(PLAT[t.dev] || t.dev) : ''}</div>
+        <div class="lines" style="white-space:pre-wrap">${esc(t.text)}</div>
+        <div class="row" style="margin-top:6px"><a class="btn" href="${esc(reply(t))}" target="_blank" rel="noopener">✉ Answer by email</a>${t.done ? `<button data-supopen="${esc(t.id)}">Mark as new</button>` : `<button class="good" data-supdone="${esc(t.id)}">✓ Answered</button>`}</div>
+      </div>`).join('') || '<div class="card">No new support messages. 🎉</div>');
+  }
+
   function bind(root) {
     root.querySelectorAll('[data-bugdone]').forEach((b) => (b.onclick = () => act({ do: 'bugdone', sig: b.dataset.bugdone })));
+    root.querySelectorAll('[data-supdone]').forEach((b) => (b.onclick = () => act({ do: 'supdone', id: b.dataset.supdone }, () => load())));
+    root.querySelectorAll('[data-supopen]').forEach((b) => (b.onclick = () => act({ do: 'supopen', id: b.dataset.supopen }, () => load())));
+    const sd = root.querySelector('#supDone');
+    if (sd) sd.onchange = () => { showDone = sd.checked; render(); };
     root.querySelectorAll('[data-act]').forEach((b) => (b.onclick = () => {
       const what = b.dataset.act;
       if ((what === 'ban' || what === 'mute') && !b.classList.contains('sure')) { b.classList.add('sure'); b.textContent += ': click again'; return; }

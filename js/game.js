@@ -207,7 +207,7 @@
       this.supers = new CW.Supers(this);
       this.gadgets = new CW.Gadgets(this);
       this.replays = new CW.Replays(this); // records every match; the 🎬 Replays viewer
-      this.gallery = new CW.Gallery(this); // the 🖼 mech gallery
+      this.gallery = new CW.Gallery(this); // the 🌍 mech gallery
       this.bindInput();
       this.bindMenus();
       this.bindShowcase();
@@ -700,6 +700,8 @@
       if (open('panel') && this.meta.panel === 'gallery' && this.gallery.closeTop()) return true;
       if (open('panel')) { this.meta.closePanel(); return true; }
       if (this.state === 'picker' || this.state === 'online' || this.state === 'modes') { this.showMenu(); return true; }
+      // searching for a match: Esc cancels it (v1.9.4)
+      if (this.state === 'lobby' && open('search')) { this.net.cancelSearch(); return true; }
       // the Workshop closes like any other menu (not while building in a Rush match: that would leave it)
       if (this.state === 'workshop' && !this.workshop.rush) { $('wsBack').click(); return true; }
       return false;
@@ -1887,8 +1889,8 @@
       el.textContent = Math.max(1, Math.round(dmg));
       el.classList.toggle('big', dmg >= 25);
       const z = this.uiZoom || 1;
-      el.style.left = ((v.x * 0.5 + 0.5) * window.innerWidth / z + (Math.random() - 0.5) * 30) + 'px';
-      el.style.top = ((-v.y * 0.5 + 0.5) * window.innerHeight / z) + 'px';
+      el.style.left = ((v.x * 0.5 + 0.5) * this.view.w / z + (Math.random() - 0.5) * 30) + 'px';
+      el.style.top = ((-v.y * 0.5 + 0.5) * this.view.h / z) + 'px';
       el.style.animation = 'none';
       void el.offsetWidth;
       el.style.animation = '';
@@ -2269,7 +2271,7 @@
         if (this.net.active) ni.textContent = this.net.hud();
       }
       const v = new V3();
-      const w = window.innerWidth / (this.uiZoom || 1), h = window.innerHeight / (this.uiZoom || 1);
+      const w = this.view.w / (this.uiZoom || 1), h = this.view.h / (this.uiZoom || 1);
       for (const c of this.combatants) {
         if (!c.tagEl) continue;
         let pos = null, frac = 0, onFoot = false;
@@ -2549,9 +2551,7 @@
       const color = this.currentBp.color || this.playerColor;
       let minY = 0;
       for (const p of parts) {
-        const o = CW.buildPartMesh(p.t, color, this.profile.finish);
-        o.position.set(p.x, p.y, p.z);
-        g.add(o);
+        g.add(CW.partMesh(p, color, this.profile.finish));
         minY = Math.min(minY, p.y + 0.5 - Math.max(0.5, CW.PARTS[p.t].radius || 0)); // big wheels reach lower
       }
       const ped = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.8, 0.8, 32), CW.mat(0x2e3a63));
@@ -2594,9 +2594,7 @@
           const g = new THREE.Group();
           let minY = 0;
           for (const p of CW.ensureCamera(w.bp.parts).parts) {
-            const o = CW.buildPartMesh(p.t, w.bp.color || 0x3a86ff, w.bp.fin);
-            o.position.set(p.x, p.y, p.z);
-            g.add(o);
+            g.add(CW.partMesh(p, w.bp.color || 0x3a86ff, w.bp.fin));
             minY = Math.min(minY, p.y + 0.5 - Math.max(0.5, CW.PARTS[p.t].radius || 0)); // big wheels reach lower
           }
           g.scale.setScalar(0.85);
@@ -2631,13 +2629,13 @@
       const near = (e) => {
         // empty lobby space counts (also the invisible layout boxes), buttons/cards/inputs keep their own clicks
         if (this.state !== 'menu' || !this.showcase || !menu.contains(e.target) || e.target.closest('button, input, select, a, label, .card, .party-bar')) return false;
-        const x = (e.clientX / innerWidth) * 2 - 1, y = -(e.clientY / innerHeight) * 2 + 1;
+        const V = this.view, x = ((e.clientX - V.x) / V.w) * 2 - 1, y = -((e.clientY - V.y) / V.h) * 2 + 1;
         ray.setFromCamera({ x, y }, this.camera);
         if (ray.intersectObject(this.showcase, true).length) return true;
         // close enough: inside the mech's circle on screen (its pedestal is about 4.8 units wide)
         const c = this.showcase.position.clone().add(new V3(0, 1, 0));
         const mid = c.clone().project(this.camera), edge = c.clone().add(new V3(0, 4.2, 0)).project(this.camera);
-        const px = (v) => [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight];
+        const px = (v) => [V.x + (v.x + 1) / 2 * V.w, V.y + (1 - v.y) / 2 * V.h];
         const [mx, my] = px(mid), [, ey] = px(edge);
         const r = Math.max(60, Math.abs(my - ey) * 1.25);
         return Math.hypot(e.clientX - mx, (e.clientY - my) * 1.1) < r;
@@ -2681,7 +2679,7 @@
     // Short screens (phones sideways) get the "compact" layout, which is made for ~440 px of height,
     // so its buttons come out bigger than shrinking the desktop layout would.
     fitUi() {
-      const w = window.innerWidth, h = window.innerHeight;
+      const w = this.view.w, h = this.view.h;
       const compact = h < 560;
       const z = compact ? clamp(Math.min(w / 860, h / 440), 0.6, 1.3) : clamp(Math.min(w / 1180, h / 740), 0.62, 1.5);
       const root = document.documentElement;
@@ -2692,8 +2690,14 @@
       root.style.setProperty('--vh', (h / z).toFixed(1) + 'px');
       root.style.setProperty('--quests', h / z < 700 ? 'none' : 'block');
     }
+    // the game's area: the whole window, except under the desktop app's title bar (CW.titleBar, v1.9.4)
+    measure() {
+      const r = $('app').getBoundingClientRect();
+      this.view = { x: r.left, y: r.top, w: Math.max(1, r.width || window.innerWidth), h: Math.max(1, r.height || window.innerHeight) };
+    }
     resize() {
-      const w = window.innerWidth, h = window.innerHeight;
+      this.measure();
+      const w = this.view.w, h = this.view.h;
       this.fitUi();
       this.renderer.setSize(w, h);
       this.camera.aspect = w / h;

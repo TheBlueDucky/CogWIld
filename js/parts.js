@@ -37,11 +37,11 @@
   CW.CEILING = 110;
   CW.DRAG = { land: 1.55, water: 1.2, air: 0.55 }; // lower = faster top speed
   CW.GRID = { minX: -4, maxX: 4, minY: -2, maxY: 4, minZ: -4, maxZ: 4 };
-  CW.WING_LIFT = 0.7;
+  CW.WING_LIFT = 1; // v1.9.4: was 0.7 (with ROTOR_LIFT 10): armored mechs can fly too
   // how heavy a mech feels when speeding up and at top speed: weight above a normal mech's (20) counts less, so big
   // builds stay fun to drive (lifting off still needs the real weight)
   CW.moveMass = (m) => (m <= 20 ? m : 20 * Math.pow(m / 20, 0.55));
-  CW.ROTOR_LIFT = 10;
+  CW.ROTOR_LIFT = 14;
 
   CW.RANKS = [
     { name: 'Mono', domains: 1, level: 1, desc: '1 movement type per mech' },
@@ -96,6 +96,61 @@
   };
   // cost, movement type and unlock level come from js/economy.js, so the server checks mechs with the same numbers
   for (const [id, [cost, domain]] of Object.entries(CW.ECON.PARTS)) if (CW.PARTS[id]) { CW.PARTS[id].cost = cost; if (domain) CW.PARTS[id].domain = domain; }
+
+  // v1.9.4 shapes: other looks of a Body part (`s` on a part). They cost, weigh and protect exactly like the part they're
+  // a shape of, so the server and older games treat them as that part (older games simply show the plain one)
+  CW.STYLES = {
+    'body:edge': { name: 'Round Edge', desc: 'A block with one soft, round top edge. Turn it (R) to round the front, back or sides of a car.' },
+    'body:curve': { name: 'Curved Hood', desc: 'One big smooth curve: a sleek front or back for a car.' },
+    'body:corner': { name: 'Round Corner', desc: 'A block with one round corner (seen from above): the corners of a car.' },
+    'body:dome': { name: 'Round Top', desc: 'Round on top and on the side: the smoothest car corner.' },
+    'body:slope': { name: 'Slope', desc: 'A ramp-shaped block: windshields, ramps and wedge cars.' },
+    'body:tube': { name: 'Fuselage', desc: 'A round tube: the body of a plane or a submarine. Line a few up.' },
+    'nose:cone': { name: 'Nose Cone', desc: 'A pointed round nose for a plane, rocket or submarine.' },
+    'cabin:canopy': { name: 'Canopy', desc: 'A glass bubble cockpit, like a jet fighter.' },
+    'cabin:tower': { name: 'Sub Tower', desc: 'A submarine tower with a periscope.' },
+    'spoiler:fin': { name: 'Tail Fin', desc: 'A tall tail fin for planes and submarines.' },
+  };
+  // the part list's entry for a part or a shape ('body' or 'body:edge')
+  CW.pdef = (id) => {
+    const st = CW.STYLES[id];
+    return st ? Object.assign({}, CW.PARTS[id.split(':')[0]], st, { style: id.split(':')[1] }) : CW.PARTS[id];
+  };
+  CW.baseOf = (id) => String(id).split(':')[0];
+  CW.idOf = (p) => (p.s && CW.STYLES[p.t + ':' + p.s] ? p.t + ':' + p.s : p.t);
+  // turning (`r` on a part): 0-3 quarter turns seen from above, +4 = upside down. Only parts that don't drive, shoot or
+  // spin can turn (the physics always pushes forward)
+  CW.canTurn = (id) => { const d = CW.PARTS[CW.baseOf(id)]; return !!d && (['Structure', 'Body', 'Decor'].includes(d.cat) || ['wing', 'float', 'shield'].includes(CW.baseOf(id))); };
+  CW.TURN_NAMES = ['facing forward', 'turned right', 'facing back', 'turned left'];
+  // the turn of the mirrored copy (left ↔ right): most shapes are the same mirrored, so their turn is mirrored; the two
+  // round corners mirrored are themselves turned by a quarter (and upside down the other way)
+  CW.mirrorTurn = (id, r) => {
+    const flip = r & 4, q = r & 3;
+    if (id === 'body:corner' || id === 'body:dome') return flip | ((flip ? 3 : 1) - q) & 3;
+    return flip | ((4 - q) & 3);
+  };
+  // a part as it travels and is saved: { t, x, y, z } plus r and s only when used (anything odd is dropped)
+  CW.cleanPart = (p) => {
+    const o = { t: p.t, x: p.x | 0, y: p.y | 0, z: p.z | 0 };
+    const r = p.r | 0;
+    if (r > 0 && r < 8 && CW.canTurn(p.t)) o.r = r;
+    if (p.s && CW.STYLES[p.t + ':' + p.s]) o.s = p.s;
+    return o;
+  };
+  CW.partArr = (p) => { const a = [p.t, p.x, p.y, p.z]; if (p.r || p.s) a.push(p.r | 0); if (p.s) a.push(p.s); return a; };
+  CW.partFromArr = (a) => CW.cleanPart({ t: a[0], x: a[1], y: a[2], z: a[3], r: a[4], s: a[5] });
+  // a part's mesh, shaped and turned (every place that draws a mech uses this)
+  CW.partMesh = (p, team, fin) => {
+    const obj = CW.buildPartMesh(p.t, team, fin, p.s);
+    obj.position.set(p.x, p.y, p.z);
+    CW.turnMesh(obj, p.r);
+    return obj;
+  };
+  CW.turnMesh = (obj, r) => {
+    r = r | 0;
+    obj.rotation.order = 'YXZ';
+    obj.rotation.set(0, -(r & 3) * Math.PI / 2, r & 4 ? Math.PI : 0);
+  };
 
   // ---------- Mesh factory ----------
   const geoCache = {};
@@ -342,7 +397,15 @@
     for (let i = 0; i < CW.rainbowMats.length; i++) { CW.rainbowMats[i].color.setHSL((t * 0.12 + i * 0.13) % 1, 0.85, 0.52); CW.rainbowMats[i].emissive.setHSL((t * 0.12 + i * 0.13) % 1, 0.9, 0.08); }
   };
 
-  CW.buildPartMesh = function (t, team, fin) {
+  // shapes made from a side profile: drawn in (z, y) with forward = -z, one cell wide (x), or `w` wide
+  const profile = (key, draw, w = 1) => G(key, () => {
+    const sh = new THREE.Shape();
+    draw(sh);
+    return new THREE.ExtrudeGeometry(sh, { depth: w, bevelEnabled: false, curveSegments: 12 }).rotateY(-Math.PI / 2).translate(w / 2, 0, 0);
+  });
+  // a quarter disc that closes one side of the round top corner
+  const quarter = (key, t0, fix) => G(key, () => fix(new THREE.CircleGeometry(1, 14, t0, Math.PI / 2)).translate(0.5, -0.5, 0.5));
+  CW.buildPartMesh = function (t, team, fin, s) {
     const g = new THREE.Group();
     const ud = g.userData;
     // inside part models every material gets a metal finish unless a part picks another:
@@ -357,6 +420,69 @@
     };
     const paint = (color) => M(color, { metalness: 0.35, roughness: 0.3 });
     const chrome = () => M(0xe3e7ee, { metalness: 0.95, roughness: 0.18 }, 'none');
+    const trim = () => M(CW.shade(team, -0.2), { metalness: 0.3, roughness: 0.4 });
+    const glass = () => M(0x2b4a6e, { metalness: 0.9, roughness: 0.08, transparent: true, opacity: 0.82 });
+    switch (s && CW.STYLES[t + ':' + s] ? t + ':' + s : '') {
+      case 'body:edge':
+        add(g, profile('stEdge', (sh) => { sh.moveTo(0.5, -0.5); sh.lineTo(-0.5, -0.5); sh.lineTo(-0.5, 0); sh.absarc(0, 0, 0.5, Math.PI, Math.PI / 2, true); sh.lineTo(0.5, 0.5); }), paint(team));
+        add(g, box(1.02, 0.08, 1.02), trim(), 0, -0.2, 0);
+        return g;
+      case 'body:curve':
+        add(g, profile('stCurve', (sh) => { sh.moveTo(0.5, -0.5); sh.lineTo(-0.5, -0.5); sh.absarc(0.5, -0.5, 1, Math.PI, Math.PI / 2, true); }), paint(team));
+        add(g, box(1.02, 0.06, 0.5), trim(), 0, -0.4, 0.25);
+        return g;
+      case 'body:corner':
+        // drawn from above (x, z) and stood up: the round corner is front-left
+        add(g, G('stCorner', () => {
+          const sh = new THREE.Shape();
+          sh.moveTo(0.5, -0.5); sh.lineTo(0.5, 0.5); sh.lineTo(-0.5, 0.5); sh.lineTo(-0.5, 0); sh.absarc(0, 0, 0.5, Math.PI, Math.PI * 1.5, false);
+          return new THREE.ExtrudeGeometry(sh, { depth: 1, bevelEnabled: false, curveSegments: 12 }).rotateX(Math.PI / 2).translate(0, 0.5, 0);
+        }), paint(team));
+        return g;
+      case 'body:dome': {
+        // an eighth of a ball as big as the cell: round toward the front, the left and the top
+        const m = M(team, { metalness: 0.35, roughness: 0.3, side: THREE.DoubleSide });
+        add(g, G('stDome', () => new THREE.SphereGeometry(1, 16, 8, Math.PI * 1.5, Math.PI / 2, 0, Math.PI / 2).translate(0.5, -0.5, 0.5)), m);
+        add(g, quarter('stDomeB', Math.PI, (q) => q.rotateX(Math.PI / 2)), m);
+        add(g, quarter('stDomeZ', Math.PI / 2, (q) => q), m);
+        add(g, quarter('stDomeX', 0, (q) => q.rotateY(Math.PI / 2)), m);
+        return g;
+      }
+      case 'body:slope':
+        add(g, profile('stSlope', (sh) => { sh.moveTo(0.5, -0.5); sh.lineTo(-0.5, -0.5); sh.lineTo(0.5, 0.5); }), paint(team));
+        return g;
+      case 'body:tube':
+        add(g, cyl(0.5, 0.5, 1, 22), paint(team)).rotation.x = Math.PI / 2;
+        for (const z of [-0.47, 0.47]) add(g, cyl(0.51, 0.51, 0.05, 22), trim(), 0, 0, z).rotation.x = Math.PI / 2;
+        for (const sx of [-1, 1]) add(g, cyl(0.09, 0.09, 0.04, 12), glass(), sx * 0.49, 0.12, 0).rotation.z = Math.PI / 2;
+        return g;
+      case 'nose:cone':
+        add(g, cyl(0.06, 0.5, 1, 22), paint(team)).rotation.x = -Math.PI / 2;
+        add(g, cyl(0.51, 0.51, 0.06, 22), trim(), 0, 0, 0.46).rotation.x = Math.PI / 2;
+        add(g, sph(0.07, 10, 8), chrome(), 0, 0, -0.5);
+        return g;
+      case 'cabin:canopy': {
+        add(g, box(1, 0.3, 1), paint(team), 0, -0.35, 0);
+        const bubble = add(g, G('stCanopy', () => new THREE.SphereGeometry(0.5, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2)), glass(), 0, -0.2, 0.02);
+        bubble.scale.set(0.8, 1.15, 0.95);
+        add(g, box(0.06, 0.06, 0.9), trim(), 0, 0.33, 0.02);
+        return g;
+      }
+      case 'cabin:tower': {
+        add(g, box(1, 0.12, 1), paint(team), 0, -0.44, 0);
+        const tw = add(g, cyl(0.3, 0.34, 0.8, 18), paint(team), 0, 0, 0.05);
+        tw.scale.z = 1.45;
+        add(g, cyl(0.31, 0.31, 0.06, 18), trim(), 0, 0.4, 0.05).scale.z = 1.45;
+        add(g, cyl(0.035, 0.035, 0.45, 8), M(0x2a2f3a, { metalness: 0.6, roughness: 0.4 }), 0, 0.6, 0.12);
+        add(g, box(0.08, 0.08, 0.18), M(0x2a2f3a, { metalness: 0.6, roughness: 0.4 }), 0, 0.82, 0.06);
+        add(g, box(0.05, 0.05, 0.02), glass(), 0, 0.82, -0.04);
+        return g;
+      }
+      case 'spoiler:fin':
+        add(g, profile('stFin', (sh) => { sh.moveTo(0.5, -0.45); sh.lineTo(-0.35, -0.45); sh.lineTo(0.2, 0.48); sh.lineTo(0.48, 0.48); }, 0.1), paint(team));
+        add(g, box(0.3, 0.1, 1), trim(), 0, -0.45, 0);
+        return g;
+    }
     switch (t) {
       case 'core': {
         add(g, box(0.92, 0.92, 0.92), M(0xffc43d, null, 'hazard'));
@@ -823,7 +949,7 @@
   };
 
   // ---------- Presets ----------
-  const P = (list) => CW.ensureCamera(list.map(([t, x, y, z]) => ({ t, x, y, z }))).parts;
+  const P = (list) => CW.ensureCamera(list.map(CW.partFromArr)).parts;
   CW.PRESETS = [
     {
       id: 'buggy', name: 'Scout Buggy', bot: true, ai: 'ground', desc: 'A little car with twin cannons.',
@@ -878,19 +1004,35 @@
       id: 'leviathan', name: 'Leviathan', bot: true, ai: 'heli', desc: 'Omni beast: drives, floats and hovers.',
       parts: P([['core', 0, 0, 0], ['frame', 0, 0, -1], ['frame', 0, 0, 1], ['frame', -1, 0, 0], ['frame', 1, 0, 0], ['wheel', -1, 0, -1], ['wheel', 1, 0, -1], ['wheel', -1, 0, 1], ['wheel', 1, 0, 1], ['float', -1, 1, -1], ['float', 1, 1, -1], ['float', -1, 1, 1], ['float', 1, 1, 1], ['rotor', -2, 0, 0], ['rotor', 2, 0, 0], ['rotor', -2, 0, 1], ['rotor', 2, 0, 1], ['prop', 0, 0, 2], ['cannon', 0, 1, -1], ['engine', 0, 1, 0], ['engine', 0, 1, 1]]),
     },
+    // v1.9.4 examples of the round, plane and submarine shapes (a part: [type, x, y, z, turn, shape])
+    {
+      id: 'coupe', name: 'Round Coupe', desc: 'A smooth car built from the round shapes.',
+      parts: P([['core', 0, 0, 0], ['body', 0, 0, -1], ['body', 0, 0, -2, 0, 'curve'], ['engine', 0, 0, 1], ['body', 0, 0, 2, 2, 'curve'], ['wheel', -1, 0, -1], ['wheel', 1, 0, -1], ['wheel', -1, 0, 1], ['wheel', 1, 0, 1],
+        ['fender', -1, 1, -1], ['fender', 1, 1, -1], ['fender', -1, 1, 1], ['fender', 1, 1, 1], ['camera', 0, 1, -1], ['cabin', 0, 1, 0], ['body', 0, 1, 1, 2, 'edge'], ['cannon', -1, 1, 0], ['cannon', 1, 1, 0]]),
+    },
+    {
+      id: 'jet', name: 'Jet Fighter', desc: 'A fuselage, a bubble canopy, wings and a tail fin: takes off on its wheels.',
+      parts: P([['core', 0, 0, 0], ['body', 0, 0, -1, 0, 'tube'], ['nose', 0, 0, -2, 0, 'cone'], ['body', 0, 0, 1, 0, 'tube'], ['jet', 0, 0, 2], ['wing', -1, 0, 0], ['wing', 1, 0, 0], ['wing', -2, 0, 0], ['wing', 2, 0, 0],
+        ['wheel', 0, -1, -1], ['wheel', -1, -1, 0], ['wheel', 1, -1, 0], ['engine', 0, 1, 1], ['camera', 0, 1, -1], ['cabin', 0, 1, 0, 0, 'canopy'], ['spoiler', 0, 1, 2, 0, 'fin'], ['cannon', -1, 1, 0], ['cannon', 1, 1, 0]]),
+    },
+    {
+      id: 'sub', name: 'Submarine', desc: 'A round hull with a tower and a tail fin: dives with Space / Shift.',
+      parts: P([['core', 0, 0, 0], ['body', 0, 0, -1, 0, 'tube'], ['nose', 0, 0, -2, 0, 'cone'], ['body', 0, 0, 1, 0, 'tube'], ['prop', 0, 0, 2], ['prop', -1, 0, 1], ['prop', 1, 0, 1],
+        ['camera', 0, 1, -1], ['cabin', 0, 1, 0, 0, 'tower'], ['spoiler', 0, 1, 1, 0, 'fin'], ['rocket', -1, 0, 0], ['rocket', 1, 0, 0], ['engine', 0, -1, 0]]),
+    },
   ];
 
   CW.PAINTS = [0x3a86ff, 0xff006e, 0xfb5607, 0x8338ec, 0x06d6a0, 0xffbe0b, 0x00b4d8, 0xe63946, 0x6c757d, 0xf1f3f5];
 
   CW.cloneBp = (bp) => {
-    const out = { name: bp.name, parts: bp.parts.map((p) => ({ t: p.t, x: p.x, y: p.y, z: p.z })) };
+    const out = { name: bp.name, parts: bp.parts.map(CW.cleanPart) };
     if (bp.color) out.color = bp.color;
     if (bp.fin) out.fin = bp.fin;
     return out;
   };
 
   CW.encodeBp = function (bp) {
-    const data = { n: bp.name, c: bp.color, p: bp.parts.map((p) => [p.t, p.x, p.y, p.z]) };
+    const data = { n: bp.name, c: bp.color, p: bp.parts.map(CW.partArr) };
     return 'CW1:' + btoa(unescape(encodeURIComponent(JSON.stringify(data))));
   };
   CW.decodeBp = function (code) {
@@ -898,8 +1040,8 @@
     if (!code.startsWith('CW1:')) throw new Error('Not a Cogwild blueprint code');
     const data = JSON.parse(decodeURIComponent(escape(atob(code.slice(4)))));
     const parts = data.p
-      .filter((a) => CW.PARTS[a[0]])
-      .map(([t, x, y, z]) => ({ t, x: x | 0, y: y | 0, z: z | 0 }));
+      .filter((a) => Array.isArray(a) && CW.PARTS[a[0]])
+      .map(CW.partFromArr);
     if (!parts.some((p) => p.t === 'core')) throw new Error('Blueprint has no core');
     const out = { name: String(data.n || 'Imported').slice(0, 24), parts };
     const allPaints = CW.PAINTS.concat(CW.SHOP ? CW.SHOP.paints.map((p) => p.color) : []);

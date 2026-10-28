@@ -1,0 +1,11 @@
+// The desktop app's small bridge between the game page and the app (contextIsolation stays on): the game tells the
+// app what you're doing for the Discord status (desktop/discord.js). Nothing else is reachable from the page.
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('CogwildDesktop', {
+  presence: (info) => ipcRenderer.send('presence', {
+    details: String((info && info.details) || '').slice(0, 120),
+    state: String((info && info.state) || '').slice(0, 120),
+    since: +(info && info.since) || 0,
+  }),
+});

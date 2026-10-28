@@ -6,7 +6,7 @@
   // ======================= PART UNLOCKS =======================
   CW.PART_LEVEL = {}; // parts that unlock above level 1 (from js/economy.js)
   for (const [id, r] of Object.entries(CW.ECON.PARTS)) if (r[2] > 1) CW.PART_LEVEL[id] = r[2];
-  CW.partLocked = (t, game) => (CW.PART_LEVEL[t] || 1) > game.level();
+  CW.partLocked = (t, game) => (CW.PART_LEVEL[CW.baseOf(t)] || 1) > game.level(); // a shape unlocks with its part
   CW.unlocksAt = (level) => Object.keys(CW.PART_LEVEL).filter((t) => CW.PART_LEVEL[t] === level).map((t) => CW.PARTS[t].name);
 
   // ======================= POWER-UPS =======================

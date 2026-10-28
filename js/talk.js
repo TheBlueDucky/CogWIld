@@ -159,8 +159,10 @@
       if (this.game.state === 'match' && document.pointerLockElement) document.exitPointerLock();
       const tabs = this.tabs();
       this.tab = tab && tabs.includes(tab) ? tab : this.tab && tabs.includes(this.tab) ? this.tab : tabs[0];
-      // phones in the menu: the whole screen, like a chat app (☰ Menu goes back); elsewhere a small window
+      // phones in the menu: the whole screen, like a chat app (☰ Menu goes back); other phone screens: a small window;
+      // PCs (v1.9.4): a panel down the whole left side, like a game launcher's friends list (it doesn't move)
       document.body.classList.toggle('talk-full', this.game.touch.on && this.game.state === 'menu');
+      document.body.classList.toggle('talk-dock', !this.game.touch.on);
       this.placeChat();
       $('chat').classList.remove('hidden');
       this.render();
@@ -171,12 +173,23 @@
       $('chatInput').blur();
       this.who = null;
       this.portrait(false);
-      document.body.classList.remove('talk-full');
+      document.body.classList.remove('talk-full', 'talk-dock');
+      this.fitKeyboard();
+    }
+    // phones with the keyboard open: the full-screen chat fits in the part of the screen the keyboard leaves, so its
+    // tabs and ✕ at the top stay visible (the Android app also makes the whole game shorter, see MainActivity)
+    fitKeyboard() {
+      const box = $('chat'), vv = window.visualViewport;
+      const full = this.isOpen && /talk-(full|portrait)/.test(document.body.className);
+      if (!vv || !full || vv.height >= innerHeight - 40) { box.style.height = box.style.top = ''; return; }
+      box.style.top = vv.offsetTop + 'px';
+      box.style.height = vv.height + 'px';
+      if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
     }
     // the chat stays where you dragged it (saved as a share of the screen)
     placeChat() {
       const box = $('chat'), p = this.game.settings.chatPos;
-      if (!p || document.body.classList.contains('talk-full')) { box.style.left = box.style.top = ''; return; }
+      if (!p || /talk-(full|dock)/.test(document.body.className)) { box.style.left = box.style.top = ''; return; }
       const z = parseFloat(getComputedStyle(box).zoom) || 1;
       const w = box.offsetWidth * z || 340, h = box.offsetHeight * z || 400;
       const x = Math.max(0, Math.min(innerWidth - w, p.x * innerWidth)), y = Math.max(0, Math.min(innerHeight - h, p.y * innerHeight));
@@ -202,7 +215,11 @@
         window.addEventListener('pointermove', move);
         window.addEventListener('pointerup', up);
       });
-      window.addEventListener('resize', () => { if (this.isOpen) this.placeChat(); });
+      window.addEventListener('resize', () => { if (this.isOpen) { this.placeChat(); this.fitKeyboard(); } });
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', () => this.fitKeyboard());
+        window.visualViewport.addEventListener('scroll', () => this.fitKeyboard());
+      }
     }
     // straight to a private message with someone (Friends list, club members)
     openDm(name) {

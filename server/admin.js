@@ -1,7 +1,8 @@
 // Cogwild moderation: a private page at /admin for the game's owner (kids play this game: reports must be looked at).
 // It lists player reports (newest first, with what was said), hidden gallery mechs and who is muted or banned, and
 // can mute typed chat, ban an account, turn on Quick chat only, dismiss a report, and hide / show / delete a mech.
-// It also shows players per day (server/stats.js) and the errors games sent in (Bugs, marked fixed one by one).
+// It also shows players per day (server/stats.js), the errors games sent in (Bugs, marked fixed one by one) and the
+// players' support messages (server/support.js, answered by email).
 // It only works with ADMIN_TOKEN set in /etc/cogwild.env (deploy/set-admin.ps1 makes one; nobody else ever sees it).
 // The page sends the token in a header; wrong tokens are counted per network and locked out for 15 minutes after 5.
 'use strict';
@@ -61,6 +62,7 @@ class Admin {
       if (what === 'player') return this.json(res, 200, this.player(q.get('name'))), true;
       if (what === 'stats') return this.json(res, 200, this.a.stats ? this.a.stats.view() : { err: 'No stats here' }), true;
       if (what === 'bugs') return this.json(res, 200, { bugs: this.a.stats ? this.a.stats.bugList() : [] }), true;
+      if (what === 'support') return this.json(res, 200, { list: this.a.support ? this.a.support.view() : [] }), true;
       if (what === 'act') return this.json(res, 200, this.act(q)), true;
     } catch (e) {
       console.error('admin', what, e);
@@ -82,7 +84,8 @@ class Admin {
     return {
       reports, people, hidden,
       stats: { accounts: Object.keys(users).length, online: this.h.clients.size, rooms: this.h.rooms.size, gallery: g ? Object.keys(g.all).length : 0, openReports: reports.length,
-        today: this.a.stats ? this.a.stats.today().n : 0, openBugs: this.a.stats ? Object.values(this.db.bugs || {}).filter((b) => !b.done).length : 0 },
+        today: this.a.stats ? this.a.stats.today().n : 0, openBugs: this.a.stats ? Object.values(this.db.bugs || {}).filter((b) => !b.done).length : 0,
+        openSupport: this.a.support ? this.a.support.open() : 0 },
     };
   }
   player(name) {
@@ -141,6 +144,7 @@ class Admin {
       return ok ? { ok: true } : { err: 'No such mech' };
     }
     if (what === 'bugdone') return this.a.stats && this.a.stats.bugDone(String(q.get('sig') || '')) ? { ok: true } : { err: 'No such bug' };
+    if (what === 'supdone' || what === 'supopen') return this.a.support && this.a.support.done(String(q.get('id') || ''), what === 'supdone') ? { ok: true } : { err: 'No such message' };
     return { err: 'Unknown action' };
   }
 }

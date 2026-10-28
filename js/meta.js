@@ -168,10 +168,12 @@
     // ---------------- support / contact us (Settings › Support and the top of Help) ----------------
     supportHtml() {
       return `<div class="support-card"><div class="sup-ico">✉</div><div class="sup-txt"><b>Need help? Contact us</b>
-        <span>Found a bug, lost progress, a problem with a player or a question? Email BlueDucky Games at <b class="sup-mail">${SUPPORT_EMAIL}</b>. We read every message.</span>
-        <span class="small">Tip: tell us your username, your device and what happened. To report a player in a match, tap their name in the chat.</span></div>
-        <div class="sup-btns"><button class="ws-btn on" data-support="mail">✉ Email us</button><button class="ws-btn" data-support="copy">📋 Copy email</button></div></div>`;
+        <span>Found a bug, lost progress, a problem with a player or a question? Write to BlueDucky Games on our support page (sign in with Google, then tell us what happened). We read every message.</span>
+        <span class="small">Or email <b class="sup-mail">${SUPPORT_EMAIL}</b>. To report a player in a match, tap their name in the chat.</span></div>
+        <div class="sup-btns"><button class="ws-btn on" data-support="page">✉ Contact us</button><button class="ws-btn" data-support="copy">📋 Copy email</button></div></div>`;
     }
+    // "Contact us" opens the support page on the website (server/support.js) with the game's version and device;
+    // the page itself has a link to Gmail for anyone who can't sign in with Google
     bindSupport(root) {
       root.querySelectorAll('[data-support]').forEach((b) => (b.onclick = () => {
         if (b.dataset.support === 'copy') {
@@ -179,10 +181,9 @@
           try { navigator.clipboard.writeText(SUPPORT_EMAIL).then(done, () => this.game.toast(SUPPORT_EMAIL)); } catch (e) { this.game.toast(SUPPORT_EMAIL); }
           return;
         }
-        const acct = this.game.account, who = acct && acct.loggedIn ? acct.me.name : 'guest';
-        const device = CW.PORTAL ? 'website (' + CW.PORTAL + ')' : window.CogwildNative ? 'Android app' : /Electron/.test(navigator.userAgent) ? 'desktop app' : 'browser';
-        const body = `Username: ${who}\nGame version: ${CW.VERSION} (${device})\n\nWhat happened:\n`;
-        CW.openExternal(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Cogwild support ' + CW.VERSION)}&body=${encodeURIComponent(body)}`);
+        const site = CW.PUBLIC_URL || (/^https?:/.test(location.protocol) ? location.origin + '/' : 'https://cogwild.duckdns.org/');
+        const dev = CW.platName ? CW.platName() : '';
+        CW.openExternal(`${site}support?v=${encodeURIComponent(CW.VERSION.replace(/^v/, ''))}&d=${encodeURIComponent(dev)}`);
       }));
     }
 
@@ -254,7 +255,7 @@
       $('panelBody').parentElement.scrollTop = 0;
       const titles = {
         challenges: '🎯 Daily challenges', shop: '🛒 Shop', stats: '📊 Stats', settings: '⚙ Settings', howto: '❓ How to play', ach: '🎖 Achievements', news: '📰 What\'s new',
-        event: '🎉 Seasonal event', replays: '🎬 Replays', gallery: '🖼 Mech gallery', cup: '🏆 Weekend Cup', profile: '👤 Profile', friends: '👥 Friends', road: '🛤 Trophy road', pass: '🎟 Cog Pass', clubs: '🛡 Clubs', top: '📈 Leaderboard', player: '👤 Player', ranks: '⭐ Level and ranks', arenas: '🎮 Pick a mode and arena',
+        event: '🎉 Seasonal event', replays: '🎬 Replays', gallery: '🌍 Mech gallery', cup: '🏆 Weekend Cup', profile: '👤 Profile', friends: '👥 Friends', road: '🛤 Trophy road', pass: '🎟 Cog Pass', clubs: '🛡 Clubs', top: '📈 Leaderboard', player: '👤 Player', ranks: '⭐ Level and ranks', arenas: '🎮 Pick a mode and arena',
       };
       $('panelTitle').textContent = titles[kind];
       this.renderPanel();
@@ -557,6 +558,7 @@
         body.innerHTML = `<div class="small">${n} / ${CW.ACHIEVEMENTS.length} unlocked. Each one pays coins.</div><div class="ach-grid">${CW.ACHIEVEMENTS.map((a) => `<div class="ach ${got[a.id] ? 'got' : ''}"><b>${got[a.id] ? '🏆' : '🔒'} ${a.name}</b><span class="small">${a.desc}</span>${got[a.id] ? '' : prog(a)}<div class="small">+${a.reward} 🪙</div></div>`).join('')}</div>`;
       } else if (k === 'news') {
         body.innerHTML = `<ul class="news">
+          <li><b>v1.9.4</b>: 🔧 <b>Round and turnable parts</b> in the Workshop: Round Edge, Curved Hood, Round Corner, Round Top, Slope, plus a Fuselage, Nose Cone, Canopy, Sub Tower and Tail Fin for planes and submarines (try the new Round Coupe, Jet Fighter and Submarine examples). Press <b>R</b> to turn a part and <b>U</b> to flip it. ✈ Rotors and wings lift more, so armored mechs can fly too. 🎮 A simpler, cleaner <b>PLAY picker</b> and <b>Clubs</b> screen, <b>Esc</b> cancels a search, the chat sits down the left side on PCs, more animations, and ✉ <b>Contact us</b> opens our support page. 📱 Phones stay logged in, and the chat fits above the keyboard. 🖥 The desktop app has a dark title bar that matches the game, shows what you're playing on Discord, and never asks for your camera or location.</li>
           <li><b>v1.9.3</b>: 🎯 Aiming with the mouse turns the same on every computer: on some Chromebooks and zoomed screens it turned much too fast, and a sudden jump could spin you all the way around.</li>
           <li><b>v1.9.2</b>: 🐞 When something in the game breaks, it now tells us by itself (just the error, never your name or chat), so bugs get fixed faster.</li>
           <li><b>v1.9.1</b>: 🖱 The mouse pointer no longer stays on screen in matches: PCs with a touchscreen or pen tablet don't get the phone controls unless you touch the screen, any key catches the mouse (not only a click), and the pointer is hidden while you play.</li>
@@ -677,7 +679,7 @@
       const rotNow = CW.FEATURED.rotation().arenas;
       const arenas = ['random'].concat(Object.keys(CW.ARENAS)).map((id) => {
         const a = g.arenaInfo(id), fresh = ['speedway', 'bay', 'moon'].includes(id) ? '<i class="new-tag">NEW</i>' : '';
-        return `<button class="arena-opt ${id === curA ? 'on' : ''} ${rotNow.includes(id) ? 'in-rot' : ''}" data-arena="${id}"><span>${a.icon}</span><b>${a.name}${fresh}</b><small>${a.desc}</small></button>`;
+        return `<button class="arena-opt ${id === curA ? 'on' : ''} ${rotNow.includes(id) ? 'in-rot' : ''}" data-arena="${id}"><span>${a.icon}</span><b>${a.name}${fresh}</b><small>${a.desc}</small>${rotNow.includes(id) ? '<i class="rot-dot" aria-label="In rotation now">🔄</i>' : ''}</button>`;
       }).join('');
       const f = CW.FEATURED.today(), fm = CW.MODES[f.mode], fa = CW.ARENAS[f.arena];
       const kind = this.settings.mmEvent, w = E.week(), wm = CW.MODES[w.mode];
@@ -688,22 +690,28 @@
         const locked = gd.level > lv;
         return `<button class="mode-opt gad-opt ${(this.settings.gadget || 'repair') === id ? 'on' : ''} ${locked ? 'locked' : ''}" data-gadget="${id}" ${locked ? 'disabled' : ''} aria-label="${gd.desc}"><span>${gd.icon}</span><b>${gd.name}</b><small>${locked ? `🔒 Level ${gd.level}` : gd.desc}</small></button>`;
       }).join('');
-      body.innerHTML = `<div class="event-cards">
-          <button class="feat-card week-card ${kind === 'weekly' ? 'on' : ''}" id="weekPick"><span>${w.icon}</span><div><b>This week: ${w.name}</b><small>${wm.icon} ${wm.name} · ${w.desc} · +50% coins · ends in ${CW.timeLeft(w.endsAt - Date.now())}</small></div><em>${kind === 'weekly' ? '✔ Picked' : 'Play it'}</em></button>
-          <button class="feat-card ranked-card ${kind === 'ranked' ? 'on' : ''} ${canRanked ? '' : 'locked'}" id="rankedPick"><span>🏅</span><div><b>Ranked${rk ? ` · ${rk.icon} ${rk.name}` : ''}</b><small>${canRanked ? `3v3 in ${E.RANKED.modes.map((x) => CW.MODES[x].name).join(', ')}. Win ranked points; they reset each season.` : `Unlocks at 🏆 ${E.RANKED.unlockAt} trophies (your best).`}</small></div><em>${kind === 'ranked' ? '✔ Picked' : canRanked ? 'Play it' : '🔒'}</em></button>
-          <button class="feat-card cup-card ${kind === 'cup' ? 'on' : ''} ${cu.live ? '' : 'locked'}" id="cupPick"><span>🏆</span><div><b>Weekend Cup</b><small>${cu.live ? `${cm.icon} ${cm.name} · best 10 matches count${my ? ` · you: ${my.score} pts, #${my.rank}` : ''} · ends in ${CW.timeLeft(cu.end - Date.now())}` : `Every weekend, Friday 18:00 to Sunday 24:00 UTC · next in ${CW.timeLeft(cu.next - Date.now())}`}</small></div><em>${kind === 'cup' ? '✔ Picked' : cu.live ? 'Play it' : 'Info'}</em></button>
+      // v1.9.4: one calm list: special matches, mode, arena, gadget, then the other ways to play
+      const pickTag = (on) => (on ? '<em class="p2-on">✔</em>' : '<em class="p2-go">›</em>');
+      const featOn = !kind && f.mode === curM && f.arena === curA;
+      const rot = CW.FEATURED.rotation();
+      body.innerHTML = `<div class="pick2">
+        <div class="p2-specials">
+          <button class="p2-special ${kind === 'weekly' ? 'on' : ''}" id="weekPick" aria-label="${wm.name}: ${w.desc} · +50% coins"><span class="p2-ico">${w.icon}</span><span class="p2-txt"><b>${w.name}</b><small>${wm.icon} ${wm.name} · ends in ${CW.timeLeft(w.endsAt - Date.now())}</small></span>${pickTag(kind === 'weekly')}</button>
+          <button class="p2-special ${kind === 'ranked' ? 'on' : ''} ${canRanked ? '' : 'locked'}" id="rankedPick"><span class="p2-ico">🏅</span><span class="p2-txt"><b>Ranked${rk ? ` · ${rk.icon} ${rk.name}` : ''}</b><small>${canRanked ? '3v3 for ranked points' : `🔒 At 🏆 ${E.RANKED.unlockAt} trophies`}</small></span>${pickTag(kind === 'ranked')}</button>
+          <button class="p2-special ${kind === 'cup' ? 'on' : ''} ${cu.live ? '' : 'locked'}" id="cupPick"><span class="p2-ico">🏆</span><span class="p2-txt"><b>Weekend Cup</b><small>${cu.live ? `${cm.icon} ${cm.name} · ends in ${CW.timeLeft(cu.end - Date.now())}${my ? ` · #${my.rank}` : ''}` : `Next in ${CW.timeLeft(cu.next - Date.now())}`}</small></span>${pickTag(kind === 'cup')}</button>
+          <button class="p2-special ${featOn ? 'on' : ''}" id="featPick"><span class="p2-ico">⭐</span><span class="p2-txt"><b>Featured today</b><small>${fm.icon} ${fm.name} · ${fa.icon} ${fa.name} · ${CW.FEATURED.COIN_MULT}× coins</small></span>${pickTag(featOn)}</button>
         </div>
-        <button class="feat-card ${!kind && f.mode === curM && f.arena === curA ? 'on' : ''}" id="featPick"><span>⭐</span><div><b>Featured today: ${fm.icon} ${fm.name} on ${fa.icon} ${fa.name}</b><small>${CW.FEATURED.COIN_MULT}× coins and +50% trophies · ends in ${g.featuredLeft()}</small></div><em>${f.mode === curM && f.arena === curA ? '✔ Picked' : 'Play it'}</em></button>
-        <div class="small">Pick a mode and an arena, then press <b>PLAY</b>. You're matched with players who picked the same; after 30 seconds bots fill the empty seats.</div>
         <h3>Mode</h3><div class="mode-row">${modes}</div>
-        <div class="small" id="modeDesc">${CW.MODES[curM].desc}</div>
+        <div class="p2-desc" id="modeDesc">${CW.MODES[curM].desc}</div>
         <h3>Arena</h3><div class="arena-grid">${arenas}</div>
-        <div class="small rot-line">🔄 In rotation now (Any arena): ${CW.FEATURED.rotation().arenas.map((a) => `${CW.ARENAS[a].icon} ${CW.ARENAS[a].name}`).join(' · ')} <span class="muted">· changes in ${CW.timeLeft(CW.FEATURED.rotation().endsAt - Date.now())}</span></div>
-        <h3>Gadget <span class="small">3 uses a match · G / 🧰</span></h3><div class="mode-row">${gad}</div>
-        <div class="other-play">
-          <button class="ws-btn" id="opRoom">🤝 Play with friends (private room)</button>
-          <button class="ws-btn" id="opTutorial">🎓 Tutorial</button>
-        </div>`;
+        <div class="p2-desc rot-line">🔄 <span>Any arena plays</span> ${rot.arenas.map((a) => `${CW.ARENAS[a].icon} ${CW.ARENAS[a].name}`).join(' · ')} <span class="muted">· changes in ${CW.timeLeft(rot.endsAt - Date.now())}</span></div>
+        <h3>Gadget <span class="small">3 uses a match · G / 🧰</span></h3><div class="mode-row gad-row">${gad}</div>
+        <h3>More ways to play</h3>
+        <div class="p2-more">
+          <button class="p2-alt" id="opRoom"><span class="p2-ico">🤝</span><span class="p2-txt"><b>Private room</b><small>Play with friends: share a code or an invite link. The host picks the mode.</small></span><em class="p2-go">›</em></button>
+          <button class="p2-alt" id="opTutorial"><span class="p2-ico">🎓</span><span class="p2-txt"><b>Tutorial</b><small>Learn to drive, aim, build and use supers in a few minutes.</small></span><em class="p2-go">›</em></button>
+        </div>
+      </div>`;
       body.querySelectorAll('[data-gadget]').forEach((b) => (b.onclick = () => {
         this.settings.gadget = b.dataset.gadget;
         this.save();

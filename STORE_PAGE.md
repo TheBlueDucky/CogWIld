@@ -102,7 +102,7 @@ Action · Vehicle combat · Building · Mech · Robots · Arena · Multiplayer �
   *processed ephemerally* (passes live through the relay, never stored) · **App activity → Other user-generated content**
   (mech designs, game progress) · **App activity → App interactions** (players per day, modes played; under a one-way code, since v1.9.2) ·
   **App info and performance → Crash logs + Diagnostics** (error messages the game sends by itself, since v1.9.2)
-- Purpose: App functionality, Account management, **Analytics** (the two v1.9.2 items). **Not shared** with third parties. **Not used for ads.**
+- Purpose: App functionality, Account management, **Analytics** (the two v1.9.2 items), **Developer communications** (since v1.9.4: "Contact us" opens the support page, where players sign in with Google and write a message; we keep the email + message to answer). **Not shared** with third parties. **Not used for ads.**
 - Encrypted in transit: **Yes** (HTTPS/WSS) · Users can request deletion: **Yes** (in app: Profile → Delete account; web: same on the website; or by email)
 - Account creation: Google sign-in (older accounts: email/username + password) · Account deletion URL: https://cogwild.duckdns.org/privacy.html#deleting
 

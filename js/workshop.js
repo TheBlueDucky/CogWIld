@@ -24,8 +24,8 @@
       const cam = new THREE.PerspectiveCamera(30, 1, 0.05, 50);
       const box = new THREE.Box3(), mid = new THREE.Vector3(), size = new THREE.Vector3();
       const from = new THREE.Vector3(-0.85, 0.7, -1.15).normalize();
-      for (const id of Object.keys(CW.PARTS)) {
-        const m = CW.buildPartMesh(id, 0x3a86ff);
+      for (const id of Object.keys(CW.PARTS).concat(Object.keys(CW.STYLES))) {
+        const m = CW.buildPartMesh(CW.baseOf(id), 0x3a86ff, null, id.split(':')[1]);
         scene.add(m);
         m.updateMatrixWorld(true);
         box.setFromObject(m).getCenter(mid);
@@ -118,6 +118,7 @@
 
       this.orbit = { yaw: -2.35, pitch: 0.42, dist: 13, target: new THREE.Vector3(0, 0.5, 0) };
       this.selected = 'frame';
+      this.turn = 0; // the turn of the next part placed (R / U)
       this.mirror = true;
       this.mouse = { x: -1, y: -1, down: -1, moved: 0 };
       this.undoStack = [];
@@ -142,14 +143,18 @@
         for (const [id, d] of Object.entries(CW.PARTS)) {
           if (d.cat !== cat) continue;
           n++;
-          const b = document.createElement('button');
-          b.className = 'pal-item';
-          b.dataset.part = id;
-          b.innerHTML = `<span class="key">${n <= 9 ? n : n === 10 ? 0 : ''}</span><img class="pic" alt="" draggable="false"><span class="nm">${d.name}</span><span class="cnt"></span><span class="cost">${d.cost}</span>`;
-          b.onclick = () => this.select(id);
-          b.onmouseenter = () => this.showInfo(id);
-          b.onmouseleave = () => this.showInfo(this.selected);
-          pal.appendChild(b);
+          // the part, then its other shapes (v1.9.4) right under it
+          for (const pid of [id].concat(Object.keys(CW.STYLES).filter((k) => CW.baseOf(k) === id))) {
+            const pd = CW.pdef(pid), shape = pid !== id;
+            const b = document.createElement('button');
+            b.className = 'pal-item' + (shape ? ' shape' : '');
+            b.dataset.part = pid;
+            b.innerHTML = `<span class="key">${shape ? '' : n <= 9 ? n : n === 10 ? 0 : ''}</span><img class="pic" alt="" draggable="false"><span class="nm">${pd.name}</span><span class="cnt"></span><span class="cost">${pd.cost}</span>`;
+            b.onclick = () => this.select(pid);
+            b.onmouseenter = () => this.showInfo(pid);
+            b.onmouseleave = () => this.showInfo(this.selected);
+            pal.appendChild(b);
+          }
         }
       }
       this.partKeys = Object.keys(CW.PARTS).filter((k) => k !== 'core');
@@ -181,14 +186,14 @@
         const t = b.dataset.part;
         const locked = CW.partLocked(t, this.game);
         b.classList.toggle('locked', locked);
-        b.querySelector('.cost').textContent = locked ? `🔒 Lv${CW.PART_LEVEL[t]}` : CW.PARTS[t].cost;
+        b.querySelector('.cost').textContent = locked ? `🔒 Lv${CW.PART_LEVEL[CW.baseOf(t)]}` : CW.pdef(t).cost;
       });
       if (CW.partLocked(this.selected, this.game)) this.select('frame');
     }
 
     select(id) {
       if (CW.partLocked(id, this.game)) {
-        this.game.toast(`${CW.PARTS[id].name} unlocks at level ${CW.PART_LEVEL[id]}`);
+        this.game.toast(`${CW.pdef(id).name} unlocks at level ${CW.PART_LEVEL[CW.baseOf(id)]}`);
         return;
       }
       this.selected = id;
@@ -198,19 +203,29 @@
     }
 
     showInfo(id) {
-      const d = CW.PARTS[id];
+      const d = CW.pdef(id);
       const bits = [`<b>${d.name}</b> · ${d.cost} Bolts · ${d.mass} mass · ${d.hp} HP`];
       if (d.domain) bits.push(`<span class="chip" style="background:${CW.DOMAINS[d.domain].color}">${CW.DOMAINS[d.domain].icon} ${CW.DOMAINS[d.domain].label}</span>`);
       if (d.use) bits.push(`Uses ${d.use} power`);
       if (d.power) bits.push(`+${d.power} power`);
-      $('wsInfo').innerHTML = bits.join(' · ') + `<div class="desc">${d.desc}</div>`;
+      if (CW.canTurn(id) && id === this.selected) bits.push(`<span class="turn-note">↻ ${CW.TURN_NAMES[this.turn & 3]}${this.turn & 4 ? ', upside down' : ''}</span>`);
+      $('wsInfo').innerHTML = bits.join(' · ') + `<div class="desc">${d.desc}${CW.canTurn(id) ? ' <span class="small no-touch">R turns it, U flips it.</span>' : ''}</div>`;
+    }
+    // R: a quarter turn (Shift+R back), U: upside down. Only for parts that can turn (CW.canTurn)
+    turnPart(step, flip) {
+      if (!CW.canTurn(this.selected)) return this.game.toast('🔒 Wheels, weapons and moving parts always face forward');
+      this.turn = flip ? this.turn ^ 4 : (this.turn & 4) | ((this.turn + step + 4) & 3);
+      this.rebuildGhost();
+      this.showInfo(this.selected);
+      this.game.audio.click(1.3);
     }
 
     rebuildGhost() {
       for (const g of [this.ghost, this.ghostMirror]) {
         while (g.children.length) g.remove(g.children[0]);
-        const mesh = CW.buildPartMesh(this.selected, (this.bp && this.bp.color) || this.game.playerColor);
+        const mesh = CW.buildPartMesh(CW.baseOf(this.selected), (this.bp && this.bp.color) || this.game.playerColor, null, this.selected.split(':')[1]);
         mesh.traverse((o) => { if (o.isMesh) { o.material = this.ghostMat; o.castShadow = false; } });
+        if (CW.canTurn(this.selected)) CW.turnMesh(mesh, g === this.ghost ? this.turn : CW.mirrorTurn(this.selected, this.turn));
         g.add(mesh);
         const edge = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.02, 1.02, 1.02)), new THREE.LineBasicMaterial({ color: 0x6cff8a, transparent: true, opacity: 0.6 }));
         g.add(edge);
@@ -265,6 +280,8 @@
         if (e.code === 'KeyQ') this.orbit.yaw += 0.35;
         if (e.code === 'KeyE') this.orbit.yaw -= 0.35;
         if (e.code === 'KeyF') this.resetView();
+        if (e.code === 'KeyR' && !e.ctrlKey && !e.metaKey) this.turnPart(e.shiftKey ? -1 : 1);
+        if (e.code === 'KeyU') this.turnPart(0, true);
         if (e.code === 'KeyT' && !this.rush) this.testDrive();
         const k = e.key === '0' ? 10 : parseInt(e.key, 10);
         if (k >= 1 && k <= 10 && this.partKeys[k - 1]) this.select(this.partKeys[k - 1]);
@@ -274,6 +291,8 @@
       $('wsUndo').onclick = () => this.undo();
       $('wsRedo').onclick = () => this.redo();
       $('wsView').onclick = () => this.resetView();
+      $('wsTurn').onclick = () => this.turnPart(1);
+      $('wsFlip').onclick = () => this.turnPart(0, true);
       $('wsClear').onclick = () => {
         this.pushUndo();
         this.bp.parts = this.bp.parts.filter((p) => p.t === 'core');
@@ -407,7 +426,7 @@
     }
 
     // ---------------- undo / redo ----------------
-    snapshot() { return JSON.stringify({ parts: this.bp.parts.map(({ t, x, y, z }) => ({ t, x, y, z })), color: this.bp.color, name: this.bp.name }); }
+    snapshot() { return JSON.stringify({ parts: this.bp.parts.map(CW.cleanPart), color: this.bp.color, name: this.bp.name }); }
     pushUndo() {
       this.undoStack.push(this.snapshot());
       if (this.undoStack.length > MAX_HISTORY) this.undoStack.shift();
@@ -441,11 +460,14 @@
       while (this.mechGroup.children.length) this.mechGroup.remove(this.mechGroup.children[0]);
       this.pickBoxes = [];
       const counts = {};
+      const fresh = this.fresh || [];
+      this.fresh = null;
       for (const p of this.bp.parts) {
-        counts[p.t] = (counts[p.t] || 0) + 1;
-        const obj = CW.buildPartMesh(p.t, this.bp.color, this.game.profile.finish);
-        obj.position.set(p.x, p.y, p.z);
+        const id = CW.idOf(p);
+        counts[id] = (counts[id] || 0) + 1;
+        const obj = CW.partMesh(p, this.bp.color, this.game.profile.finish);
         this.mechGroup.add(obj);
+        if (fresh.includes(p)) { obj.scale.setScalar(0.55); obj.userData.pop = 0; } // a new part pops into place (update)
         const pick = new THREE.Mesh(this.pickGeo, this.pickMat);
         pick.position.set(p.x, p.y, p.z);
         pick.userData.cell = p;
@@ -505,18 +527,21 @@
       const h = this.pick();
       if (!h) return;
       const c = h.target;
-      const d = CW.PARTS[this.selected];
+      const d = CW.pdef(this.selected);
       if (!this.inBounds(c)) return this.game.toast('Outside the build area');
       if (this.occupied(c)) return;
       if (this.cost() + d.cost > this.budget()) return this.game.toast('Not enough Bolts!');
-      const why = this.placeProblem(this.selected, c);
+      const t = CW.baseOf(this.selected), shape = this.selected.split(':')[1];
+      const why = this.placeProblem(t, c);
       if (why) return this.game.toast(why);
       this.pushUndo();
-      this.bp.parts.push({ t: this.selected, x: c.x, y: c.y, z: c.z });
+      const added = [CW.cleanPart({ t, x: c.x, y: c.y, z: c.z, r: this.turn, s: shape })];
       if (this.mirror && c.x !== 0 && !d.unique) {
         const m = { x: -c.x, y: c.y, z: c.z };
-        if (this.canPlace(m, d.cost) && !this.placeProblem(this.selected, m)) this.bp.parts.push({ t: this.selected, ...m });
+        if (this.canPlace(m, d.cost) && !this.placeProblem(t, m)) added.push(CW.cleanPart({ t, ...m, r: CW.mirrorTurn(this.selected, this.turn), s: shape }));
       }
+      this.bp.parts.push(...added);
+      this.fresh = added;
       this.game.audio.click(1);
       this.changed();
     }
@@ -689,10 +714,17 @@
         if (p.t === 'wheel') ud.spin.rotation.x -= dt * 1.5;
         if (p.t === 'leg') ud.swing.rotation.x = Math.sin(this.time * 3 + ((p.x + p.z) & 1) * Math.PI) * 0.3;
         if (p.t === 'jet') ud.flame.scale.z = 0.5 + Math.sin(this.time * 20) * 0.1;
+        // a part just placed grows into place with a little bounce
+        if (ud.pop !== undefined) {
+          ud.pop = Math.min(1, ud.pop + dt * 6);
+          const k = ud.pop - 1;
+          p._obj.scale.setScalar(k >= 0 ? 1 : 0.55 + 0.45 * (1 + 2.7 * k * k * k + 1.7 * k * k));
+          if (k >= 0) delete ud.pop;
+        }
       }
       // ghost + hover highlight
       const h = this.mouse.down >= 0 && this.mouse.moved > 5 ? null : this.pick();
-      const d = CW.PARTS[this.selected];
+      const d = CW.pdef(this.selected);
       this.ghost.visible = this.ghostMirror.visible = false;
       this.hoverBox.visible = false;
       $('wsHover').textContent = '';
@@ -701,7 +733,7 @@
         this.hoverBox.visible = true;
         this.hoverBox.position.set(hp.x, hp.y, hp.z);
         this.hoverBox.material.color.setHex(hp.t === 'core' ? 0xffc43d : 0xffffff);
-        $('wsHover').textContent = hp.t === 'core' ? 'Core (can\'t be removed)' : `${CW.PARTS[hp.t].name}: right-click to remove`;
+        $('wsHover').textContent = hp.t === 'core' ? 'Core (can\'t be removed)' : `${CW.pdef(CW.idOf(hp)).name}: right-click to remove`;
         if (this.inBounds(h.target) && !this.occupied(h.target)) {
           const ok = this.canPlace(h.target, d.cost);
           const col = ok ? 0x6cff8a : 0xff5d5d;

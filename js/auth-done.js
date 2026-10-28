@@ -18,6 +18,10 @@
     .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
     .then(({ ok, j }) => {
       if (!ok) return show('✖', "Couldn't sign you in", (j && j.msg) || 'Go back to Cogwild and try again.', true);
+      // the support page started this sign-in: back to it (js/support.js)
+      let fromSupport = false;
+      try { fromSupport = sessionStorage.getItem('cw.support.s') === s; } catch (e) { /* private window */ }
+      if (fromSupport) return location.replace('/support');
       show('✅', "You're signed in!", 'Go back to Cogwild: it continues there. You can close this tab.');
       setTimeout(() => window.close(), 1500); // only works for tabs the game opened itself (the website)
     })

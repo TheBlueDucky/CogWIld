@@ -35,6 +35,9 @@ Then run one with `desktop/node_modules/.bin/electron tests/<file>.js` (screensh
 | `stats-test.js` | daily stats + automatic bug reports: platform, a match per mode, an error and a crash reach /admin by themselves, offline reports wait and go out, add-on errors skipped, the 📈 Stats / 🐞 Bugs tabs (server needs `ADMIN_TOKEN` = `a`×64) |
 | `mouse-test.js` | no mouse pointer while playing with a mouse: Auto phone controls (touchscreen PCs start without them, finger on / mouse off), hidden pointer, keys catch the mouse, one tip when the browser refuses |
 | `mouse-speed-test.js` | aiming turns the same everywhere: a browser that reports mouse movement × the pixel ratio (Chromebooks) is noticed in the menus and divided back, normal browsers left alone, one made-up huge jump ignored, real fast flicks kept |
+| `v194-test.js` | v1.9.4: Workshop shapes + turning (placing, mirror, share codes, test drive, other players' mechs), Esc cancels a search, the PC chat docked on the left, Contact us → support page, the desktop title bar, the PLAY picker, phones staying logged in, flying weight |
+| `desktop-test.js` | the desktop app's window: only the small `CogwildDesktop` bridge, the game's own title bar (game fits under it), the Discord status hearing what you do, location + camera always denied (checked without touching a device) |
+| `look-shots.js` | not a test: screenshots of the v1.9.4 screens (`SHOTS=search,clubs,arenas,chat,workshop,note`, `SIZES=1280x720,915x412`) |
 | `phone-test.js` | lobby, settings and match HUD at phone size with touch controls (`W=780 H=350`) |
 | `wall-aim-test.js` | a mech hopping into a cliff stays below it, camera stays out of the cliff, touch aim assist turns toward enemies |
 | `chat-test.js` | a quick-chat line shows once for the sender and once for the other player |
@@ -46,6 +49,8 @@ Then run one with `desktop/node_modules/.bin/electron tests/<file>.js` (screensh
 | `fixes-test.js` | v1.8.2: T opens/closes chat in a match, getting out next to a cliff, pilots can't climb cliffs or pop onto bridge decks, a 63-part mech repairs in ~4 s, the fly hint and C flying down, heavy mechs, Ranked at 100, Gold finish on your mech, every wreck effect, sprite particles, Shop sections, Settings › Support |
 | `tutorial-test.js` | the tutorial: small see-through card, keys lighting up, the arrow at the Target / gem / your mech, on phones the arrow + ring at the button to press |
 | `ui-shots.js` | screenshots of lobby, panels, Workshop, a match and results (`SIZES=1280x720,800x450`; run one size per process) |
+
+Plain Node (no Electron): `node tests/discord-test.js`: the desktop app's Discord status against a fake Discord (hello, logo, buttons, ping, updates).
 
 ## Live checks (against https://cogwild.duckdns.org, they clean up after themselves)
 ```bash

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
 <title>Cogwild: build mechs, battle online</title>
 <meta name="description" content="Build any mech from 25 parts, then battle on land, water and sky. Free 3D game: play vs bots or online with friends, earn trophies and climb the leaderboard.">
 <meta name="theme-color" content="#141a2e">
@@ -1500,6 +1500,166 @@
   .crop-zoom input { flex: 1; }
   /* 🎧 deafen */
   #hudTalk .deaf-btn { font-size: 17px; }
+  /* ======== v1.9.4 ======== */
+  /* calm pill buttons (clubs, support) */
+  .pill { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 14px; border-radius: 8px; background: rgba(255, 255, 255, .05); border: 1px solid var(--line2); color: var(--txt); font: 700 14px 'Nunito', sans-serif; cursor: pointer; white-space: nowrap; transition: background .12s, border-color .12s, color .12s, transform .08s; }
+  .pill:hover { background: rgba(255, 255, 255, .09); }
+  .pill:active { transform: scale(.96); }
+  .pill.go { background: rgba(92, 225, 255, .12); border-color: rgba(92, 225, 255, .45); color: var(--hl); }
+  .pill.go:hover { background: rgba(92, 225, 255, .2); }
+  .pill.quiet { background: transparent; border-color: transparent; color: var(--muted2); }
+  .pill.quiet:hover { color: var(--txt); background: rgba(255, 255, 255, .06); }
+  .pill.icon { padding: 5px 9px; }
+  #panel .pill:not(:disabled):hover, #panel .cl-badge:hover { outline: 1px solid var(--muted2) !important; outline-offset: -1px; }
+  /* matchmaking: the Cancel button (Esc works too) */
+  #search #srCancel.sr-cancel { grid-area: cancel; display: inline-flex; align-items: center; gap: 10px; padding: 8px 12px 8px 18px; border-radius: 999px; background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .16); color: var(--txt); font: 700 15px 'Nunito', sans-serif; cursor: pointer; transition: background .15s, border-color .15s, color .15s, transform .08s; }
+  #search #srCancel.sr-cancel:hover { outline: none !important; background: rgba(255, 107, 107, .12); border-color: rgba(255, 138, 138, .55); color: #ffd6d6; }
+  #search #srCancel.sr-cancel:active { transform: scale(.96); }
+  .sr-cancel kbd { font: 700 11px 'Nunito', sans-serif; padding: 2px 7px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, .2); border-bottom-width: 2px; color: var(--muted2); background: rgba(0, 0, 0, .25); }
+  .touch-ui #search #srCancel.sr-cancel { padding: 8px 16px; }
+  #search .sr-bar i { position: relative; overflow: hidden; }
+  #search .sr-bar i::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .45), transparent); transform: translateX(-100%); animation: cwSweep 1.6s ease-in-out infinite; }
+  @keyframes cwSweep { to { transform: translateX(100%); } }
+  /* pop-ups ("A new version is out", friend requests…): a quiet line, no bright blue frame */
+  .note { border: 1px solid var(--line2) !important; background: rgba(14, 20, 42, .94) !important; box-shadow: 0 8px 28px rgba(0, 0, 0, .35); animation: cwNoteIn .38s cubic-bezier(.2, .9, .3, 1.2) both !important; }
+  @keyframes cwNoteIn { from { transform: translateX(40px) scale(.96); opacity: 0; } }
+  .note .ws-btn.on { border-color: var(--line2) !important; background: rgba(92, 225, 255, .08) !important; }
+
+  /* ---- Clubs: header with actions, plain lists, small icon buttons, settings folded away ---- */
+  #panel .cl-head { display: flex; align-items: center; gap: 14px; padding: 14px 16px; margin: 0 0 10px; }
+  .cl-head .club-badge { font-size: 44px; }
+  .cl-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .cl-txt > b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #panel .cl-name { font-size: 20px !important; }
+  .cl-desc { color: var(--muted2); font-size: 14px; }
+  .cl-facts { display: flex; flex-wrap: wrap; gap: 2px 12px; color: var(--muted2) !important; font-size: 13px; font-weight: 600; }
+  .cl-acts { display: flex; gap: 6px; flex: none; }
+  .cl-list { display: flex; flex-direction: column; gap: 4px; }
+  #panel .cl-list .club-row { display: flex; align-items: center; gap: 10px; padding: 7px 10px; margin: 0; }
+  .cl-face { flex: none; width: 30px; font-size: 22px; text-align: center; line-height: 1; }
+  .cl-member b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .cl-meta { display: flex; align-items: center; gap: 6px; color: var(--muted2); font-size: 13px; font-weight: 700; }
+  .cl-dot { width: 8px; height: 8px; border-radius: 50%; background: #4d5a82; }
+  .cl-dot.on { background: #3ddc84; box-shadow: 0 0 6px rgba(61, 220, 132, .8); }
+  .cl-pick { cursor: pointer; transition: background .12s, border-color .12s; }
+  .cl-pick:hover { background: rgba(255, 255, 255, .08) !important; border-color: var(--muted2) !important; }
+  .cl-arrow { color: var(--muted2); font-size: 22px; line-height: 1; }
+  .cl-search { display: flex; gap: 6px; margin: 10px 0; }
+  .cl-search input, .cl-grid input, .cl-grid select { min-width: 0; padding: 8px 10px; border-radius: 8px; background: var(--bg2); color: var(--txt); border: 1px solid var(--line2); font: 600 14px 'Nunito', sans-serif; }
+  .cl-search input { flex: 1; }
+  .cl-new { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid var(--line2); border-radius: var(--rad); }
+  .cl-grid { display: grid; grid-template-columns: 1fr 1fr 2fr auto; gap: 6px; width: 100%; }
+  .cl-grid.two { grid-template-columns: 1fr 2fr; }
+  .cl-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+  .cl-badge { width: 38px; height: 38px; padding: 0; border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, .05); border: 1px solid var(--line2); color: var(--txt); font-size: 18px; cursor: pointer; transition: transform .15s cubic-bezier(.3, 1.6, .5, 1), background .12s, border-color .12s; }
+  .cl-badge:hover { transform: scale(1.1); }
+  .cl-badge.on { background: rgba(92, 225, 255, .14); border-color: var(--hl); box-shadow: 0 0 0 2px rgba(92, 225, 255, .25); }
+  .cl-settings { margin-top: 12px; padding: 0 12px; border: 1px solid var(--line2); border-radius: var(--rad); }
+  .cl-settings summary { cursor: pointer; padding: 10px 0; color: var(--muted2); font-weight: 700; list-style: none; }
+  .cl-settings summary::-webkit-details-marker { display: none; }
+  .cl-settings summary::after { content: '▾'; float: right; transition: transform .2s; }
+  .cl-settings[open] summary::after { transform: rotate(180deg); }
+  .cl-settings[open] { padding-bottom: 12px; }
+  .cl-pic { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+  .cl-foot { display: flex; justify-content: flex-end; margin-top: 14px; }
+  .cl-back { margin-bottom: 8px; }
+  #panel .club-chat { border: 1px solid var(--line2); background: rgba(0, 0, 0, .15); border-radius: var(--rad); margin: 0 0 4px; }
+  .compact .cl-grid { grid-template-columns: 1fr 1fr; }
+  .compact .cl-grid input { grid-column: 1 / -1; }
+
+  /* ---- PLAY: pick a mode and arena — one calm list ---- */
+  .pick2 h3 { margin: 16px 0 8px !important; }
+  .pick2 h3:first-of-type { margin-top: 14px !important; }
+  .p2-specials { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .p2-special, .p2-alt { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 10px 12px; border-radius: var(--rad); background: rgba(255, 255, 255, .045); border: 1px solid var(--line2); color: var(--txt); font-family: 'Nunito', sans-serif; text-align: left; cursor: pointer; transition: background .15s, border-color .15s, transform .15s; }
+  .p2-ico { flex: none; width: 32px; font-size: 26px; text-align: center; line-height: 1; }
+  .p2-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .p2-txt b { font-size: 15px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .p2-txt small { font-size: 12px; font-weight: 600; line-height: 1.3; color: var(--muted2); }
+  .p2-special > em, .p2-alt > em { flex: none; font-style: normal; font-weight: 800; }
+  .p2-go { color: var(--muted2); font-size: 22px; line-height: 1; transition: transform .15s; }
+  .p2-on { color: var(--hl); }
+  .p2-special.on { background: rgba(92, 225, 255, .1); border-color: rgba(92, 225, 255, .5); }
+  .p2-special.on b { color: var(--hl); }
+  .p2-special.locked { opacity: .6; }
+  .p2-desc { margin-top: 8px; color: var(--muted2); font-size: 13px; }
+  .p2-more { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .p2-alt { padding: 14px 16px; gap: 14px; }
+  .p2-alt .p2-ico { width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center; font-size: 24px; background: rgba(92, 225, 255, .08); border: 1px solid rgba(92, 225, 255, .18); }
+  .p2-alt .p2-txt b { font-size: 16px; }
+  .p2-alt .p2-txt small { font-size: 13px; }
+  .pick2 .mode-row { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); }
+  .pick2 .mode-opt, .pick2 .arena-opt { transition: background .15s, border-color .15s, transform .15s; }
+  .pick2 .mode-opt span { font-size: 28px; }
+  .pick2 .arena-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .pick2 .arena-opt { position: relative; padding: 10px 8px; }
+  .pick2 .arena-opt span { font-size: 30px; }
+  .pick2 .arena-opt b { font-size: 14px; }
+  .pick2 .arena-opt small { font-size: 11px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .pick2 .arena-opt.in-rot { box-shadow: none !important; }
+  .rot-dot { position: absolute; top: 6px; right: 7px; font-style: normal; font-size: 12px; opacity: .85; }
+  .pick2 .rot-line { margin-top: 8px; }
+  /* pointing at a button here: the calm blue-gray line, not the bright cyan one */
+  #panel .pick2 button:not(:disabled):hover { outline: 1px solid var(--muted2) !important; outline-offset: -1px; border-color: var(--muted2) !important; background: rgba(255, 255, 255, .08) !important; transform: translateY(-2px); }
+  #panel .pick2 button.on:not(:disabled):hover { background: rgba(92, 225, 255, .14) !important; }
+  #panel .pick2 button:hover .p2-go { transform: translateX(3px); color: var(--txt); }
+  .pick2 .mode-opt.on, .pick2 .arena-opt.on, .p2-special.on { animation: cwPick .35s cubic-bezier(.2, .9, .3, 1.3); }
+  @keyframes cwPick { 0% { transform: scale(.94); } 60% { transform: scale(1.03); } }
+  .compact .p2-more { grid-template-columns: 1fr; }
+
+  /* ---- Workshop: the same calm buttons as the menus; the tools as one bar; shapes under their part ---- */
+  #workshopUI .ws-btn { background: rgba(255, 255, 255, .05) !important; border: 1px solid var(--line2) !important; border-radius: 8px !important; color: var(--txt) !important; font: 700 14px 'Nunito', sans-serif !important; padding: 7px 12px !important; white-space: nowrap; transition: background .12s, border-color .12s, color .12s, transform .08s; }
+  #workshopUI .ws-btn:hover { background: rgba(255, 255, 255, .1) !important; border-color: rgba(255, 255, 255, .22) !important; }
+  #workshopUI .ws-btn:active:not(:disabled) { transform: scale(.96) !important; }
+  #workshopUI .ws-btn.on { background: rgba(92, 225, 255, .12) !important; color: var(--hl) !important; border-color: rgba(92, 225, 255, .45) !important; }
+  #workshopUI .ws-btn.test { background: rgba(123, 201, 80, .1) !important; color: #a8ecb9 !important; border-color: rgba(123, 201, 80, .45) !important; }
+  #workshopUI .ws-tools { display: inline-flex; align-self: center; flex-wrap: nowrap; gap: 2px; padding: 3px; border-radius: 10px; background: rgba(13, 19, 40, .72); border: 1px solid var(--line2); backdrop-filter: blur(4px); }
+  #workshopUI .ws-tools .ws-btn { background: transparent !important; border-color: transparent !important; padding: 6px 11px !important; }
+  #workshopUI .ws-tools .ws-btn:hover { background: rgba(255, 255, 255, .08) !important; }
+  #workshopUI .ws-tools .ws-btn.on { background: rgba(92, 225, 255, .12) !important; border-color: rgba(92, 225, 255, .35) !important; }
+  .compact #workshopUI .ws-tools .ws-btn { padding: 5px 7px !important; font-size: 12px !important; }
+  #workshopUI .bp-btns { grid-template-columns: 1fr 1fr; gap: 5px; }
+  #workshopUI .bp-btns .ws-btn { padding: 6px 8px !important; font-size: 13px !important; overflow: hidden; text-overflow: ellipsis; }
+  #workshopUI #wsSave { grid-column: 1 / -1; background: rgba(92, 225, 255, .12) !important; color: var(--hl) !important; border-color: rgba(92, 225, 255, .45) !important; }
+  #workshopUI #wsBack { padding: 6px 12px !important; }
+  #workshopUI .pal-item.shape { padding-left: 18px !important; font-size: 13px !important; }
+  #workshopUI .pal-item.shape .nm { white-space: normal; line-height: 1.15; }
+  #workshopUI .pal-item.shape .pic { width: 26px; height: 26px; }
+  #workshopUI .pal-item { transition: background .12s, transform .12s; }
+  #workshopUI .pal-item:hover { transform: translateX(2px); }
+  .turn-note { color: var(--hl); font-weight: 700; }
+
+  /* ---- the chat on PCs: a panel down the whole left side (like a game launcher's friends list); phones unchanged ---- */
+  body.talk-dock #chat { left: 0 !important; top: 0 !important; bottom: 0 !important; height: auto !important; width: 330px; max-width: 46%; border-radius: 0; border: none; border-right: 1px solid rgba(255, 255, 255, .1);
+    background: rgba(9, 14, 32, .86); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); box-shadow: 10px 0 40px rgba(0, 0, 0, .35); animation: cwDockIn .24s cubic-bezier(.2, .9, .3, 1) both; }
+  body.talk-dock .chat-grip { display: none; }
+  body.talk-dock .chat-head { padding: 10px 10px 8px; }
+  @keyframes cwDockIn { from { transform: translateX(-100%); opacity: .5; } }
+
+  /* ---- the desktop app's own title bar (js/desktop.js; Windows draws ─ □ ✕ on its right end) ---- */
+  #titleBar { display: none; }
+  html.tbar #titleBar { position: fixed; top: 0; left: 0; right: 0; z-index: 70; height: var(--tbh); display: flex; align-items: center; gap: 8px; padding-left: 12px; background: #0d1430; border-bottom: 1px solid rgba(255, 255, 255, .06); color: var(--muted2); font: 700 13px 'Nunito', sans-serif; letter-spacing: .3px; -webkit-app-region: drag; -webkit-user-select: none; user-select: none; }
+  html.tbar-mac #titleBar { padding-left: 80px; }
+  #titleBar img { width: 18px; height: 18px; border-radius: 4px; }
+  html.tbar #app, html.tbar .gal-detail, html.tbar #galShareBox { top: var(--tbh); }
+
+  /* ---- more life: lobby buttons pop in one by one, icons hop when you point at them, PLAY shines ---- */
+  .side-btn span { display: inline-block; transition: transform .25s cubic-bezier(.3, 1.6, .5, 1); }
+  .side-btn:hover span { transform: translateY(-3px) scale(1.12) rotate(-6deg); }
+  #menu:not(.hidden) .lobby-side .side-btn { animation: cwPopIn .4s cubic-bezier(.2, .9, .3, 1.3) backwards; }
+  #menu:not(.hidden) .lobby-side .side-btn:nth-child(2) { animation-delay: .04s; }
+  #menu:not(.hidden) .lobby-side .side-btn:nth-child(3) { animation-delay: .08s; }
+  #menu:not(.hidden) .lobby-side .side-btn:nth-child(4) { animation-delay: .12s; }
+  #menu:not(.hidden) .lobby-side .side-btn:nth-child(5) { animation-delay: .16s; }
+  #menu:not(.hidden) .lobby-side .side-btn:nth-child(n+6) { animation-delay: .2s; }
+  @keyframes cwPopIn { from { opacity: 0; transform: scale(.6); } }
+  .bs-btn.play-btn { position: relative; overflow: hidden; }
+  .bs-btn.play-btn::after { content: ''; position: absolute; top: 0; bottom: 0; left: -60%; width: 40%; pointer-events: none; background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .28), transparent); transform: skewX(-18deg); animation: cwShine 4.5s ease-in-out 1.2s infinite; }
+  @keyframes cwShine { 0%, 70% { left: -60%; } 100% { left: 130%; } }
+  .shop-item, .mode-opt, .arena-opt, .feat-card, .pass-tier { transition: transform .15s, background .15s, border-color .15s; }
+  .shop-item:hover { transform: translateY(-2px); }
+  #toast.show { animation: cwToast .3s cubic-bezier(.2, .9, .3, 1.3); }
+  @keyframes cwToast { from { transform: translateX(-50%) translateY(16px) scale(.9); } }
 </style>
 </head>
 <body>
@@ -1555,7 +1715,7 @@
       <button id="btnClubs" class="side-btn"><span>🛡</span>Clubs</button>
       <button id="btnTop" class="side-btn"><span>📈</span>Leaderboard</button>
       <button id="btnRoad" class="side-btn"><span>🛤</span>Trophy Road<i id="badgeRoad" class="badge hidden">0</i></button>
-      <button id="btnGallery" class="side-btn"><span>🖼</span>Gallery</button>
+      <button id="btnGallery" class="side-btn"><span>🌍</span>Gallery</button>
       <button id="btnNews" class="side-btn"><span>📰</span>News</button>
     </div>
 
@@ -1656,7 +1816,7 @@
       <div class="sr-time"><b id="srClock">0:00</b><span class="sr-bar"><i id="srFill"></i></span><small id="srHint"></small></div>
       <div id="srPlayers" class="sr-players"></div>
       <label class="sr-mech">🤖 Your mech <select id="srMech"></select></label>
-      <button id="srCancel" class="btn">✖ Cancel</button>
+      <button id="srCancel" class="sr-cancel" aria-label="Stop searching (Esc)"><span>Cancel</span><kbd class="no-touch">Esc</kbd></button>
     </div>
   </div>
 
@@ -1721,13 +1881,15 @@
         <button id="wsUndo" class="ws-btn" aria-label="Undo (Ctrl+Z)">↶ Undo</button>
         <button id="wsRedo" class="ws-btn" aria-label="Redo (Ctrl+Y)">↷ Redo</button>
         <button id="wsMirror" class="ws-btn on" aria-label="Mirror building (M)">Mirror: ON</button>
+        <button id="wsTurn" class="ws-btn" aria-label="Turn the part (R)">⟳ Turn</button>
+        <button id="wsFlip" class="ws-btn" aria-label="Flip the part upside down (U)">⇅ Flip</button>
         <button id="wsView" class="ws-btn" aria-label="Reset camera (F)">⌖ View</button>
         <button id="wsClear" class="ws-btn">🗑 Clear</button>
       </div>
       <div class="ws-bottom">
         <div id="wsInfo"></div>
         <div id="wsHover"></div>
-        <div class="ws-help no-touch" aria-label="Left-click a face to attach · Right-click a part to remove · Drag to rotate · Shift/middle-drag to pan · Wheel zoom · Q/E turn · F reset view · M mirror · Ctrl+Z undo · 1–0 pick part · Yellow arrow = front">Left-click a face to attach · Right-click a part to remove · Drag to rotate · Shift/middle-drag to pan · Wheel zoom · Q/E turn · F reset view · M mirror · Ctrl+Z undo · 1–0 pick part · Yellow arrow = front</div>
+        <div class="ws-help no-touch" aria-label="Left-click a face to attach · Right-click a part to remove · R turn the part · U flip it · Drag to rotate · Shift/middle-drag to pan · Wheel zoom · Q/E turn the view · F reset view · M mirror · Ctrl+Z undo · 1–0 pick part · Yellow arrow = front">Left-click a face to attach · Right-click a part to remove · R turn the part · U flip it · Drag to rotate · Shift/middle-drag to pan · Wheel zoom · Q/E turn the view · F reset view · M mirror · Ctrl+Z undo · 1–0 pick part · Yellow arrow = front</div>
         <div class="ws-help only-touch">Tap a face to attach · Hold a part to remove it · Drag to rotate · Pinch to zoom · Yellow arrow = front</div>
       </div>
     </div>
@@ -1990,5 +2152,6 @@
 <script src="js/talk.js?v=35"></script>
 <script src="js/voice.js?v=35"></script>
 <script src="js/game.js?v=35"></script>
+<script src="js/desktop.js?v=35"></script>
 </body>
 </html>

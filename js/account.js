@@ -149,11 +149,13 @@
           this.afterWallet();
           break;
         case 'acctOut':
-          if (this.session) { this.session = null; keep('cogwild.session', null); }
+          // logged in on another device: this one stays logged in for next time (v1.9.4: phones had to log in again)
+          if (this.session && !m.keep) { this.session = null; keep('cogwild.session', null); }
           this.me = null;
           this.renderChips();
           g.voice.apply();
-          if (m.reason) g.toast('👤 ' + m.reason);
+          if (m.keep && this.session) this.note('👤 You logged in on another device.', [{ label: 'Play here', main: true, fn: () => this.net.send({ t: 'acctAuth', token: this.session.token }) }, { label: 'OK' }], 30000);
+          else if (m.reason) g.toast('👤 ' + m.reason);
           break;
         case 'acctErr':
           if ($('acctErr') && !$('acct').classList.contains('hidden')) { $('acctErr').textContent = m.msg; $('acctErr').classList.remove('ok'); }
@@ -881,34 +883,39 @@
         <div class="small">⭐ Level ${p.lv || 1} · ${p.wins} Quick Match wins · ${p.played} played${extra || ''}</div>${p.club ? `<div class="small">🛡 Club: <b>${esc(p.club)}</b></div>` : ''}${p.rp != null ? `<div class="small">🏅 Ranked: ${CW.ECON.RANKED.rank(p.rp).icon} ${CW.ECON.RANKED.rank(p.rp).name} · ${p.rp} RP</div>` : ''}</div></div>`;
     }
     // ======================= clubs =======================
+    // v1.9.4: simpler club screens: a header with the actions, plain lists, small icon buttons, settings folded away
     clubsPanel(body) {
-      const g = this.game, net = this.net;
+      const net = this.net;
       if (!this.me) { body.innerHTML = '<div class="small">Log in to join a club.</div>'; return; }
-      const badge = (i) => CW.CLUB_BADGES[i | 0] || '🛡';
-      const on = (sel, fn) => body.querySelectorAll(sel).forEach((b) => (b.onclick = () => fn(b)));
-      const row = (cl) => `<div class="club-row"><span style="font-size:26px">${CW.clubFace(cl)}</span><b>${esc(cl.name)}</b><span class="small">👥 ${cl.members}/30 · 🏆 ${cl.tro}${cl.minTro ? ` · needs ${cl.minTro}` : ''}${cl.open ? '' : ' · 🔒 closed'}</span>
-        <button class="ws-btn" data-peek="${esc(cl.id)}">View</button>${cl.open && cl.members < 30 && (this.me.tro | 0) >= cl.minTro ? `<button class="ws-btn on" data-join="${esc(cl.id)}">Join</button>` : ''}</div>`;
-      const members = (cl, mine) => cl.list.map((p) => `<div class="club-row"><span>${CW.face(p)}</span><b class="fr-name" data-view="${esc(p.name)}">${esc(p.name)}${p.role === 'owner' ? ' 👑' : ''}</b><span class="small">${p.on ? '🟢' : '⚫'} 🏆 ${p.tro}</span>${mine && p.name !== this.me.name ? `<button class="ws-btn dm-btn" data-dm="${esc(p.name)}" aria-label="Message ${esc(p.name)}">💬</button>` : ''}${mine && this.club.list.some((x) => x.name === this.me.name && x.role === 'owner') && p.name !== this.me.name ? `<button class="tod-btn" data-kick="${esc(p.name)}" aria-label="Remove from the club">✖</button>` : ''}</div>`).join('');
-      const head = (cl) => `<div class="club-card"><span class="club-badge">${CW.clubFace(cl)}</span><div style="flex:1"><b style="font-size:20px">${esc(cl.name)}</b><div class="small">${esc(cl.desc || '')}</div><div class="small">🏆 <b>${cl.tro}</b> club trophies · 👥 ${cl.members}/30 · ${cl.open ? '🔓 open' : '🔒 closed'}${cl.minTro ? ` · needs 🏆 ${cl.minTro}` : ''}</div></div></div>`;
+      const on = (sel, fn) => body.querySelectorAll(sel).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); fn(b); }));
+      const canJoin = (cl) => cl.open && cl.members < 30 && (this.me.tro | 0) >= cl.minTro;
+      const facts = (cl) => `<span>🏆 ${cl.tro}</span><span>👥 ${cl.members}/30</span>${cl.open ? '' : '<span>🔒 Closed</span>'}${cl.minTro ? `<span>Needs 🏆 ${cl.minTro}</span>` : ''}`;
+      const row = (cl) => `<div class="club-row cl-pick" data-peek="${esc(cl.id)}" role="button" tabindex="0" aria-label="See ${esc(cl.name)}"><span class="cl-face">${CW.clubFace(cl)}</span><span class="cl-txt"><b>${esc(cl.name)}</b><small class="cl-facts">${facts(cl)}</small></span>${canJoin(cl) ? `<button class="pill go" data-join="${esc(cl.id)}">Join</button>` : ''}<span class="cl-arrow">›</span></div>`;
+      const iOwn = (cl) => cl.list.some((x) => x.name === this.me.name && x.role === 'owner');
+      const members = (cl, mine) => cl.list.map((p) => `<div class="club-row cl-member"><span class="cl-face">${CW.face(p)}</span><b class="fr-name" data-view="${esc(p.name)}">${esc(p.name)}${p.role === 'owner' ? ' 👑' : ''}</b><span class="cl-meta"><i class="cl-dot ${p.on ? 'on' : ''}"></i>🏆 ${p.tro}</span>${mine && p.name !== this.me.name ? `<button class="pill icon" data-dm="${esc(p.name)}" aria-label="Message ${esc(p.name)}">💬</button>` : ''}${mine && iOwn(this.club) && p.name !== this.me.name ? `<button class="pill icon quiet" data-kick="${esc(p.name)}" aria-label="Remove from the club">✕</button>` : ''}</div>`).join('');
+      const head = (cl, acts) => `<div class="club-card cl-head"><span class="club-badge">${CW.clubFace(cl)}</span><div class="cl-txt"><b class="cl-name">${esc(cl.name)}</b>${cl.desc ? `<div class="cl-desc">${esc(cl.desc)}</div>` : ''}<small class="cl-facts">${facts(cl)}</small></div>${acts || ''}</div>`;
       if (this.club) {
         const cl = this.club;
-        const owner = cl.list.some((x) => x.name === this.me.name && x.role === 'owner');
+        const owner = iOwn(cl);
         // the last few club chat lines; the whole chat is in 💬
         const talk = this.game.talk;
         const log = (cl.log || []).filter((l) => !talk.isBlocked(l.f)).slice(-4).map((l) => (l.f ? `<div><b>${esc(l.f)}:</b> ${esc(talk.text(l))}</div>` : `<div class="small">${esc(talk.text(l))}</div>`)).join('') || '<div class="small">No messages yet.</div>';
-        body.innerHTML = head(cl) + `<div class="club-chat" id="clubChat">${log}</div><div class="menu-btns" style="justify-content:flex-start"><button class="ws-btn" id="clChat">💬 Club chat</button></div>
-          <h3>Members</h3>${members(cl, true)}
-          ${owner ? `<h3>Club settings</h3><div class="club-form"><select id="clOpen"><option value="1" ${cl.open ? 'selected' : ''}>🔓 Open: anyone can join</option><option value="0" ${cl.open ? '' : 'selected'}>🔒 Closed</option></select>
+        body.innerHTML = head(cl, '<div class="cl-acts"><button class="pill go" id="clChat">💬 Club chat</button></div>') + `<div class="club-chat" id="clubChat">${log}</div>
+          <h3>Members <span class="small">${cl.members}/30</span></h3><div class="cl-list">${members(cl, true)}</div>
+          ${owner ? `<details class="cl-settings" id="clSet" ${this.clSetOpen ? 'open' : ''}><summary>⚙ Club settings</summary>
+            <div class="cl-grid"><select id="clOpen"><option value="1" ${cl.open ? 'selected' : ''}>🔓 Open: anyone can join</option><option value="0" ${cl.open ? '' : 'selected'}>🔒 Closed</option></select>
             <select id="clMin">${[0, 50, 100, 200, 300, 500, 750, 1000, 1500, 2000].map((v) => `<option value="${v}" ${v === cl.minTro ? 'selected' : ''}>Needs 🏆 ${v}</option>`).join('')}</select>
-            <input id="clDesc" maxlength="80" placeholder="Description" value="${esc(cl.desc || '')}"><button class="ws-btn on" id="clSave">Save</button></div>
-            <div class="club-form"><button class="ws-btn" id="clPic">📷 ${cl.pv ? 'Change' : 'Add'} club picture</button>${cl.pv ? '<button class="ws-btn" id="clPicDel">Remove picture</button>' : ''}<span class="small">A square picture shown as a circle instead of the badge</span></div>` : ''}
-          <div class="menu-btns" style="justify-content:flex-start"><button class="ws-btn" id="clLeave">🚪 Leave club</button></div>`;
+            <input id="clDesc" maxlength="80" placeholder="Description" value="${esc(cl.desc || '')}"><button class="pill go" id="clSave">Save</button></div>
+            <div class="cl-pic"><button class="pill" id="clPic">📷 ${cl.pv ? 'Change' : 'Add'} club picture</button>${cl.pv ? '<button class="pill quiet" id="clPicDel">Remove picture</button>' : ''}<span class="small">A square picture, shown as a circle instead of the badge</span></div>
+          </details>` : ''}
+          <div class="cl-foot"><button class="pill quiet" id="clLeave">Leave club</button></div>`;
         const box = $('clubChat');
         box.scrollTop = box.scrollHeight;
         talk.markSeen('club'); // the newest club messages are on screen
         $('clChat').onclick = () => this.game.talk.open('club');
         on('[data-dm]', (b) => this.game.talk.openDm(b.dataset.dm));
         if (owner) {
+          $('clSet').ontoggle = () => { this.clSetOpen = $('clSet').open; }; // stays open when the list updates
           $('clPic').onclick = () => CW.pickPicture((data) => net.send({ t: 'picSet', kind: 'c', data }));
           if ($('clPicDel')) $('clPicDel').onclick = () => net.send({ t: 'picSet', kind: 'c', data: null });
         }
@@ -920,7 +927,7 @@
       }
       if (this.peek) {
         const cl = this.peek;
-        body.innerHTML = `<button class="ws-btn" id="clBack">← Back</button>` + head(cl) + (cl.open && cl.members < 30 && (this.me.tro | 0) >= cl.minTro ? `<button class="btn" data-join="${esc(cl.id)}">Join ${esc(cl.name)}</button>` : '') + `<h3>Members</h3>${members(cl, false)}`;
+        body.innerHTML = `<button class="pill quiet cl-back" id="clBack">← All clubs</button>` + head(cl, canJoin(cl) ? `<div class="cl-acts"><button class="pill go" data-join="${esc(cl.id)}">Join</button></div>` : '') + `<h3>Members <span class="small">${cl.members}/30</span></h3><div class="cl-list">${members(cl, false)}</div>`;
         $('clBack').onclick = () => { this.peek = null; this.rerender(); };
         on('[data-join]', (b) => net.send({ t: 'clubJoin', id: b.dataset.join }));
         on('[data-view]', (b) => this.showPlayer(b.dataset.view, 'clubs'));
@@ -929,15 +936,19 @@
       if (!this.clubs) net.send({ t: 'clubList' });
       this.newBadge = this.newBadge | 0;
       body.innerHTML = `<div class="small">Clubs are teams of up to 30 players. Your trophies count toward your club's total, and you can cheer each other on the club wall.</div>
-        <div class="club-form"><input id="clQ" maxlength="20" placeholder="Search clubs"><button class="ws-btn" id="clFind">🔍 Search</button></div>
-        <div>${(this.clubs || []).map(row).join('') || '<div class="small">No clubs yet. Start the first one!</div>'}</div>
-        <h3>Start a club</h3><div class="club-form"><input id="clName" maxlength="20" placeholder="Club name"><input id="clNewDesc" maxlength="80" placeholder="Description (optional)"></div>
-        <div class="club-form">${CW.CLUB_BADGES.map((b, i) => `<button class="tod-btn ${i === this.newBadge ? 'sel' : ''}" data-badge="${i}">${b}</button>`).join('')}</div>
-        <button class="btn" id="clCreate">🛡 Create club</button>`;
+        <div class="cl-search"><input id="clQ" maxlength="20" placeholder="Search clubs"><button class="pill" id="clFind">🔍 Search</button></div>
+        <div class="cl-list">${(this.clubs || []).map(row).join('') || '<div class="small">No clubs yet. Start the first one!</div>'}</div>
+        <h3>Start a club</h3>
+        <div class="cl-new">
+          <div class="cl-grid two"><input id="clName" maxlength="20" placeholder="Club name"><input id="clNewDesc" maxlength="80" placeholder="Description (optional)"></div>
+          <div class="cl-badges">${CW.CLUB_BADGES.map((b, i) => `<button class="cl-badge ${i === this.newBadge ? 'on' : ''}" data-badge="${i}" aria-label="Badge">${b}</button>`).join('')}</div>
+          <button class="pill go" id="clCreate">🛡 Create club</button>
+        </div>`;
       $('clFind').onclick = () => net.send({ t: 'clubList', q: $('clQ').value });
       $('clQ').onkeydown = (e) => { if (e.key === 'Enter') $('clFind').click(); };
-      on('[data-badge]', (b) => { this.newBadge = +b.dataset.badge; body.querySelectorAll('[data-badge]').forEach((x) => x.classList.toggle('sel', x === b)); });
+      on('[data-badge]', (b) => { this.newBadge = +b.dataset.badge; body.querySelectorAll('[data-badge]').forEach((x) => x.classList.toggle('on', x === b)); });
       on('[data-peek]', (b) => net.send({ t: 'clubInfo', id: b.dataset.peek }));
+      body.querySelectorAll('[data-peek]').forEach((b) => (b.onkeydown = (e) => { if (e.key === 'Enter') b.click(); }));
       on('[data-join]', (b) => net.send({ t: 'clubJoin', id: b.dataset.join }));
       $('clCreate').onclick = () => net.send({ t: 'clubCreate', name: $('clName').value, desc: $('clNewDesc').value, badge: this.newBadge, open: true });
     }

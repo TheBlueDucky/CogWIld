@@ -15,7 +15,7 @@ $pack = Join-Path $env:TEMP 'cogwild-upload.tgz'
 
 Write-Host "Packing the game..."
 if (Test-Path $pack) { Remove-Item -Force $pack }
-$files = @('index.html', 'auth.html', 'favicon.svg', 'js', 'fonts', 'img', 'server', 'deploy')
+$files = @('index.html', 'auth.html', 'support.html', 'favicon.svg', 'js', 'fonts', 'img', 'server', 'deploy')
 foreach ($f in 'privacy.html', 'terms.html', 'credits.html', 'download.html', 'admin.html', 'manifest.webmanifest', 'sw.js') { if (Test-Path (Join-Path $root $f)) { $files += $f } }
 tar -czf $pack -C $root @files
 if ($LASTEXITCODE -ne 0) { throw 'Packing failed' }

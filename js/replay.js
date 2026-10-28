@@ -72,7 +72,7 @@
       r.ids.set(c, i);
       r.roster.push({
         n: String(c.name || '').slice(0, 20), col: c.color | 0, tm: c.team | 0, me: c.isPlayer ? 1 : 0, h: c.human ? 1 : 0, t0: r2(r.t),
-        fin: (m && m.fin) || '', parts: m ? m.parts.map((p) => [p.t, p.x, p.y, p.z]) : [], r: m ? r1(m.radius) : 2,
+        fin: (m && m.fin) || '', parts: m ? m.parts.map(CW.partArr) : [], r: m ? r1(m.radius) : 2,
       });
       return i;
     }
@@ -263,9 +263,9 @@
     buildMech(e, i) {
       const g = this.game, grp = new THREE.Group();
       grp.rotation.order = 'YXZ';
-      const parts = e.parts.map(([t, x, y, z]) => {
-        const obj = CW.PARTS[t] ? CW.buildPartMesh(t, e.col, e.fin) : new THREE.Group();
-        obj.position.set(x, y, z);
+      const parts = e.parts.map((a) => {
+        const t = a[0], obj = CW.PARTS[t] ? CW.partMesh(CW.partFromArr(a), e.col, e.fin) : new THREE.Group();
+        if (!CW.PARTS[t]) obj.position.set(a[1], a[2], a[3]);
         grp.add(obj);
         const w = CW.PARTS[t] && CW.PARTS[t].weapon;
         return { t, obj, alive: true, w, cd: Math.random() * 0.3 };

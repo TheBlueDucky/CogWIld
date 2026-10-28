@@ -144,7 +144,9 @@ async function main() {
   check(/Wrong/.test((await a2.next('acctErr')).msg), 'wrong password refused');
   a2.send({ t: 'acctAuth', token: aOk.token });
   await a2.next('acctOk');
-  check(!!(await a.next('acctOut', null, 2000).catch(() => null)) || !!a.last('acctOut'), 'logging in elsewhere signs out the old session');
+  const aOut = (await a.next('acctOut', null, 2000).catch(() => null)) || a.last('acctOut');
+  check(!!aOut, 'logging in elsewhere signs out the old session');
+  check(aOut && aOut.keep === 1, 'that device keeps its login for next time (v1.9.4: phones had to log in again)');
 
   console.log('cloud save');
   a2.send({ t: 'save', data: { profile: { xp: 450, coins: 99 } }, lv: 4 });
@@ -550,6 +552,28 @@ async function main() {
   gw2.send({ t: 'googleStart', s: secret2 });
   check((await gw2.next('acctOk')).me.name === 'BrowserFan', 'logging in with Google again goes straight in (even after a reconnect)');
   gw2.ws.close();
+  // the support page (v1.9.4, server/support.js): sign in with Google in the browser, then write a message
+  console.log('support page');
+  check((await get('/support')).status === 200, 'the support page is there');
+  const sup = crypto.randomBytes(24).toString('hex');
+  check((await post('/support/who', { s: sup })).status === 401, 'not signed in yet: nobody');
+  check((await post('/auth/google/finish', { s: sup, token: googleToken('helper.kid@gmail.com', 'test-client', nonceOf(sup)) })).status === 200, 'the support page signs in with Google like the game');
+  const who = await post('/support/who', { s: sup });
+  check(who.status === 200 && who.body.email === 'helper.kid@gmail.com' && !who.body.name, 'the page knows the email (no account with it)');
+  const thief = await player();
+  thief.send({ t: 'googleStart', s: sup });
+  await wait(300);
+  check(!thief.last('acctOk') && !thief.last('acctPickName'), "a game can't log in with the support page's sign-in");
+  thief.ws.close();
+  check(/at least a sentence/.test((await post('/support/send', { s: sup, kind: 'bug', text: 'help' })).body.msg), 'a too short message is refused');
+  const sent = await post('/support/send', { s: sup, kind: 'bug', text: 'My mech fell through the bridge on Canyon Lake', user: 'HelperKid', ver: '1.9.4', dev: 'android' });
+  check(sent.status === 200 && sent.body.ok, 'a support message is sent');
+  for (let i = 0; i < 4; i++) await post('/support/send', { s: sup, kind: 'other', text: 'Another message number ' + i });
+  check(/5 messages today/.test((await post('/support/send', { s: sup, kind: 'other', text: 'One more message please' })).body.msg), 'at most 5 messages a day per email');
+  check((await post('/support/send', { s: 'f'.repeat(48), kind: 'bug', text: 'Not signed in but writing anyway' })).status === 400, "a page that didn't sign in can't send");
+  const sup2 = crypto.randomBytes(24).toString('hex');
+  await post('/auth/google/finish', { s: sup2, token: googleToken('browser.fan@gmail.com', 'test-client', nonceOf(sup2)) });
+  check((await post('/support/who', { s: sup2 })).body.name === 'BrowserFan', "a player's own account is shown with their message"); 
   // an old username + password account adds an email, then logs in with it
   const ol = await player();
   ol.send({ t: 'acctLogin', name: 'Spender', pass: 'spend1234' });
@@ -829,6 +853,12 @@ async function main() {
     const again = (await adm('/admin/api/bugs')).j.bugs.find((b) => b.sig === bug.sig);
     check(again && !again.done && again.back && again.n === 4, 'a "fixed" bug that happens again comes back marked so');
     for (const p of [sp2, sp3, sp4]) p.ws.close();
+    // support messages (sent earlier from the support page) on the page, answered one by one
+    const sl = (await adm('/admin/api/support')).j.list;
+    const sm = sl.find((t) => /fell through the bridge/.test(t.text));
+    check(sm && sm.email === 'helper.kid@gmail.com' && sm.user === 'HelperKid' && sm.dev === 'android' && sm.kindName === '🐞 Bug' && !sm.done, 'support messages show on the moderation page');
+    check((await adm('/admin/api/overview')).j.stats.openSupport === sl.filter((t) => !t.done).length, 'the overview counts new support messages');
+    check((await adm('/admin/api/act?do=supdone&id=' + sm.id)).j.ok && (await adm('/admin/api/support')).j.list.find((t) => t.id === sm.id).done > 0, 'mark a support message answered');
     // wrong keys lock the page for a while
     for (let i = 0; i < 4; i++) await adm('/admin/api/overview', 'c'.repeat(64));
     check((await adm('/admin/api/overview')).status === 429, '5 wrong keys lock it for 15 minutes (even the right key)');
@@ -837,6 +867,9 @@ async function main() {
 
   console.log('weekly event + ranked');
   const E = require('../js/economy.js');
+  // v1.9.4 part looks: a turn and a shape pass through the server, anything odd is dropped
+  const look1 = E.partLook({ r: 3, s: 'tube' }, {}), odd = E.partLook({ r: 9, s: '<b>' }, {});
+  check(look1.r === 3 && look1.s === 'tube' && odd.r === undefined && odd.s === undefined, 'a part keeps its turn and shape; odd values are dropped');
   const wk = await player();
   wk.send({ t: 'quick', kind: 'weekly', mode: 'clash', arena: 'canyon' });
   const wr = (await wk.next('room')).room;

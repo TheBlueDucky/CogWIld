@@ -6,9 +6,11 @@ import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.view.View;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import androidx.activity.OnBackPressedCallback;
+import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
@@ -70,6 +72,13 @@ public class MainActivity extends BridgeActivity {
                 });
             }
         }, "CogwildNative");
+        // the keyboard: the game gets shorter instead of the keyboard covering it (a full-screen app doesn't do that by
+        // itself), so the chat's tabs and close button at the top and the box you type in all stay on screen
+        View root = findViewById(android.R.id.content);
+        ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
+            v.setPadding(0, 0, 0, insets.getInsets(WindowInsetsCompat.Type.ime()).bottom);
+            return insets;
+        });
         hideSystemBars();
     }
 

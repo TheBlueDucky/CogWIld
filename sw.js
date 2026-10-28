@@ -12,7 +12,7 @@ self.addEventListener('activate', (e) => {
 });
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-  if (e.request.method !== 'GET' || url.origin !== location.origin || /^\/(ws|downloads\/|health)/.test(url.pathname)) return;
+  if (e.request.method !== 'GET' || url.origin !== location.origin || /^\/(ws|downloads\/|health|auth\/|support|admin)/.test(url.pathname)) return;
   e.respondWith(
     fetch(e.request)
       .then((res) => {

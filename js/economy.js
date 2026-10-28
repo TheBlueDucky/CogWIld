@@ -241,6 +241,13 @@
     return { hp, dps };
   }
   const BUDGET = 500, RUSH_BUDGET = 300, MAX_PARTS = 150, GRID = { minX: -4, maxX: 4, minY: -2, maxY: 4, minZ: -4, maxZ: 4 };
+  // a part's look (v1.9.4): r = turned (1-7), s = a shape's short name; looks only, so the server just passes them on
+  const partLook = (p, o) => {
+    const r = p.r | 0;
+    if (r > 0 && r < 8) o.r = r;
+    if (typeof p.s === 'string' && /^[a-z]{1,10}$/.test(p.s)) o.s = p.s;
+    return o;
+  };
   // why a mech isn't allowed for a player of this level (or null when it's fine)
   function mechProblem(parts, level, budget) {
     if (!Array.isArray(parts) || !parts.length || parts.length > MAX_PARTS) return 'no parts';
@@ -373,7 +380,7 @@
     return Object.assign({}, CUP.rewards.find((r) => rank <= r.upTo));
   }
 
-  const api = { CUP, cup, cupPoints, cupScore, cupReward, EVENTS, EVENT_PTS, event, nextEvent, eventRewards, TALK_QUICK, xpFor, levelOf, domainsAt, PARTS, mechPower, BUDGET, RUSH_BUDGET, MAX_PARTS, GRID, mechProblem, CHALLENGES, DAILY_CHALLENGES, dailyChallenges, ACH, SHOP, AVATAR_COUNT, FREE_AVATARS, item, dealPrice, dailyDeals, ROAD, giftAmount, EARN, EARN_PER_DAY, MATCH_GAP, day, nextMidnight, seeded, hash, season, PASS, passRewards, WEEKLY, week, RANKED };
+  const api = { CUP, cup, cupPoints, cupScore, cupReward, EVENTS, EVENT_PTS, event, nextEvent, eventRewards, TALK_QUICK, xpFor, levelOf, domainsAt, PARTS, partLook, mechPower, BUDGET, RUSH_BUDGET, MAX_PARTS, GRID, mechProblem, CHALLENGES, DAILY_CHALLENGES, dailyChallenges, ACH, SHOP, AVATAR_COUNT, FREE_AVATARS, item, dealPrice, dailyDeals, ROAD, giftAmount, EARN, EARN_PER_DAY, MATCH_GAP, day, nextMidnight, seeded, hash, season, PASS, passRewards, WEEKLY, week, RANKED };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.CW = root.CW || {}; root.CW.ECON = api; root.CW.SHOP = SHOP; root.CW.ROAD = ROAD; }
 })(this);

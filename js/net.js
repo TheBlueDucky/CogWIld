@@ -473,7 +473,7 @@
     safeBp(bp) {
       try {
         if (!bp || !Array.isArray(bp.parts)) throw new Error('none');
-        const out = { name: String(bp.name || 'Mech').slice(0, 24), color: bp.color | 0, parts: bp.parts.filter(realPart).slice(0, 160).map((p) => ({ t: p.t, x: p.x | 0, y: p.y | 0, z: p.z | 0 })) };
+        const out = { name: String(bp.name || 'Mech').slice(0, 24), color: bp.color | 0, parts: bp.parts.filter(realPart).slice(0, 160).map(CW.cleanPart) };
         if (!CW.validate(out.parts, 3, 9999).ok) throw new Error('invalid');
         return out;
       } catch (e) {
@@ -549,7 +549,7 @@
     addFromRoster(e) {
       const g = this.game;
       if (this.byId.has(e.i)) return this.byId.get(e.i);
-      const bp = e.bp && Array.isArray(e.bp.parts) ? { name: clean(e.bp.name, 24), color: e.bp.color | 0, parts: e.bp.parts.filter(realPart).slice(0, 160).map((p) => ({ t: p.t, x: p.x | 0, y: p.y | 0, z: p.z | 0 })) } : CW.cloneBp(CW.PRESETS[0]);
+      const bp = e.bp && Array.isArray(e.bp.parts) ? { name: clean(e.bp.name, 24), color: e.bp.color | 0, parts: e.bp.parts.filter(realPart).slice(0, 160).map(CW.cleanPart) } : CW.cloneBp(CW.PRESETS[0]);
       const c = g.addCombatant({ name: clean(e.n, 16) || 'Bot', isPlayer: !!e.h && e.o === this.id, human: !!e.h, color: e.col | 0, bp, ai: e.ai, team: e.tm | 0, owner: e.o, netId: e.i | 0 });
       c.mech.place(new V3(e.pos[0], 0, e.pos[2]), e.yaw);
       c.mech.protect = 3.5;

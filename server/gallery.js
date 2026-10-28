@@ -79,14 +79,14 @@ class Gallery {
     if (name.length < 2) return this.err(c, 'Give your mech a name first (in the Workshop)');
     if (filter.isBad(name)) return this.err(c, 'Please pick a different name for your mech');
     if (!Array.isArray(bp.parts)) return this.err(c, "That mech can't be shared");
-    const parts = bp.parts.slice(0, E.MAX_PARTS + 1).map((p) => ({ t: String(p && p.t), x: p.x | 0, y: p.y | 0, z: p.z | 0 }));
+    const parts = bp.parts.slice(0, E.MAX_PARTS + 1).map((p) => E.partLook(p || {}, { t: String(p && p.t), x: p.x | 0, y: p.y | 0, z: p.z | 0 }));
     const why = E.mechProblem(parts, 99, E.BUDGET);
     if (why) return this.err(c, `That mech can't be shared (${why})`);
     const mine = this.mine(u);
     if (mine.length >= MAX_PER_USER) return this.err(c, `You can share ${MAX_PER_USER} mechs. Delete one of yours first.`);
-    const shape = (ps) => ps.map((p) => `${p.t}${p.x},${p.y},${p.z}`).sort().join(';');
+    const shape = (ps) => ps.map((p) => `${p.t}${p.s || ''}${p.x},${p.y},${p.z},${p.r | 0}`).sort().join(';');
     const s = shape(parts);
-    if (mine.some((g) => shape(g.parts.map(([t, x, y, z]) => ({ t, x, y, z }))) === s)) return this.err(c, "You've already shared this mech");
+    if (mine.some((g) => shape(g.parts.map(([t, x, y, z, r, st]) => ({ t, x, y, z, r, s: st }))) === s)) return this.err(c, "You've already shared this mech");
     if (Object.keys(this.all).length >= MAX_LIST) return this.err(c, 'The gallery is full right now. Try again later.');
     c.galAt = now;
     let cost = 0, lvl = 1;
@@ -94,7 +94,7 @@ class Gallery {
     for (const p of parts) { const r = E.PARTS[p.t]; cost += r[0]; lvl = Math.max(lvl, r[2]); if (r[1]) tags.add(DOM[r[1]]); }
     const id = 'g' + now.toString(36) + (++this.seq).toString(36);
     const fin = E.item('finishes', String(bp.fin || '')) ? String(bp.fin) : '';
-    this.all[id] = { id, n: name, by: u.name, bk: key(u.name), col: (bp.color | 0) & 0xffffff, fin, parts: parts.map((p) => [p.t, p.x, p.y, p.z]), cost, lvl, tags: [...tags], at: now, likes: [], copies: 0, copiers: [], reports: [], hidden: false };
+    this.all[id] = { id, n: name, by: u.name, bk: key(u.name), col: (bp.color | 0) & 0xffffff, fin, parts: parts.map((p) => (p.r || p.s ? [p.t, p.x, p.y, p.z, p.r | 0].concat(p.s ? [p.s] : []) : [p.t, p.x, p.y, p.z])), cost, lvl, tags: [...tags], at: now, likes: [], copies: 0, copiers: [], reports: [], hidden: false };
     this.a.dirty();
     this.send(c, { t: 'galPublished', item: this.view(this.all[id], u) });
   }

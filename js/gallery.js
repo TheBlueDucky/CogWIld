@@ -10,15 +10,13 @@
   const TAG_ICON = { land: '🚗', water: '🌊', air: '✈' };
   const MSGS = ['galItems', 'galItem', 'galPublished', 'galLiked', 'galCopied', 'galDeleted', 'galGone'];
 
-  // a mech's parts → a group of part meshes (parts as [t, x, y, z] or {t, x, y, z})
+  // a mech's parts → a group of part meshes (parts as [t, x, y, z, turn, shape] or {t, x, y, z, r, s})
   function mechGroup(parts, color, fin) {
     const grp = new THREE.Group();
     for (const p of parts) {
-      const [t, x, y, z] = Array.isArray(p) ? p : [p.t, p.x, p.y, p.z];
-      if (!CW.PARTS[t]) continue;
-      const o = CW.buildPartMesh(t, color, fin);
-      o.position.set(x, y, z);
-      grp.add(o);
+      const part = Array.isArray(p) ? CW.partFromArr(p) : p;
+      if (!CW.PARTS[part.t]) continue;
+      grp.add(CW.partMesh(part, color, fin));
     }
     return grp;
   }
@@ -220,7 +218,7 @@
     renderDetailInfo() {
       const g = this.game, it = this.items.find((x) => x.id === this.detail), el = $('galInfo');
       if (!it || !el) return;
-      const esc = CW.esc, parts = it.parts.map(([t, x, y, z]) => ({ t, x, y, z })), s = CW.analyze(parts);
+      const esc = CW.esc, parts = it.parts.filter((a) => CW.PARTS[a[0]]).map(CW.partFromArr), s = CW.analyze(parts);
       const kmh = (v) => Math.round(v * 3.6);
       const speeds = [s.domains.has('land') ? `🚗 ${kmh(s.landSpeed)} km/h` : '', s.domains.has('water') ? `🌊 ${kmh(s.waterSpeed)} km/h` : '', s.domains.has('air') ? `✈ ${kmh(s.airSpeed)} km/h` : ''].filter(Boolean).join(' · ');
       const lock = it.lvl > g.level();
@@ -319,7 +317,7 @@
       this.send({ t: 'galLike', id, on: !it.liked });
       this.game.audio.click(1.4);
     }
-    bpOf(it) { return { name: it.n.slice(0, 24), color: it.col, parts: it.parts.map(([t, x, y, z]) => ({ t, x, y, z })) }; }
+    bpOf(it) { return { name: it.n.slice(0, 24), color: it.col, parts: it.parts.filter((a) => CW.PARTS[a[0]]).map(CW.partFromArr) }; }
     copy(it) {
       const g = this.game, bp = this.bpOf(it);
       const list = g.blueprints;

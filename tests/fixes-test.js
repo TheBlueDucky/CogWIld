@@ -149,7 +149,7 @@ app.whenReady().then(async () => {
   await wait(300);
   await js(`document.querySelector('[data-settab=support]').click(); true`);
   const sup = await js(`(() => { const s = document.querySelector('.set-sec.on'); return s ? s.textContent : ''; })()`);
-  check(/theblueduckymc@gmail.com/.test(sup) && /Email us/.test(sup), 'Settings › Support shows how to contact us');
+  check(/theblueduckymc@gmail.com/.test(sup) && /Contact us/.test(sup), 'Settings › Support shows how to contact us');
   await shot('support');
   await js(`${G}.meta.closePanel(); true`);
 

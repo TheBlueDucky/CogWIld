@@ -15,6 +15,7 @@ const { Pics } = require('./pics');
 const { Gallery } = require('./gallery');
 const { Admin } = require('./admin');
 const { Stats } = require('./stats');
+const { Support } = require('./support');
 const google = require('./google');
 const E = require('../js/economy.js');
 const FEATURED = require('../js/featured.js');
@@ -67,7 +68,7 @@ const MIME = {
   '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json', '.png': 'image/png',
   '.apk': 'application/vnd.android.package-archive', '.exe': 'application/octet-stream', '.zip': 'application/zip', '.gz': 'application/gzip',
 };
-const PUBLIC = new Set(['auth.html', 'index.html', 'privacy.html', 'terms.html', 'credits.html', 'favicon.svg', 'download.html', 'manifest.webmanifest', 'sw.js']); // top-level files that may be served
+const PUBLIC = new Set(['auth.html', 'support.html', 'index.html', 'privacy.html', 'terms.html', 'credits.html', 'favicon.svg', 'download.html', 'manifest.webmanifest', 'sw.js']); // top-level files that may be served
 
 // sent with every page and file: no framing by other sites, no inline/foreign scripts, no sniffing
 const SECURITY = {
@@ -87,6 +88,7 @@ function serveStatic(req, res) {
   if (url === '/') url = '/index.html';
   if (url === '/favicon.ico') url = '/favicon.svg';
   if (url === '/download' || url === '/app') url = '/download.html';
+  if (url === '/support') url = '/support.html'; // "Email us" in the game (server/support.js)
   // Google sign-in in the player's browser (server/google.js): off to Google, and back to a page that finishes it
   if (url === '/auth/google') {
     const s = new URLSearchParams((req.url || '').split('?')[1] || '').get('s') || '';
@@ -409,12 +411,13 @@ accounts.pics = new Pics(accounts, path.join(process.env.DATA_DIR || path.resolv
 accounts.gallery = new Gallery(accounts);
 // players per day and bug reports from games (server/stats.js), shown on the moderation page
 accounts.stats = new Stats(accounts);
+const support = (accounts.support = new Support(accounts)); // messages from /support (server/support.js)
 const admin = new Admin(accounts, { clients, rooms }, ROOT, SECURITY);
 
-// mech parts from players: only short part names and small whole-number positions are relayed
+// mech parts from players: only short part names, small whole-number positions and the look (turn, shape) are relayed
 const coord = (v) => Math.max(-64, Math.min(64, v | 0));
 function cleanParts(parts) {
-  return parts.slice(0, E.MAX_PARTS).filter((p) => p && typeof p.t === 'string' && /^[a-z][a-z0-9_]{0,23}$/.test(p.t)).map((p) => ({ t: p.t, x: coord(p.x), y: coord(p.y), z: coord(p.z) }));
+  return parts.slice(0, E.MAX_PARTS).filter((p) => p && typeof p.t === 'string' && /^[a-z][a-z0-9_]{0,23}$/.test(p.t)).map((p) => E.partLook(p, { t: p.t, x: coord(p.x), y: coord(p.y), z: coord(p.z) }));
 }
 
 function handle(c, data) {
@@ -588,22 +591,31 @@ function handle(c, data) {
 }
 
 // ======================= server =======================
-// the sign-in page posts Google's token here: { s, token } -> { ok } or { msg }
-function googleFinish(req, res) {
+// small JSON posts from the website's own pages: fn(message, ip) -> [status, answer]
+function postJson(req, res, fn) {
   let body = '';
   const answer = (code, o) => { res.writeHead(code, Object.assign({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, SECURITY)); res.end(JSON.stringify(o)); };
   req.on('data', (d) => { body += d; if (body.length > 16384) req.destroy(); });
   req.on('end', async () => {
     let m;
     try { m = JSON.parse(body); } catch (e) { return answer(400, { msg: 'Bad request' }); }
-    try {
-      const why = await accounts.googleDone(m && m.s, m && m.token);
-      answer(why ? 400 : 200, why ? { msg: why } : { ok: true });
-    } catch (e) { answer(400, { msg: 'Google sign-in failed: ' + e.message }); }
+    try { answer(...(await fn(m || {}, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim()))); } catch (e) { answer(400, { msg: e.message }); }
   });
 }
+const POSTS = {
+  // the sign-in page posts Google's token here: { s, token } -> { ok } or { msg }
+  '/auth/google/finish': async (m) => {
+    let why;
+    try { why = await accounts.googleDone(m.s, m.token); } catch (e) { why = 'Google sign-in failed: ' + e.message; }
+    return why ? [400, { msg: why }] : [200, { ok: true }];
+  },
+  // the support page: who is signed in, and sending a message
+  '/support/who': (m) => { const w = support.who(m.s); return w ? [200, w] : [401, { msg: 'Not signed in' }]; },
+  '/support/send': (m, ip) => { const why = support.send(m, ip); return why ? [400, { msg: why }] : [200, { ok: true }]; },
+};
 const server = http.createServer((req, res) => {
-  if (req.method === 'POST' && (req.url || '').split('?')[0] === '/auth/google/finish') return googleFinish(req, res);
+  const post = req.method === 'POST' && POSTS[(req.url || '').split('?')[0]];
+  if (post) return postJson(req, res, post);
   serveStatic(req, res);
 });
 server.on('upgrade', (req, sock) => {

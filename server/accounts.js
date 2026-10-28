@@ -28,7 +28,7 @@ const CLUB_RE = /^[A-Za-z0-9][A-Za-z0-9 _-]{1,18}[A-Za-z0-9]$/;
 const PARTY_MAX = 4;
 const MAX_SAVE = 200 * 1024; // bytes of cloud save per player
 const AVATARS = E.AVATAR_COUNT; // the client has the emoji list (24 free, the rest from the Shop, Trophy Road and Cog Pass)
-const TOKENS_KEPT = 5; // devices that can stay logged in at once
+const TOKENS_KEPT = 20; // logins that stay valid at once (phone, PC, website, Store app…; was 5, which logged phones out)
 // shorter Quick Matches don't move trophies (no farming by quitting early)
 const QUICK_MIN_SECS = parseFloat(process.env.TROPHY_MIN_SECS || '40');
 // new accounts per network per hour (tests on your own PC can raise it)
@@ -164,7 +164,8 @@ class Accounts {
     if (c.user && c.user !== k) this.detach(c); // switching accounts on one connection
     c.guest = null; // an account's wallet, not the device's guest one
     const old = this.online.get(k);
-    if (old && old !== c) { this.detach(old); this.send(old, { t: 'acctOut', reason: 'You logged in somewhere else' }); }
+    // keep: that device stays logged in for next time (it only stops playing as you right now)
+    if (old && old !== c) { this.detach(old); this.send(old, { t: 'acctOut', reason: 'You logged in somewhere else', keep: 1 }); }
     c.user = k;
     const u = this.db.users[k];
     c.name = u.name;
@@ -637,7 +638,7 @@ class Accounts {
   partyMech(c, m) {
     if (!c.user || !m.bp || !Array.isArray(m.bp.parts)) return;
     const G = E.GRID;
-    const parts = m.bp.parts.slice(0, E.MAX_PARTS).filter((p) => p && Object.prototype.hasOwnProperty.call(E.PARTS, p.t)).map((p) => ({ t: p.t, x: p.x | 0, y: p.y | 0, z: p.z | 0 }))
+    const parts = m.bp.parts.slice(0, E.MAX_PARTS).filter((p) => p && Object.prototype.hasOwnProperty.call(E.PARTS, p.t)).map((p) => E.partLook(p, { t: p.t, x: p.x | 0, y: p.y | 0, z: p.z | 0 }))
       .filter((p) => p.x >= G.minX && p.x <= G.maxX && p.y >= G.minY && p.y <= G.maxY && p.z >= G.minZ && p.z <= G.maxZ);
     if (!parts.length) return;
     c.showBp = { color: m.bp.color & 0xffffff, parts };

@@ -21,6 +21,8 @@
     "copyright": "Copyright 2026 BlueDucky Games",
     "files": [
       "main.js",
+      "preload.js",
+      "discord.js",
       "app/**/*"
     ],
     "directories": {
