@@ -1,5 +1,5 @@
 // Muted screenshots of v1.9.9 (hidden window, local test server on 8781): Settings › Display (Background opacity, Glass
-// Look), Settings in the glass look, and the lobby / a match at Background opacity 0% and the default, in both looks.
+// Look), Settings in the glass look, and the lobby / a match at 0%, 100% and half-strength glass.
 // Saves tests/shots/v199-*.png. SIZE=1280x720 (default)
 const { app, BrowserWindow } = require('electron');
 const fs = require('fs');
@@ -28,10 +28,10 @@ app.whenReady().then(async () => {
   await js(`${G}.meta.renderPanel(); true`);
   await shot('display-glass');
   await js(`${G}.meta.closePanel(); true`);
-  for (const [g, box] of [[false, 0], [true, 0], [true, null]]) { await set(g, box); await shot(`lobby-${g ? 'glass' : 'plain'}-${box == null ? 'default' : box * 100}`); }
+  for (const [g, box] of [[false, 0], [false, 1], [true, 0.4], [true, null]]) { await set(g, box); await shot(`lobby-${g ? 'glass' : 'plain'}-${box == null ? 'default' : box * 100}`); }
   await js(`${G}.playOffline('clash', 'canyon'); true`);
   await wait(5500);
-  for (const [g, box] of [[false, 0], [true, 0]]) { await set(g, box); await shot(`hud-${g ? 'glass' : 'plain'}-${box * 100}`); }
+  for (const [g, box] of [[false, 0], [false, 1], [true, 0.4]]) { await set(g, box); await shot(`hud-${g ? 'glass' : 'plain'}-${box * 100}`); }
   await js(`${G}.showMenu(); true`);
   app.exit(0);
 });

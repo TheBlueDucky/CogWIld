@@ -1872,40 +1872,50 @@
   .call-card.live .cc-btn.reset { width: 30px; height: 30px; font-size: 14px; }
 
   /* v1.9.8 the glass look (Settings › Display): see-through boxes that blur what's behind them, with a light edge, like
-     iOS. v1.9.9: Settings › Display › Background opacity (--bgK: 1 = the default, 0 = no background at all) sets how much
-     background the menu buttons and cards and the small buttons in matches get, in both looks; the health and match
-     info boxes follow it through --hudBg. The chat, the call card, toasts and pop-ups keep theirs (they hold text) */
+     iOS. Settings › Display's slider (Background opacity / Glass look strength, below) sets the menu buttons and cards, the
+     small buttons in matches and the health and match info boxes. The chat, the call card, toasts and pop-ups keep theirs
+     (they hold text) */
   html.glass { --glass: rgba(255, 255, 255, .08); --glass-line: rgba(255, 255, 255, .24); }
-  html:not(.glass) :is(.side-btn, .bs-chip, .road-bar, .bs-icon, .arena-card, .feat-chip, .acct-chip) { background: rgba(14, 20, 42, calc(.55 * var(--bgK, 1))) !important; }
-  html:not(.glass) :is(.pass-bar, .party-bar) { background: rgba(14, 20, 42, calc(.5 * var(--bgK, 1))) !important; }
-  html:not(.glass) .quests-card { background: rgba(14, 20, 42, calc(.42 * var(--bgK, 1))) !important; }
-  html:not(.glass) .side-btn:hover { background: rgba(30, 46, 92, calc(.75 * var(--bgK, 1))) !important; }
-  html:not(.glass) :is(#hudTalk button, #camBadge) { background: rgba(11, 15, 30, calc(.42 * var(--bgK, 1))) !important; }
+  /* v1.9.10 the slider, normal look ("Background opacity"): 0% = nothing at all (no box, line or shadow), the default (50%)
+     = the usual look, 100% = solid. --bgLo grows 0 → 1 up to the default, --bgHi 0 → 1 from the default to 100% */
+  html:not(.glass) :is(.side-btn, .bs-chip, .road-bar, .bs-icon, .arena-card, .feat-chip, .acct-chip) { background: rgba(14, 20, 42, calc(.55 * var(--bgLo, 1) + .45 * var(--bgHi, 0))) !important; }
+  html:not(.glass) :is(.pass-bar, .party-bar) { background: rgba(14, 20, 42, calc(.5 * var(--bgLo, 1) + .5 * var(--bgHi, 0))) !important; }
+  html:not(.glass) .quests-card { background: rgba(14, 20, 42, calc(.42 * var(--bgLo, 1) + .58 * var(--bgHi, 0))) !important; }
+  html:not(.glass) .side-btn:hover { background: rgba(30, 46, 92, calc(.75 * var(--bgLo, 1) + .25 * var(--bgHi, 0))) !important; }
+  html:not(.glass) :is(#hudTalk button, #camBadge) { background: rgba(11, 15, 30, calc(.42 * var(--bgLo, 1) + .58 * var(--bgHi, 0))) !important; }
+  html:not(.glass) #status { background: rgba(10, 15, 34, calc(.1 * var(--bgLo, 1) + .9 * var(--bgHi, 0))) !important; border-color: rgba(255, 255, 255, calc(.04 * var(--bgLo, 1) + .08 * var(--bgHi, 0))) !important;
+    backdrop-filter: blur(calc(1px * var(--bgLo, 1))); -webkit-backdrop-filter: blur(calc(1px * var(--bgLo, 1))); }
+  html:not(.glass) #topInfo { background: rgba(11, 15, 30, calc(.21 * var(--bgLo, 1) + .79 * var(--bgHi, 0))) !important; border-color: rgba(255, 255, 255, calc(.05 * var(--bgLo, 1) + .08 * var(--bgHi, 0))) !important; }
+  html:not(.glass) #minimap { border-color: rgba(255, 255, 255, calc(.08 * var(--bgLo, 1) + .1 * var(--bgHi, 0))) !important; }
+  /* 0%: no line or shadow either, in both looks */
+  html.bg0 :is(.side-btn, .bs-chip, .road-bar, .bs-icon, .quests-card, .arena-card, .feat-chip, .pass-bar, .party-bar, .acct-chip, #hudTalk button, #camBadge, #status, #topInfo) { border-color: transparent !important; box-shadow: none !important; }
+  /* the glass look ("Glass look strength", --gK = value / default): the blur and the light edge follow it, the milky white
+     tint follows its square (--gK2), so a weaker glass gets clearer instead of grayer; 0% = nothing at all */
   html.glass :is(.side-btn, .bs-chip, .road-bar, .bs-icon, .quests-card, .arena-card, .feat-chip, .pass-bar, .party-bar, .acct-chip, #hudTalk button, #camBadge) {
-    background: linear-gradient(155deg, rgba(255, 255, 255, calc(.24 * var(--bgK, 1))), rgba(255, 255, 255, calc(.07 * var(--bgK, 1))) 52%, rgba(255, 255, 255, calc(.13 * var(--bgK, 1)))) !important;
-    border: 1px solid rgba(255, 255, 255, max(.16, calc(.3 * var(--bgK, 1)))) !important;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, calc(.5 * var(--bgK, 1))), inset 0 -1px 0 rgba(255, 255, 255, calc(.1 * var(--bgK, 1))), 0 8px 26px rgba(0, 0, 0, calc(.26 * var(--bgK, 1))) !important;
-    backdrop-filter: blur(calc(18px * var(--bgK, 1))) saturate(calc(100% + 80% * var(--bgK, 1))); -webkit-backdrop-filter: blur(calc(18px * var(--bgK, 1))) saturate(calc(100% + 80% * var(--bgK, 1))); }
+    background: linear-gradient(155deg, rgba(255, 255, 255, calc(.24 * var(--gK2, 1))), rgba(255, 255, 255, calc(.07 * var(--gK2, 1))) 52%, rgba(255, 255, 255, calc(.13 * var(--gK2, 1)))) !important;
+    border: 1px solid rgba(255, 255, 255, calc(.3 * var(--gK, 1))) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, calc(.5 * var(--gK, 1))), inset 0 -1px 0 rgba(255, 255, 255, calc(.1 * var(--gK, 1))), 0 8px 26px rgba(0, 0, 0, calc(.26 * var(--gK2, 1))) !important;
+    backdrop-filter: blur(calc(18px * var(--gK, 1))) saturate(calc(100% + 80% * var(--gK, 1))); -webkit-backdrop-filter: blur(calc(18px * var(--gK, 1))) saturate(calc(100% + 80% * var(--gK, 1))); }
   html.glass :is(.call-card, #toast, #chat, #search .search-box, #specBar, .confirm-box) {
     background: linear-gradient(155deg, rgba(255, 255, 255, .24), rgba(255, 255, 255, .07) 52%, rgba(255, 255, 255, .13)) !important;
     border: 1px solid rgba(255, 255, 255, .3) !important;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), inset 0 -1px 0 rgba(255, 255, 255, .1), 0 8px 26px rgba(0, 0, 0, .26) !important;
     backdrop-filter: blur(18px) saturate(180%); -webkit-backdrop-filter: blur(18px) saturate(180%); }
-  html.glass :is(.side-btn, .bs-chip, .bs-icon, .quests-card, .arena-card, .feat-chip, .pass-bar, .acct-chip, #hudTalk button):hover { background: linear-gradient(155deg, rgba(255, 255, 255, calc(.32 * var(--bgK, 1))), rgba(255, 255, 255, calc(.11 * var(--bgK, 1))) 52%, rgba(255, 255, 255, calc(.17 * var(--bgK, 1)))) !important; border-color: var(--muted2) !important; }
+  html.glass :is(.side-btn, .bs-chip, .bs-icon, .quests-card, .arena-card, .feat-chip, .pass-bar, .acct-chip, #hudTalk button):hover { background: linear-gradient(155deg, rgba(255, 255, 255, calc(.32 * var(--gK2, 1))), rgba(255, 255, 255, calc(.11 * var(--gK2, 1))) 52%, rgba(255, 255, 255, calc(.17 * var(--gK2, 1)))) !important; border-color: var(--muted2) !important; }
   html.glass :is(.side-btn, .bs-chip, .road-bar, .quests-card, .arena-card, .pass-bar, .party-bar, .acct-chip, #chat, .call-card, #toast, #camBadge) { text-shadow: 0 1px 3px rgba(0, 0, 0, .6); }
   html.glass #camBadge:empty, html.glass #recDot.hidden { display: none; }
   html.glass .confirm-box { background: linear-gradient(155deg, rgba(40, 52, 92, .72), rgba(18, 26, 51, .78)) !important; }
   html.glass #toast { background: linear-gradient(155deg, rgba(40, 52, 92, .6), rgba(18, 26, 51, .66)) !important; }
   html.glass #panel.full { background: rgba(16, 22, 44, .58); backdrop-filter: blur(26px) saturate(150%); -webkit-backdrop-filter: blur(26px) saturate(150%); }
   html.glass #chat .chat-form input { background: rgba(0, 0, 0, .22); }
-  /* in matches the slider (--hudBg) sets how strong the glass is */
+  /* the health and match info boxes in the glass look: the same strength */
   html.glass #status, html.glass #topInfo {
-    background: linear-gradient(155deg, rgba(255, 255, 255, calc(.17 * var(--hudBg, 1))), rgba(255, 255, 255, calc(.05 * var(--hudBg, 1))) 55%, rgba(255, 255, 255, calc(.09 * var(--hudBg, 1)))) !important;
-    border: 1px solid rgba(255, 255, 255, calc(.28 * var(--hudBg, 1))) !important;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, calc(.32 * var(--hudBg, 1))), 0 8px 24px rgba(0, 0, 0, calc(.22 * var(--hudBg, 1))) !important;
-    backdrop-filter: blur(calc(14px * var(--hudBg, 1))) saturate(calc(100% + 70% * var(--hudBg, 1))); -webkit-backdrop-filter: blur(calc(14px * var(--hudBg, 1))) saturate(calc(100% + 70% * var(--hudBg, 1)));
+    background: linear-gradient(155deg, rgba(255, 255, 255, calc(.145 * var(--gK2, 1))), rgba(255, 255, 255, calc(.043 * var(--gK2, 1))) 55%, rgba(255, 255, 255, calc(.077 * var(--gK2, 1)))) !important;
+    border: 1px solid rgba(255, 255, 255, calc(.24 * var(--gK, 1))) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, calc(.27 * var(--gK, 1))), 0 8px 24px rgba(0, 0, 0, calc(.19 * var(--gK2, 1))) !important;
+    backdrop-filter: blur(calc(12px * var(--gK, 1))) saturate(calc(100% + 60% * var(--gK, 1))); -webkit-backdrop-filter: blur(calc(12px * var(--gK, 1))) saturate(calc(100% + 60% * var(--gK, 1)));
     text-shadow: 0 1px 3px rgba(0, 0, 0, .7); }
-  html.glass #minimap { border-color: rgba(255, 255, 255, calc(.3 * var(--hudBg, 1))) !important; }
+  html.glass #minimap { border-color: rgba(255, 255, 255, calc(.26 * var(--gK, 1))) !important; }
 </style>
 </head>
 <body>
@@ -2373,35 +2383,35 @@
 </div>
 
 <!-- three.js: from the CDN, or the local copy in js/vendor/ when offline (desktop build / no internet) -->
-<script src="js/vendor/three.min.js?v=41"></script>
-<script src="js/economy.js?v=41"></script>
-<script src="js/parts.js?v=41"></script>
-<script src="js/bugs.js?v=41"></script>
-<script src="js/i18n.js?v=41"></script>
-<script src="js/platform.js?v=41"></script>
-<script src="js/featured.js?v=41"></script>
-<script src="js/world.js?v=41"></script>
-<script src="js/entities.js?v=41"></script>
-<script src="js/meta.js?v=41"></script>
-<script src="js/extras.js?v=41"></script>
-<script src="js/modes.js?v=41"></script>
-<script src="js/tutorial.js?v=41"></script>
-<script src="js/clips.js?v=41"></script>
-<script src="js/gamepad.js?v=41"></script>
-<script src="js/workshop.js?v=41"></script>
-<script src="js/config.js?v=41"></script>
-<script src="js/net.js?v=41"></script>
-<script src="js/account.js?v=41"></script>
-<script src="js/touch.js?v=41"></script>
-<script src="js/supers.js?v=41"></script>
-<script src="js/gadgets.js?v=41"></script>
-<script src="js/replay.js?v=41"></script>
-<script src="js/gallery.js?v=41"></script>
-<script src="js/pics.js?v=41"></script>
-<script src="js/talk.js?v=41"></script>
-<script src="js/voice.js?v=41"></script>
-<script src="js/calls.js?v=41"></script>
-<script src="js/game.js?v=41"></script>
-<script src="js/desktop.js?v=41"></script>
+<script src="js/vendor/three.min.js?v=42"></script>
+<script src="js/economy.js?v=42"></script>
+<script src="js/parts.js?v=42"></script>
+<script src="js/bugs.js?v=42"></script>
+<script src="js/i18n.js?v=42"></script>
+<script src="js/platform.js?v=42"></script>
+<script src="js/featured.js?v=42"></script>
+<script src="js/world.js?v=42"></script>
+<script src="js/entities.js?v=42"></script>
+<script src="js/meta.js?v=42"></script>
+<script src="js/extras.js?v=42"></script>
+<script src="js/modes.js?v=42"></script>
+<script src="js/tutorial.js?v=42"></script>
+<script src="js/clips.js?v=42"></script>
+<script src="js/gamepad.js?v=42"></script>
+<script src="js/workshop.js?v=42"></script>
+<script src="js/config.js?v=42"></script>
+<script src="js/net.js?v=42"></script>
+<script src="js/account.js?v=42"></script>
+<script src="js/touch.js?v=42"></script>
+<script src="js/supers.js?v=42"></script>
+<script src="js/gadgets.js?v=42"></script>
+<script src="js/replay.js?v=42"></script>
+<script src="js/gallery.js?v=42"></script>
+<script src="js/pics.js?v=42"></script>
+<script src="js/talk.js?v=42"></script>
+<script src="js/voice.js?v=42"></script>
+<script src="js/calls.js?v=42"></script>
+<script src="js/game.js?v=42"></script>
+<script src="js/desktop.js?v=42"></script>
 </body>
 </html>

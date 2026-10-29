@@ -46,6 +46,8 @@ app.whenReady().then(async () => {
   })()`);
   check(disp.glassAfter && disp.glassText === 'Glass Look', `"Glass Look" (no explanation) sits right under the opacity slider (${JSON.stringify(disp)})`);
   check(disp.name === 'Background opacity', `the slider is called "Background opacity" (${disp.name})`);
+  const names = await js(A, `(() => { const n = () => document.getElementById('setHudBox').closest('.set-row').querySelector('span').firstChild.textContent.trim(); const out = [n()]; document.getElementById('setGlass').click(); out.push(n()); document.getElementById('setGlass').click(); out.push(n()); return out; })()`);
+  check(names.join('|') === 'Background opacity|Glass look strength|Background opacity', `the slider is "Glass look strength" with the Glass Look on, "Background opacity" with it off (${names.join(' → ')})`);
   check(disp.low === 'Low (fast, for older laptops, phones)', `shorter Low graphics line: ${disp.low}`);
   const ico = await js(A, `['controls', 'touch'].map((t) => { const s = document.querySelector('[data-settab=' + t + '] svg'); return s && s.classList.contains('lt') && /url\\(#cwLt\\)/.test(s.querySelector('path').getAttribute('fill')); })`);
   check(ico.every(Boolean), 'Controls and Touch screen icons are white-gray (not blue)');
@@ -58,13 +60,14 @@ app.whenReady().then(async () => {
   const look = async (glass, v) => { await js(A, `(() => { const g = ${G}, s = g.settings; s.glass = ${glass}; s.hudBox = ${v}; g.applySettings(); return true; })()`); await wait(400); return js(A, `(() => {
     const cs = (sel) => getComputedStyle(document.querySelector(sel));
     const b = cs('#btnShop'), c = cs('#coinChip'), q = cs('#questsCard');
-    return { shop: b.backgroundColor, shopImg: b.backgroundImage.slice(0, 60), blur: b.backdropFilter, coin: c.backgroundColor, quest: q.backgroundColor, k: getComputedStyle(document.documentElement).getPropertyValue('--bgK').trim() };
+    return { shop: b.backgroundColor, shopImg: b.backgroundImage.slice(0, 60), blur: b.backdropFilter, coin: c.backgroundColor, quest: q.backgroundColor, k: getComputedStyle(document.documentElement).getPropertyValue('--gK').trim(), line: b.borderTopColor, shadow: b.boxShadow };
   })()`); };
   const n0 = await look(false, 0), nd = await look(false, null), n1 = await look(false, 1);
-  check(n0.shop === 'rgba(14, 20, 42, 0)' && n0.coin === 'rgba(14, 20, 42, 0)' && n0.quest === 'rgba(14, 20, 42, 0)', `0%: the menu buttons have no background (${JSON.stringify(n0)})`);
+  check(n0.shop === 'rgba(14, 20, 42, 0)' && n0.coin === 'rgba(14, 20, 42, 0)' && n0.quest === 'rgba(14, 20, 42, 0)' && n0.line === 'rgba(0, 0, 0, 0)' && n0.shadow === 'none', `0%: the menu buttons are fully see-through, no line or shadow either (${JSON.stringify(n0)})`);
   check(nd.shop === 'rgba(14, 20, 42, 0.55)' && nd.quest === 'rgba(14, 20, 42, 0.42)', `the default (50%) looks as before (${JSON.stringify(nd)})`);
   check(n1.shop === 'rgb(14, 20, 42)', `100%: solid (${n1.shop})`);
-  const g0 = await look(true, 0), gd = await look(true, null);
+  const g0 = await look(true, 0), gd = await look(true, null), gh = await look(true, 0.425);
+  check(/rgba\(255, 255, 255, 0\.06\)/.test(gh.shopImg) && /blur\(9px\)/.test(gh.blur), `Glass Look at half strength: half the blur, a quarter of the white tint, so it's clearer, not grayer (${JSON.stringify(gh)})`);
   check(/rgba\(255, 255, 255, 0\)/.test(g0.shopImg) && /blur\(0px\)/.test(g0.blur), `Glass Look at 0%: no glass at all (${JSON.stringify(g0)})`);
   check(gd.k === '1.000' && /rgba\(255, 255, 255, 0\.24\)/.test(gd.shopImg) && /blur\(18px\)/.test(gd.blur), `Glass Look at its default (85%): the full glass (${JSON.stringify(gd)})`);
   await js(A, `${G}.playOffline('clash', 'canyon'); true`);

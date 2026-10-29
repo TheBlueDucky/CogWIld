@@ -273,10 +273,15 @@
       // old full box, 0 = no box; 50% unless you moved it, more with the glass look)
       const s = this.settings, root = document.documentElement;
       root.classList.toggle('glass', !!s.glass);
-      const bg = Math.max(0, Math.min(1, s.hudBox ?? CW.hudBoxDefault(s)));
+      // v1.9.10 the slider (index.html CSS "v1.9.10"). Normal look: 0 = no background at all, the default = the usual look,
+      // 1 = solid (--bgLo / --bgHi). Glass look: how strong the glass is (--gK = value / default; the white tint uses --gK2)
+      const bg = Math.max(0, Math.min(1, s.hudBox ?? CW.hudBoxDefault(s))), def = CW.hudBoxDefault(s), k = bg / def;
       root.style.setProperty('--hudBg', String(bg));
-      // v1.9.9: the same slider for the menu buttons and the small buttons in matches (1 = their usual look at the default)
-      root.style.setProperty('--bgK', (bg / CW.hudBoxDefault(s)).toFixed(3));
+      root.style.setProperty('--bgLo', Math.min(1, k).toFixed(3));
+      root.style.setProperty('--bgHi', Math.max(0, (bg - def) / (1 - def)).toFixed(3));
+      root.style.setProperty('--gK', k.toFixed(3));
+      root.style.setProperty('--gK2', (k * k).toFixed(3));
+      root.classList.toggle('bg0', bg === 0);
       // Settings › Display › Frame rate limit: the shortest time between two frames (0 = as fast as the screen / app allows)
       this.frameMs = typeof s.fpsCap === 'number' && s.fpsCap > 0 ? 1000 / s.fpsCap : 0;
       if (window.CogwildDesktop && CogwildDesktop.vsync) CogwildDesktop.vsync(!s.fpsCap);

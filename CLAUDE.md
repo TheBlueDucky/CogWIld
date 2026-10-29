@@ -5,7 +5,7 @@ You build a mech from parts in the Workshop, then fight online (bots fill empty 
 It runs in the browser (three.js r128, no build step), as a Windows app (Electron) and an Android app (Capacitor),
 and on game portals (itch.io, CrazyGames, Poki). The online server is zero-dependency Node.js.
 
-**Live:** https://cogwild.duckdns.org (download page `/download`) · **Code:** https://github.com/TheBlueDucky/CogWIld (public; commits as theblueduckymc@gmail.com) · **Current version:** v1.9.9 · **Online protocol:** `cogwild-net-10`
+**Live:** https://cogwild.duckdns.org (download page `/download`) · **Code:** https://github.com/TheBlueDucky/CogWIld (public; commits as theblueduckymc@gmail.com) · **Current version:** v1.9.10 · **Online protocol:** `cogwild-net-10`
 The user is not a programmer: explain things in plain words, test everything yourself, and show screenshots as proof.
 
 ## How the user wants things done
@@ -72,7 +72,10 @@ The user is not a programmer: explain things in plain words, test everything you
   card, toasts and pop-ups keep a fixed background. Glass Look sits under it; the Settings categories have no background of their
   own. `CW.ICON.pad/mobile` are white-gray (`.cw-ico.lt`, gradient `#cwLt`). `settings.discord` (default on) → desktop.js sends
   `{ hidden: true }` → discord.js clears the activity. Club / party chat read time is kept on the account too (`chatSeen`
-  → `u.chatSeen`, sent back in `talk.seen`), so read stays read on every device. Brawl Stars-like, but not a copy. Must fit phones (Galaxy A57 sideways
+  → `u.chatSeen`, sent back in `talk.seen`), so read stays read on every device.
+  v1.9.10 (CSS block "v1.9.10" replaces v1.9.9's --bgK): normal look "Background opacity": alpha = base × `--bgLo` + rest ×
+  `--bgHi` (0 = nothing, html.bg0 also drops lines/shadows; default = usual look; 1 = solid). Glass Look "Glass look strength":
+  blur / edge × `--gK` (value / default), white tint × `--gK2` (its square) so weaker glass gets clearer, not gray. Brawl Stars-like, but not a copy. Must fit phones (Galaxy A57 sideways
   ≈ 915×412; also check 780×350).
 - **Driving (v1.8, they asked for it):** mechs drive like racing-game cars: A/D steer (`inp.manual`: the wheel turns in
   smoothly and snaps straight on release), front wheels visibly steer, S brakes then reverses, the body leans in turns.
