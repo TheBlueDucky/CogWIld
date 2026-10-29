@@ -269,8 +269,14 @@
       }
       this.camera.fov = this.settings.fov;
       this.camera.updateProjectionMatrix();
-      // Settings › Display: how see-through the health and info boxes are (1 = as designed, 0 = no box)
-      document.documentElement.style.setProperty('--hudBg', String(Math.max(0, Math.min(1, this.settings.hudBg ?? 1))));
+      // Settings › Display: the glass look, and how solid the box behind the health bar and match info is (1 = the
+      // old full box, 0 = no box; 50% unless you moved it, more with the glass look)
+      const s = this.settings, root = document.documentElement;
+      root.classList.toggle('glass', !!s.glass);
+      root.style.setProperty('--hudBg', String(Math.max(0, Math.min(1, s.hudBox ?? CW.hudBoxDefault(s)))));
+      // Settings › Display › Frame rate limit: the shortest time between two frames (0 = as fast as the screen / app allows)
+      this.frameMs = typeof s.fpsCap === 'number' && s.fpsCap > 0 ? 1000 / s.fpsCap : 0;
+      if (window.CogwildDesktop && CogwildDesktop.vsync) CogwildDesktop.vsync(!s.fpsCap);
     }
     // voice chat: the game's sounds get quieter while someone talks in a match (js/voice.js)
     setDuck(d) {
@@ -659,9 +665,11 @@
     }
     closeModal() { $('modal').classList.add('hidden'); }
 
-    toast(msg) {
+    // `ico`: a small icon in front (CW.ICON)
+    toast(msg, ico) {
       const t = $('toast');
       t.textContent = msg;
+      if (ico) t.insertAdjacentHTML('afterbegin', ico + ' ');
       t.classList.add('show');
       clearTimeout(this._toastT);
       this._toastT = setTimeout(() => t.classList.remove('show'), 2200);
@@ -2723,7 +2731,12 @@
     loop(now) {
       // one screen-refresh request at a time (the background timer also calls this while hidden)
       if (!this.rafQueued) { this.rafQueued = true; requestAnimationFrame((t) => { this.rafQueued = false; this.loop(t); }); }
-      if (now - this.last < 4) return; // both clocks fired together
+      if (now - this.last < 1.5) return; // both clocks fired together
+      // a frame rate limit: skip screen refreshes until the next frame is due (steady, even when it doesn't divide the screen's rate)
+      if (this.frameMs) {
+        if (now < (this.nextFrame || 0) - 1) return;
+        this.nextFrame = Math.max((this.nextFrame || 0) + this.frameMs, now - this.frameMs);
+      }
       let dt = Math.min(0.05, (now - this.last) / 1000);
       if (this.slowmo > 0) { this.slowmo -= dt; dt *= this.slowmo > 0.25 ? 0.3 : 1; }
       this.last = now;

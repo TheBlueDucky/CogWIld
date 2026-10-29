@@ -21,6 +21,21 @@
     window.dispatchEvent(new Event('resize'));
   };
 
+  // v1.9.8: clips and replay files. The desktop app puts them straight into Documents\Cogwild\Clips / Replays (📂 opens
+  // the folder); a browser downloads them. Resolves to { where } (the app) or { download: true }
+  CW.deviceFolders = !!(window.CogwildDesktop && CogwildDesktop.saveFile);
+  CW.saveFile = async (kind, name, blob) => {
+    if (CW.deviceFolders) return { where: await CogwildDesktop.saveFile(kind, name, new Uint8Array(await blob.arrayBuffer())) };
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+    return { download: true };
+  };
+  CW.openFolder = (kind) => { if (CW.deviceFolders) CogwildDesktop.openFolder(kind).catch(() => {}); };
+
   if (!window.CogwildDesktop) return;
   let last = '', since = 0, was = '';
   const tick = () => {

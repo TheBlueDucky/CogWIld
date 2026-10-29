@@ -399,7 +399,9 @@
           const k = this.optKey(id);
           return `<div class="set-row key-row"><span>${label}</span><span class="key-pair"><button class="ws-btn key-btn" data-vkey="${id}">${CW.bindName(k)}</button><button class="ws-btn key-off ${k === 'none' ? 'hidden' : ''}" data-vkeyoff="${id}" aria-label="No key">✕</button></span></div>`;
         };
-        const tabs = [['account', '👤', 'Account'], ['display', '🖥', 'Display'], ['controls', '🎮', 'Controls'], ['keys', '⌨', 'Keybinds'], ['touch', '📱', 'Touch screen'], ['sound', '🔊', 'Sound'], ['voice', '🎤', 'Voice chat'], ['chat', '💬', 'Chat'], ['online', '🌐', 'Online'], ['save', '💾', 'Save data'], ['support', '✉', 'Support'], ['help', '❓', 'Help'], ['news', '📰', 'Change logs']];
+        const I = CW.ICON;
+        const tabs = [['account', '👤', 'Account'], ['display', '🖥', 'Display'], ['keys', '⌨', 'Keybinds'], ['controls', I.pad, 'Controls'], ['touch', I.mobile, 'Touch screen'], ['voice', '🎤', 'Voice chat'], ['sound', '🔊', 'Sound'], ['chat', '💬', 'Chat'], ['online', '🌐', 'Online'], ['support', '✉', 'Support'], ['help', '❓', 'Help'], ['save', '💾', 'Save data'], ['news', '📰', 'Change logs']];
+        const desk = !!(window.CogwildDesktop && CogwildDesktop.restart);
         body.innerHTML = `<div class="set-wrap"><nav class="set-tabs">${tabs.map(([id, ico, name]) => `<button class="set-tab" data-settab="${id}"><i>${ico}</i><span>${name}</span></button>`).join('')}</nav><div class="set-main">
           <section class="set-sec" data-sec="account"><h3>👤 Account</h3><div id="setAcctBox">${acct ? acct.accountHtml() : ''}</div>
           </section><section class="set-sec" data-sec="display"><h3>🖥 Display</h3>
@@ -407,21 +409,24 @@
           <label class="set-row"><span>Graphics quality</span><select id="setGfx"><option value="auto">Auto (recommended)</option><option value="low">Low (fast, for older laptops and phones)</option><option value="medium">Medium</option><option value="high">High (shadows + max detail)</option></select></label>
           <label class="set-row"><span>Field of view <b id="setFovV"></b></span><input type="range" id="setFov" min="60" max="105" step="1"></label>
           <label class="set-row"><span>Camera</span><select id="setCam"><option value="first">First person (from your Camera part)</option><option value="third">Chase (behind the mech)</option></select></label>
-          <div class="set-row"><span>Fullscreen</span><button class="ws-btn" id="setFull">⛶ Toggle fullscreen</button></div>
-          <label class="set-row"><span>Health and info boxes in matches <b id="setHudBgV"></b><small>100% = as they come, 0% = no box behind the text and bars</small></span><input type="range" id="setHudBg" min="0" max="1" step="0.05"></label>
+          <div class="set-row"><span>Fullscreen</span><button class="set-btn" id="setFull">⛶ Toggle fullscreen</button></div>
+          <label class="set-row chk"><input type="checkbox" id="setGlass"><span>Glass look: see-through, blurred buttons and boxes (like an iPhone). Off = the usual solid look</span></label>
+          <div class="set-row"><span>Box behind the health bar and match info <b id="setHudBoxV"></b><small>How solid the boxes behind your health, the score and the map are in matches. 0% = no box, only the text and bars</small></span><span class="key-pair"><input type="range" id="setHudBox" min="0" max="1" step="0.05"><button class="set-btn" id="setHudBoxReset">Reset</button></span></div>
           <label class="set-row chk"><input type="checkbox" id="setShake"><span>Screen shake</span></label>
           <label class="set-row chk"><input type="checkbox" id="setDmg"><span>Floating damage numbers</span></label>
           <label class="set-row chk"><input type="checkbox" id="setFps"><span>Show FPS counter</span></label>
+          <label class="set-row"><span>Frame rate limit<small>${desk ? 'VSync matches your screen. Turning VSync on or off restarts the app' : "VSync matches your screen. Browsers can't draw faster than your screen (the desktop app can)"}</small></span><select id="setFpsCap"><option value="vsync">VSync: match my screen</option>${CW.FPS_CAPS.map((n) => `<option value="${n}">${n} FPS</option>`).join('')}<option value="off">Unlimited</option></select></label>
           <label class="set-row chk"><input type="checkbox" id="setClips"><span>Clip recorder: press <b>F8</b> in a match to save the last 10–20 seconds as a video (uses a little extra CPU)</span></label>
-          </section><section class="set-sec" data-sec="controls"><h3>🎮 Controls</h3>
+          ${CW.deviceFolders ? '<div class="set-row"><span>Your clips<small>Saved in Documents › Cogwild › Clips</small></span><button class="set-btn" id="setClipsDir">🗂 Open the Clips folder</button></div>' : ''}
+          </section><section class="set-sec" data-sec="controls"><h3>${I.pad} Controls</h3>
           <label class="set-row"><span>Look sensitivity (mouse, stick, touch) <b id="setSensV"></b></span><input type="range" id="setSens" min="0.3" max="2.5" step="0.05"></label>
           <label class="set-row chk"><input type="checkbox" id="setInvert"><span>Invert look up/down</span></label>
           <label class="set-row chk"><input type="checkbox" id="setSteer"><span>Auto-steer: W drives toward where you look (off = steer with A/D like a car)</span></label>
           <label class="set-row"><span>Bot difficulty</span><select id="setDiff"><option value="easy">🙂 Easy</option><option value="normal">😐 Normal</option><option value="hard">😈 Hard</option></select></label>
-          </section><section class="set-sec" data-sec="keys"><h3>⌨ Keys <button class="ws-btn" id="setKeysReset">Reset keys</button></h3>
+          </section><section class="set-sec" data-sec="keys"><h3>⌨ Keybinds <button class="ws-btn" id="setKeysReset">Reset keys</button></h3>
           <div class="small">Click a key, then press the new key (Esc cancels). Esc always pauses, keys 1-8 send quick chat online.</div>
           ${keyRows}
-          </section><section class="set-sec" data-sec="touch"><h3>📱 Touch screen</h3>
+          </section><section class="set-sec" data-sec="touch"><h3>${I.mobile} Touch screen</h3>
           <label class="set-row"><span>On-screen controls</span><select id="setTouch"><option value="auto">Auto (on for touch screens)</option><option value="on">Always on</option><option value="off">Off</option></select></label>
           <label class="set-row"><span>Button size <b id="setTouchSizeV"></b></span><input type="range" id="setTouchSize" min="0.7" max="1.5" step="0.05"></label>
           <label class="set-row chk"><input type="checkbox" id="setVibrate"><span>Vibration (phones and tablets)</span></label>
@@ -441,15 +446,14 @@
           ${optKey('Push to talk (hold)', 'vcPtt')}
           ${optKey('Mute / unmute your mic', 'vcMute')}
           ${optKey('Deafen: stop hearing others (also mutes you)', 'vcDeaf')}
-          <label class="set-row"><span>Microphone</span><select id="setVcMic"><option value="">Default microphone</option></select></label>
-          <label class="set-row ${outOk ? '' : 'hidden'}"><span>Speakers / headphones</span><select id="setVcOut"><option value="">Default speakers</option></select></label>
+          <label class="set-row"><span>Microphone</span><select id="setVcMic" class="dev-sel"><option value="">Default microphone</option></select></label>
+          <label class="set-row ${outOk ? '' : 'hidden'}"><span>Speakers / headphones</span><select id="setVcOut" class="dev-sel"><option value="">Default speakers</option></select></label>
           <label class="set-row"><span>Voice volume <b id="setVcVolV"></b></span><input type="range" id="setVcVol" min="0" max="2" step="0.05"></label>
           <div class="set-row"><span>Your mic <small class="small" id="vcCount"></small></span><div class="vc-meter"><i id="vcMeter"></i></div></div>
           <div class="small">On phones, tap 🎤 to mute (or hold it to talk with push to talk). Blocked players can't hear you or talk to you.</div>
-          <h3>📞 Calls</h3>
-          <div class="small">Call a friend or a club member who's online with 📞 Call (Friends, Clubs). No party or match needed.</div>
-          <label class="set-row"><span>Ringtone</span><select id="setRing">${CW.RINGTONES.map((r) => `<option value="${r.id}">${r.name}</option>`).join('')}<option value="custom">${s.ringName ? 'Your sound: ' + CW.esc(s.ringName) : 'Your own sound file…'}</option><option value="none">No sound</option></select></label>
-          <div class="set-row"><span>Your own ringtone<small>${s.ringName ? CW.esc(s.ringName) : 'Any sound file up to 1.5 MB, kept on this device'}</small></span><span class="key-pair"><button class="set-btn" id="setRingFile">Choose a file</button><button class="set-btn" id="setRingTry">▶ Try it</button></span></div>
+          <h3>${I.phone} Calls</h3>
+          <div class="small">Call a friend or a club member who's online with Call (Friends, Clubs). No party or match needed.</div>
+          ${this.ringHtml()}
           <label class="set-row"><span>Ringtone volume <b id="setRingVolV"></b></span><input type="range" id="setRingVol" min="0" max="1" step="0.05"></label>
           </section><section class="set-sec" data-sec="chat"><h3>💬 Chat</h3>
           <label class="set-row"><span>Chat with friends, party and club</span><select id="setChatMode"><option value="free">Free chat: type anything</option><option value="quick">Quick chat only (for kids): ready-made messages, no voice chat</option></select></label>
@@ -528,18 +532,28 @@
         bindChk('setFriendOn', 'friendOnline');
         bindChk('setChatNotes', 'chatNotes');
         bindChk('setChatStay', 'chatStay');
-        if (s.hudBg == null) s.hudBg = 1;
-        bindRange('setHudBg', 'hudBg', (v) => Math.round(v * 100) + '%');
-        // calls: ringtone, your own sound, volume
-        const calls = this.game.calls;
-        if (s.ringVol == null) s.ringVol = 0.8;
-        $('setRing').value = s.ring === 'custom' && !calls.customRing() ? 'chime' : s.ring || 'chime';
-        $('setRing').onchange = (e) => {
-          if (e.target.value === 'custom' && !calls.customRing()) return calls.pickFile(() => this.renderPanel());
-          s.ring = e.target.value; this.apply(); calls.preview();
+        // the glass look, and the box behind the health bar (its default follows the look; Reset goes back to it)
+        bindChk('setGlass', 'glass');
+        $('setGlass').addEventListener('change', () => this.renderPanel());
+        const hudBox = () => (s.hudBox == null ? CW.hudBoxDefault(s) : s.hudBox);
+        const showBox = () => { $('setHudBox').value = hudBox(); $('setHudBoxV').textContent = Math.round(hudBox() * 100) + '%'; $('setHudBoxReset').disabled = s.hudBox == null; };
+        showBox();
+        $('setHudBox').oninput = (e) => { s.hudBox = parseFloat(e.target.value); this.apply(); showBox(); };
+        $('setHudBoxReset').onclick = () => { s.hudBox = null; this.apply(); showBox(); };
+        // frame rate limit: VSync, a number, or none (the desktop app restarts to turn VSync on or off)
+        $('setFpsCap').value = String(s.fpsCap || 'vsync');
+        $('setFpsCap').onchange = (e) => {
+          const was = s.fpsCap || 'vsync', v = e.target.value;
+          const set = () => { s.fpsCap = v === 'vsync' ? null : v === 'off' ? 'off' : +v; this.apply(); };
+          if (desk && (was === 'vsync') !== (v === 'vsync')) {
+            e.target.value = String(was);
+            return this.ask(v === 'vsync' ? 'Turn VSync on?' : 'Turn VSync off?', 'Cogwild restarts to change it (a match you are in ends).', 'Restart', () => { set(); CogwildDesktop.vsync(v === 'vsync'); CogwildDesktop.restart(); });
+          }
+          set();
         };
-        $('setRingFile').onclick = () => calls.pickFile(() => { this.renderPanel(); calls.preview(); });
-        $('setRingTry').onclick = () => calls.preview();
+        // calls: listen to each ringtone, pick one, your own sound, volume
+        if (s.ringVol == null) s.ringVol = 0.8;
+        this.bindRing(body);
         bindRange('setRingVol', 'ringVol', (v) => Math.round(v * 100) + '%');
         // chat mode lives on the account
         $('setChatMode').value = talk.mode;
@@ -578,6 +592,7 @@
         bindChk('setMusic', 'music');
         bindChk('setFps', 'showFps');
         bindChk('setClips', 'clips');
+        if ($('setClipsDir')) $('setClipsDir').onclick = () => CW.openFolder('clips');
         $('setDiff').value = s.difficulty;
         $('setDiff').onchange = (e) => { s.difficulty = e.target.value; this.apply(); };
         bindChk('setSteer', 'autoSteer'); bindChk('setInvert', 'invertY'); bindChk('setShake', 'shake'); bindChk('setDmg', 'dmgNumbers');
@@ -612,10 +627,45 @@
       }
     }
 
+    // Settings › Voice chat › Calls: every ringtone with ▶ (listen; again = stop) and Use, your own sound file, and ▶ for the one in use
+    ringHtml() {
+      const s = this.settings, calls = this.game.calls, cur = calls.ringId(), own = !!calls.customRing();
+      const now = cur === 'none' ? 'No sound' : cur === 'custom' ? (s.ringName ? CW.esc(s.ringName) : 'Your own sound') : (CW.RINGTONES.find((r) => r.id === cur) || CW.RINGTONES[0]).name;
+      const play = (id) => `<button class="set-btn ring-play" data-ringplay="${id}" aria-label="Listen">▶</button>`;
+      const use = (id) => `<button class="set-btn ring-use ${cur === id ? 'on' : ''}" data-ringuse="${id}" ${cur === id ? 'disabled' : ''}>${cur === id ? '✓ In use' : 'Use'}</button>`;
+      const row = (id, name, extra) => `<div class="set-row ring-row ${cur === id ? 'cur' : ''}"><span>${name}${extra || ''}</span><span class="key-pair">${id === 'none' || (id === 'custom' && !own) ? '' : play(id)}${id === 'custom' ? `<button class="set-btn" id="setRingFile">${own ? 'Change file' : 'Choose a file'}</button>` : ''}${id === 'custom' && !own ? '' : use(id)}</span></div>`;
+      return `<div class="set-row"><span>Your ringtone: <b>${now}</b></span><button class="set-btn ring-play" id="setRingTry" data-ringplay="mine" ${cur === 'none' ? 'disabled' : ''}>▶ Listen</button></div>
+        <div class="ring-list">${CW.RINGTONES.map((r) => row(r.id, r.name)).join('')}
+        ${row('custom', 'Your own sound', `<small>${own && s.ringName ? CW.esc(s.ringName) : 'Any sound file up to 1.5 MB, kept on this device'}</small>`)}
+        ${row('none', 'No sound')}</div>`;
+    }
+    bindRing(body) {
+      const s = this.settings, calls = this.game.calls;
+      const marks = () => body.querySelectorAll('[data-ringplay]').forEach((b) => {
+        const id = b.dataset.ringplay === 'mine' ? calls.ringId() : b.dataset.ringplay;
+        const on = calls.previewId === id && (b.dataset.ringplay === 'mine') === !!calls.previewMine;
+        b.classList.toggle('playing', on);
+        b.textContent = b.dataset.ringplay === 'mine' ? (on ? '■ Stop' : '▶ Listen') : on ? '■' : '▶';
+        b.setAttribute('aria-label', on ? 'Stop' : 'Listen');
+      });
+      calls.onPreview = () => { if (body.isConnected) marks(); };
+      body.querySelectorAll('[data-ringplay]').forEach((b) => (b.onclick = () => {
+        const mine = b.dataset.ringplay === 'mine';
+        calls.preview(mine ? calls.ringId() : b.dataset.ringplay, mine);
+      }));
+      body.querySelectorAll('[data-ringuse]').forEach((b) => (b.onclick = () => {
+        s.ring = b.dataset.ringuse; this.apply(); calls.stopPreview(); this.renderPanel();
+      }));
+      const file = body.querySelector('#setRingFile');
+      if (file) file.onclick = () => calls.pickFile(() => { this.renderPanel(); calls.preview('custom', true); });
+      marks();
+    }
+
     // What's new (Settings › Change logs, and the 📰 News button on phones)
     newsHtml() {
       return `<ul class="news">
-          <li><b>v1.9.7</b>: 📞 <b>Calls</b>: call a friend or a club member who's online, no party or match needed. Pick a ringtone, use your own sound file and set its volume in Settings › Voice chat. ⛰ Fast mechs can drive up mountains and the arena's sides (the force field is at the very top now); too slow and you roll back, too fast into the field and you flip. 🎤 Voices in matches are as clear and loud as in the lobby. 💬 Type to everyone while you wait for a match; a click outside the chat closes it (or keep it open in Settings › Chat); chat and voice keys can be two keys like Shift + Tab. 🛡 Clubs: the owner can rename the club and click its picture to change or reset it, members show when they were last online, and Direct Message. ⚙ A slider for the health and info boxes, square Settings categories, calmer buttons, and the fullscreen button always works.</li>
+          <li><b>v1.9.8</b>: 🪟 A <b>glass look</b> (Settings › Display): see-through, blurred buttons and boxes. 🎞 A frame rate limit (VSync, 30–240 FPS or unlimited; above your screen's rate in the desktop app). The box behind your health bar is 50% by default and has a Reset button. 🎬 In the desktop app clips and replays are saved straight into Documents › Cogwild, with buttons that open those folders. ${CW.ICON.phone} Listen to every ringtone before you pick it, and drag the call card anywhere. ⚙ Settings in a new order, every button and menu there lights up the same gray-blue when you point at it, blue icons, and your email is shown hidden (t*****r@gmail.com).</li>
+          <li><b>v1.9.7</b>: ${CW.ICON.phone} <b>Calls</b>: call a friend or a club member who's online, no party or match needed. Pick a ringtone, use your own sound file and set its volume in Settings › Voice chat. ⛰ Fast mechs can drive up mountains and the arena's sides (the force field is at the very top now); too slow and you roll back, too fast into the field and you flip. 🎤 Voices in matches are as clear and loud as in the lobby. 💬 Type to everyone while you wait for a match; a click outside the chat closes it (or keep it open in Settings › Chat); chat and voice keys can be two keys like Shift + Tab. 🛡 Clubs: the owner can rename the club and click its picture to change or reset it, members show when they were last online, and Direct Message. ⚙ A slider for the health and info boxes, square Settings categories, calmer buttons, and the fullscreen button always works.</li>
           <li><b>v1.9.6</b>: 🧹 A calmer lobby on PCs: Help and these change logs moved to Settings (at the bottom), the Trophy Road opens from the trophy bar and the challenges from the challenge card. In a party, every lobby button can be clicked again. Settings › Keys is now Keybinds.</li>
           <li><b>v1.9.5</b>: 👤 A new <b>profile</b>: a banner with your picture, simple default profile pictures (the emoji avatars are gone, and the ones you had became coins), and your stats in one neat box. Clicking your own picture no longer removes it. Your account options (email, username, password, log out) moved to Settings › Account. Other players' profiles are bigger and clearer. 🛡 The club screen opens the chat with one calm button. 🎮 The status panel in matches is smaller and see-through.</li>
           <li><b>v1.9.4</b>: 🔧 <b>Round and turnable parts</b> in the Workshop: Round Edge, Curved Hood, Round Corner, Round Top, Slope, plus a Fuselage, Nose Cone, Canopy, Sub Tower and Tail Fin for planes and submarines (try the new Round Coupe, Jet Fighter and Submarine examples). Press <b>R</b> to turn a part and <b>U</b> to flip it. ✈ Rotors and wings lift more, so armored mechs can fly too. 🎮 A simpler, cleaner <b>PLAY picker</b> and <b>Clubs</b> screen, <b>Esc</b> cancels a search, the chat sits down the left side on PCs, more animations, and ✉ <b>Contact us</b> opens our support page. 📱 Phones stay logged in, and the chat fits above the keyboard. 🖥 The desktop app has a dark title bar that matches the game, shows what you're playing on Discord, and never asks for your camera or location.</li>
@@ -705,7 +755,7 @@
           <div><h3>🎯 Goal</h3><p>Build a mech, fight, and be the last pilot (or team) standing. A wrecked mech ejects its pilot: you can still fight on foot!</p></div>
           <div><h3>🎮 Mech controls</h3><p><b>W</b> drive · <b>S</b> brake / reverse · <b>A/D</b> steer · <b>Mouse</b> aim · <b>Click</b> fire<br><b>Shift</b> DASH (with A/D on Legs = sidestep) · Flying: hold <b>Space</b> to climb, <b>C</b> (or Q / Ctrl) to fly down · <b>Space</b> = jump on Legs<br><b>E</b> exit mech · <b>V</b> switch camera · <b>F</b> unstuck · <b>Tab</b> scores · <b>Esc</b> pause</p></div>
           <div><h3>🎮 Controller</h3><p><b>Left stick</b> drive · <b>Right stick</b> look · <b>RT</b> fire · <b>A</b> up/jump · <b>B / LT</b> down · <b>X</b> dash · <b>Y</b> exit/enter · <b>LB</b> repair · <b>RB</b> camera · <b>View</b> scoreboard · <b>Start</b> pause · <b>D-pad ↑</b> save clip. In menus: D-pad + A, B = back.</p></div>
-          <div><h3>🎬 Clips</h3><p>Press <b>F8</b> during a match to save the last 10–20 seconds as a video in your Downloads. Perfect for TikTok / Shorts!</p></div>
+          <div><h3>🎬 Clips</h3><p>Press <b>F8</b> during a match to save the last 10–20 seconds as a video (in your Downloads, or Documents › Cogwild › Clips in the desktop app). Perfect for TikTok / Shorts!</p></div>
           <div><h3>🔧 Repairing</h3><p>Press <b>E</b> to hop out, stand next to your mech and <b>hold R</b>. Damaged parts are fixed first, then blown-off parts are rebuilt one by one. Press <b>E</b> to climb back in. Careful: you're exposed while on foot! Repair Kits and Repair Drones also heal.</p></div>
           <div><h3>▶ Playing</h3><p>Pick an arena on the <b>arena card</b>, then press <b>PLAY</b>: you're matched with players on that arena, and after 30 seconds bots fill the empty seats. In a party, the leader presses PLAY and everyone joins. The arena card also has <b>Practice vs bots</b> (all 7 modes) and <b>Private room with friends</b> (a code and an invite link; the host picks the mode). Quick chat: keys <b>1-8</b>.</p></div>
           <div><h3>🧍 On foot</h3><p><b>WASD</b> move · <b>Space</b> jump · <b>Click</b> shoot · <b>E</b> board · hold <b>R</b> repair</p></div>

@@ -15,6 +15,11 @@
   CW.AVATAR_COLORS = ['#3d6fe0', '#1f9e8a', '#d6455a', '#e07f2a', '#7c55e0', '#c99a14', '#1d93c4', '#5d6a85'];
   CW.AVATARS = CW.AVATAR_COLORS.map((c) => `<span class="dpic" style="background:${c}"><svg viewBox="0 0 32 32" aria-hidden="true"><g fill="#fff"><circle cx="16" cy="6.2" r="1.7"/><rect x="15.2" y="7" width="1.6" height="3.6" rx=".8"/><rect x="8" y="10.2" width="16" height="13" rx="4.2"/><rect x="5.6" y="14" width="2.6" height="5.4" rx="1.3"/><rect x="23.8" y="14" width="2.6" height="5.4" rx="1.3"/></g><g fill="${c}"><circle cx="12.6" cy="16.2" r="2.1"/><circle cx="19.4" cy="16.2" r="2.1"/><rect x="13" y="19.8" width="6" height="1.7" rx=".85"/></g></svg></span>`);
   CW.FREE_AVATARS = CW.AVATARS.length;
+  // an email is never shown in full in Settings (someone might be watching your screen): t*****y@gmail.com
+  CW.hideEmail = (m) => {
+    const [u, d] = String(m || '').split('@');
+    return u.length > 2 ? `${u[0]}${'*'.repeat(Math.min(8, u.length - 2))}${u[u.length - 1]}@${d}` : `${u[0] || ''}***@${d}`;
+  };
   // "5 min ago", "3 h ago", "2 days ago" (club members' Last online)
   CW.ago = (t) => {
     const s = Math.max(0, (Date.now() - t) / 1000);
@@ -153,7 +158,7 @@
           this.loginView('name');
           break;
         case 'acctNewPass': this.loginView('reset'); break;
-        case 'acctEmailSet': this.myEmail = m.email; g.toast(`📧 ${m.email} is now your login`); this.linkStep = null; this.rerender(); this.renderAccountBox(); break;
+        case 'acctEmailSet': this.myEmail = m.email; g.toast(`📧 ${CW.hideEmail(m.email)} is now your login`); this.linkStep = null; this.rerender(); this.renderAccountBox(); break;
         case 'guestOk':
           if (m.token) keep('cogwild.guest', m.token);
           this.guestOn = true;
@@ -898,11 +903,11 @@
       const facts = (cl) => `<span>🏆 ${cl.tro}</span><span>👥 ${cl.members}/30</span>${cl.open ? '' : '<span>🔒 Closed</span>'}${cl.minTro ? `<span>Needs 🏆 ${cl.minTro}</span>` : ''}`;
       const row = (cl) => `<div class="club-row cl-pick" data-peek="${esc(cl.id)}" role="button" tabindex="0" aria-label="See ${esc(cl.name)}"><span class="cl-face">${CW.clubFace(cl)}</span><span class="cl-txt"><b>${esc(cl.name)}</b><small class="cl-facts">${facts(cl)}</small></span>${canJoin(cl) ? `<button class="pill go" data-join="${esc(cl.id)}">Join</button>` : ''}<span class="cl-arrow">›</span></div>`;
       const iOwn = (cl) => cl.list.some((x) => x.name === this.me.name && x.role === 'owner');
-      // v1.9.7: each member shows when they were last online; club-mates get Direct Message (and 📞 Call while online)
+      // v1.9.7: each member shows when they were last online; club-mates get Direct Message (and Call while online)
       const seen = (p) => `<small class="cl-last"><i class="cl-dot ${p.on ? 'on' : ''}"></i>${p.on ? 'Online' : p.seen ? `Last online ${CW.ago(p.seen)}` : 'Offline'}</small>`;
       const members = (cl, mine) => cl.list.map((p) => {
         const other = mine && p.name !== this.me.name;
-        return `<div class="club-row cl-member"><span class="cl-face">${CW.face(p)}</span><span class="cl-who"><b class="fr-name" data-view="${esc(p.name)}">${esc(p.name)}${p.role === 'owner' ? ' 👑' : ''}</b>${seen(p)}</span><span class="cl-meta">🏆 ${p.tro}</span>${other && p.on ? `<button class="pill line" data-call="${esc(p.name)}" aria-label="Call ${esc(p.name)}">📞 Call</button>` : ''}${other ? `<button class="pill line" data-dm="${esc(p.name)}">Direct Message</button>` : ''}${other && iOwn(this.club) ? `<button class="pill icon quiet" data-kick="${esc(p.name)}" aria-label="Remove from the club">✕</button>` : ''}</div>`;
+        return `<div class="club-row cl-member"><span class="cl-face">${CW.face(p)}</span><span class="cl-who"><b class="fr-name" data-view="${esc(p.name)}">${esc(p.name)}${p.role === 'owner' ? ' 👑' : ''}</b>${seen(p)}</span><span class="cl-meta">🏆 ${p.tro}</span>${other && p.on ? `<button class="pill line" data-call="${esc(p.name)}" aria-label="Call ${esc(p.name)}">${CW.ICON.phone} Call</button>` : ''}${other ? `<button class="pill line" data-dm="${esc(p.name)}">Direct Message</button>` : ''}${other && iOwn(this.club) ? `<button class="pill icon quiet" data-kick="${esc(p.name)}" aria-label="Remove from the club">✕</button>` : ''}</div>`;
       }).join('');
       // the owner clicks the club's picture to change or reset it (v1.9.7: no separate buttons)
       const head = (cl, acts, edit) => `<div class="club-card cl-head"><span class="club-badge ${edit ? 'cl-pic-edit' : ''}" ${edit ? 'id="clPicBtn" role="button" tabindex="0" aria-label="Change the club picture"' : ''}>${CW.clubFace(cl)}${edit ? '<i class="cl-pic-ico">📷</i>' : ''}</span>
@@ -1016,10 +1021,10 @@
       if (!this.me) return `<div class="set-row"><span>Playing as a guest<small>Progress is saved on this device only. An account keeps it on every device.</small></span><button class="set-btn go" id="acLogin">Log in / Sign up</button></div>`;
       const me = this.me;
       return `<div class="set-row"><span>Logged in as <b>${esc(me.name)}</b><small>${this.sync.dirty ? 'Backing up your progress…' : 'Your progress is backed up: log in on any device to play with it'}</small></span><button class="set-btn" id="acProfile">Profile</button></div>
-        ${this.mailLogin() ? `<div class="set-row"><span>Email<small>${this.myEmail ? `You log in with ${esc(this.myEmail)}` : 'None yet: add one so you can always log in'}</small></span><button class="set-btn" data-acform="linkForm">${this.myEmail ? 'Change' : 'Add'}</button></div>
+        ${this.mailLogin() ? `<div class="set-row"><span>Email<small>${this.myEmail ? `You log in with <span translate="no">${esc(CW.hideEmail(this.myEmail))}</span>` : 'None yet: add one so you can always log in'}</small></span><button class="set-btn" data-acform="linkForm">${this.myEmail ? 'Change' : 'Add'}</button></div>
         <form id="linkForm" class="set-form ${this.linkStep ? '' : 'hidden'}">${this.linkStep === 'code'
           ? '<input id="linkCode" inputmode="numeric" maxlength="6" placeholder="Code from the email"><button class="set-btn go">Confirm</button>'
-          : `<input id="linkMail" type="email" maxlength="254" placeholder="you@gmail.com" value="${esc(this.myEmail || '')}"><button class="set-btn go">Send a code</button>`}</form>` : ''}
+          : `<input id="linkMail" type="email" maxlength="254" placeholder="New email address" value=""><button class="set-btn go">Send a code</button>`}</form>` : ''}
         <div class="set-row"><span>Username<small>You can change it once a week</small></span><button class="set-btn" data-acform="profRenameForm">Change</button></div>
         <form id="profRenameForm" class="set-form hidden"><input id="prName" maxlength="16" autocomplete="off" spellcheck="false" placeholder="New username" value="${esc(me.name)}"><button class="set-btn go">Save</button><div class="small">3-16 letters, numbers or _. Friends, clubs and messages keep working.</div></form>
         ${this.hasPass ? `<div class="set-row"><span>Password<small>Other devices are logged out when you change it</small></span><button class="set-btn" data-acform="profPassForm">Change</button></div>
@@ -1118,7 +1123,7 @@
           ${f.on && inRoom ? `<button class="ws-btn" data-inv="${esc(f.name)}" aria-label="Invite to the room you're in">📨 Invite</button>` : ''}
           ${f.room && (!net.room || net.room.code !== f.room) ? `<button class="ws-btn on" data-join="${esc(f.room)}" aria-label="Join their room">▶ Join</button>` : ''}
           ${f.watch ? `<button class="ws-btn on" data-watch="${esc(f.name)}" aria-label="Watch their match (they'll see you're watching)">👁 Watch</button>` : ''}
-          ${f.on ? `<button class="ws-btn" data-call="${esc(f.name)}" aria-label="Call ${esc(f.name)}">📞 Call</button>` : ''}
+          ${f.on ? `<button class="ws-btn" data-call="${esc(f.name)}" aria-label="Call ${esc(f.name)}">${CW.ICON.phone} Call</button>` : ''}
           <button class="ws-btn" data-dm="${esc(f.name)}" aria-label="Message ${esc(f.name)}">💬 Message${this.game.talk.unread[f.name] ? ` <i class="badge inline">${this.game.talk.unread[f.name]}</i>` : ''}</button>
           <button class="ws-btn" data-rem="${esc(f.name)}" aria-label="Remove friend">✖</button></div>`).join('') : '<div class="small">No friends yet. Add someone by their username!</div>') +
         (this.reqOut.length ? `<h3>Sent requests</h3>${this.reqOut.map((n) => `<div class="fr-row"><b>${esc(n)}</b><span class="small">waiting…</span><button class="ws-btn" data-dec="${esc(n)}">Cancel</button></div>`).join('')}` : '');

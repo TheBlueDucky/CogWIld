@@ -125,9 +125,9 @@ app.whenReady().then(async () => {
   // ---------------- a match: HUD boxes, climbing the sides ----------------
   await js(A, `${G}.playOffline('clash', 'desert', null); true`);
   await js(A, `(async () => { const g = ${G}; for (let i = 0; i < 400 && (g.state !== 'match' || g.countdown > 0); i++) { g.tick(1 / 60); if (i % 30 === 0) await new Promise((r) => setTimeout(r, 0)); } return true; })()`);
-  await js(A, `${G}.settings.hudBg = 0; ${G}.applySettings(); true`);
+  await js(A, `${G}.settings.hudBox = 0; ${G}.applySettings(); true`);
   const bg0 = await js(A, `getComputedStyle(document.getElementById('status')).backgroundColor`);
-  await js(A, `${G}.settings.hudBg = 1; ${G}.applySettings(); true`);
+  await js(A, `${G}.settings.hudBox = 1; ${G}.applySettings(); true`);
   const bg1 = await js(A, `getComputedStyle(document.getElementById('status')).backgroundColor`);
   const alpha = (c) => +((c.match(/rgba\([^)]*,\s*([\d.]+)\)/) || [])[1] ?? 1);
   check(alpha(bg0) === 0 && alpha(bg1) > 0.1, `the health box slider: 0% = no box, 100% = as before (${bg0} / ${bg1})`);

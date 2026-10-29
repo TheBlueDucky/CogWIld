@@ -1832,6 +1832,68 @@
   .call-card.live .cc-txt b { font-size: 14px; }
   .call-card.live .cc-btn { width: 34px; height: 34px; font-size: 15px; }
   .compact .call-card { top: 46px; min-width: 260px; }
+  /* v1.9.8 (asked for): every Settings control hovers with the gray-blue --muted2 line and its row's words turn
+     gray-blue; buttons in Settings rows are as tall as the drop-down menus; a drop-down that's open has the same line */
+  .set-row:hover > span:not(.key-pair), .set-row:hover > span:not(.key-pair) b { color: var(--muted2); }
+  .set-row > span:not(.key-pair), .set-row > span:not(.key-pair) b { transition: color .12s; }
+  input:focus, select:focus, textarea:focus { border-color: var(--muted2) !important; }
+  #panel .set-btn:not(:disabled):hover, #panel select:not(:disabled):hover, #panel .set-sec input[type=checkbox]:not(:disabled):hover { outline: 1px solid var(--muted2) !important; outline-offset: -1px; }
+  #panel .set-row select { height: 32px; padding: 0 8px; border: 1px solid var(--line2); background: var(--bg2); box-sizing: border-box; }
+  #panel .set-row > .set-btn, #panel .set-row .key-pair > .set-btn, #panel .set-row > .ws-btn:not(.key-btn) { height: 32px; padding: 0 14px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 13.5px; }
+  #panel .set-sec h3 .ws-btn { padding: 4px 12px; font-size: 13px; }
+  .set-row .key-pair { display: inline-flex; align-items: center; gap: 6px; }
+  .set-row .key-pair input[type=range] { width: 170px; }
+  .set-row select.dev-sel { width: 320px; max-width: 58vw; text-overflow: ellipsis; }
+  .set-btn.on, .set-btn.on:disabled { color: var(--hl); opacity: 1; }
+  .ring-list { margin: 0 0 0 14px; }
+  .ring-row { padding: 6px 0 !important; }
+  .ring-row .ring-play, #setRingTry { min-width: 40px; }
+  .ring-row .ring-use { min-width: 84px; }
+  .set-btn.playing { color: var(--hl); border-color: var(--muted2); }
+  /* blue icons (CW.ICON): calls, Touch screen, Controls */
+  .cw-ico { width: 1.05em; height: 1.05em; vertical-align: -.16em; color: #4fb4ff; filter: drop-shadow(0 0 1px rgba(79, 180, 255, .35)); flex: none; }
+  .set-tab i .cw-ico { width: 1.15em; height: 1.15em; vertical-align: -.2em; }
+  .cc-btn.yes .cw-ico { color: #fff; filter: none; width: 22px; height: 22px; }
+  .call-card.live .cc-btn.yes .cw-ico { width: 17px; height: 17px; }
+  #toast .cw-ico { color: #4fb4ff; }
+  /* the same line outside Settings: clubs in "Find a club", the picture choices in your profile */
+  #panel .cl-pick:hover { outline: 1px solid var(--muted2) !important; outline-offset: -1px; }
+  #panel .pf-pick:not(.on):hover { border-color: var(--muted2) !important; }
+  /* Replays: buttons with only a line */
+  #panel .ws-btn.line { background: transparent !important; }
+  /* the call card: the gray-blue line, and you can drag it anywhere (⟲ puts it back) */
+  .call-card { border-color: var(--muted2); cursor: grab; touch-action: none; user-select: none; }
+  .call-card.grab { cursor: grabbing; animation: none; }
+  .call-card.moved { transform: none; animation: none; }
+  .call-card .cc-time { display: inline-flex; align-items: center; gap: 5px; }
+  .cc-btn.reset { background: transparent; border-color: var(--line2); color: var(--muted2); font-size: 17px; }
+  .call-card.live .cc-btn.reset { width: 30px; height: 30px; font-size: 14px; }
+
+  /* v1.9.8 the glass look (Settings › Display): see-through boxes that blur what's behind them, with a light edge, like
+     iOS. Lobby buttons and cards, the chat, the call card, toasts, the Settings window and (with the in-match box
+     slider) the health and match info boxes */
+  html.glass { --glass: rgba(255, 255, 255, .08); --glass-line: rgba(255, 255, 255, .24); }
+  html.glass :is(.side-btn, .bs-chip, .road-bar, .bs-icon, .quests-card, .arena-card, .feat-chip, .pass-bar, .party-bar, .acct-chip, .call-card, #toast, #chat, #search .search-box, #specBar, .confirm-box, #hudTalk button, #camBadge, #recDot) {
+    background: linear-gradient(155deg, rgba(255, 255, 255, .24), rgba(255, 255, 255, .07) 52%, rgba(255, 255, 255, .13)) !important;
+    border: 1px solid rgba(255, 255, 255, .3) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), inset 0 -1px 0 rgba(255, 255, 255, .1), 0 8px 26px rgba(0, 0, 0, .26) !important;
+    backdrop-filter: blur(18px) saturate(180%); -webkit-backdrop-filter: blur(18px) saturate(180%); }
+  html.glass :is(.side-btn, .bs-chip, .bs-icon, .quests-card, .arena-card, .feat-chip, .pass-bar, .acct-chip, #hudTalk button):hover { background: linear-gradient(155deg, rgba(255, 255, 255, .32), rgba(255, 255, 255, .11) 52%, rgba(255, 255, 255, .17)) !important; border-color: var(--muted2) !important; }
+  html.glass :is(.side-btn, .bs-chip, .road-bar, .quests-card, .arena-card, .pass-bar, .party-bar, .acct-chip, #chat, .call-card, #toast, #camBadge) { text-shadow: 0 1px 3px rgba(0, 0, 0, .6); }
+  html.glass #camBadge:empty, html.glass #recDot.hidden { display: none; }
+  html.glass .confirm-box { background: linear-gradient(155deg, rgba(40, 52, 92, .72), rgba(18, 26, 51, .78)) !important; }
+  html.glass #toast { background: linear-gradient(155deg, rgba(40, 52, 92, .6), rgba(18, 26, 51, .66)) !important; }
+  html.glass #panel.full { background: rgba(16, 22, 44, .58); backdrop-filter: blur(26px) saturate(150%); -webkit-backdrop-filter: blur(26px) saturate(150%); }
+  html.glass #panel.full .set-tabs { background: rgba(255, 255, 255, .04); }
+  html.glass #chat .chat-form input { background: rgba(0, 0, 0, .22); }
+  /* in matches the slider (--hudBg) sets how strong the glass is */
+  html.glass #status, html.glass #topInfo {
+    background: linear-gradient(155deg, rgba(255, 255, 255, calc(.17 * var(--hudBg, 1))), rgba(255, 255, 255, calc(.05 * var(--hudBg, 1))) 55%, rgba(255, 255, 255, calc(.09 * var(--hudBg, 1)))) !important;
+    border: 1px solid rgba(255, 255, 255, calc(.28 * var(--hudBg, 1))) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, calc(.32 * var(--hudBg, 1))), 0 8px 24px rgba(0, 0, 0, calc(.22 * var(--hudBg, 1))) !important;
+    backdrop-filter: blur(calc(14px * var(--hudBg, 1))) saturate(calc(100% + 70% * var(--hudBg, 1))); -webkit-backdrop-filter: blur(calc(14px * var(--hudBg, 1))) saturate(calc(100% + 70% * var(--hudBg, 1)));
+    text-shadow: 0 1px 3px rgba(0, 0, 0, .7); }
+  html.glass #minimap { border-color: rgba(255, 255, 255, calc(.3 * var(--hudBg, 1))) !important; }
 </style>
 </head>
 <body>
@@ -2299,35 +2361,35 @@
 </div>
 
 <!-- three.js: from the CDN, or the local copy in js/vendor/ when offline (desktop build / no internet) -->
-<script src="js/vendor/three.min.js?v=39"></script>
-<script src="js/economy.js?v=39"></script>
-<script src="js/parts.js?v=39"></script>
-<script src="js/bugs.js?v=39"></script>
-<script src="js/i18n.js?v=39"></script>
-<script src="js/platform.js?v=39"></script>
-<script src="js/featured.js?v=39"></script>
-<script src="js/world.js?v=39"></script>
-<script src="js/entities.js?v=39"></script>
-<script src="js/meta.js?v=39"></script>
-<script src="js/extras.js?v=39"></script>
-<script src="js/modes.js?v=39"></script>
-<script src="js/tutorial.js?v=39"></script>
-<script src="js/clips.js?v=39"></script>
-<script src="js/gamepad.js?v=39"></script>
-<script src="js/workshop.js?v=39"></script>
-<script src="js/config.js?v=39"></script>
-<script src="js/net.js?v=39"></script>
-<script src="js/account.js?v=39"></script>
-<script src="js/touch.js?v=39"></script>
-<script src="js/supers.js?v=39"></script>
-<script src="js/gadgets.js?v=39"></script>
-<script src="js/replay.js?v=39"></script>
-<script src="js/gallery.js?v=39"></script>
-<script src="js/pics.js?v=39"></script>
-<script src="js/talk.js?v=39"></script>
-<script src="js/voice.js?v=39"></script>
-<script src="js/calls.js?v=39"></script>
-<script src="js/game.js?v=39"></script>
-<script src="js/desktop.js?v=39"></script>
+<script src="js/vendor/three.min.js?v=40"></script>
+<script src="js/economy.js?v=40"></script>
+<script src="js/parts.js?v=40"></script>
+<script src="js/bugs.js?v=40"></script>
+<script src="js/i18n.js?v=40"></script>
+<script src="js/platform.js?v=40"></script>
+<script src="js/featured.js?v=40"></script>
+<script src="js/world.js?v=40"></script>
+<script src="js/entities.js?v=40"></script>
+<script src="js/meta.js?v=40"></script>
+<script src="js/extras.js?v=40"></script>
+<script src="js/modes.js?v=40"></script>
+<script src="js/tutorial.js?v=40"></script>
+<script src="js/clips.js?v=40"></script>
+<script src="js/gamepad.js?v=40"></script>
+<script src="js/workshop.js?v=40"></script>
+<script src="js/config.js?v=40"></script>
+<script src="js/net.js?v=40"></script>
+<script src="js/account.js?v=40"></script>
+<script src="js/touch.js?v=40"></script>
+<script src="js/supers.js?v=40"></script>
+<script src="js/gadgets.js?v=40"></script>
+<script src="js/replay.js?v=40"></script>
+<script src="js/gallery.js?v=40"></script>
+<script src="js/pics.js?v=40"></script>
+<script src="js/talk.js?v=40"></script>
+<script src="js/voice.js?v=40"></script>
+<script src="js/calls.js?v=40"></script>
+<script src="js/game.js?v=40"></script>
+<script src="js/desktop.js?v=40"></script>
 </body>
 </html>

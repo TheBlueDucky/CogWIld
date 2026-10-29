@@ -355,7 +355,7 @@
       } else {
         if (tab === 'friends') {
           const f = this.acct.friends.find((x) => x.name === this.thread) || ((this.acct.club && this.acct.club.list) || []).find((x) => x.name === this.thread);
-          sub = `<button class="ws-btn chat-back" data-back="1">←</button><b class="chat-who" data-who="${esc(this.thread)}">${esc(this.thread)}</b>${f && f.on && !this.isBlocked(this.thread) ? `<button class="ws-btn chat-call" data-call="${esc(this.thread)}" aria-label="Call ${esc(this.thread)}">📞 Call</button>` : ''}`;
+          sub = `<button class="ws-btn chat-back" data-back="1">←</button><b class="chat-who" data-who="${esc(this.thread)}">${esc(this.thread)}</b>${f && f.on && !this.isBlocked(this.thread) ? `<button class="ws-btn chat-call" data-call="${esc(this.thread)}" aria-label="Call ${esc(this.thread)}">${CW.ICON.phone} Call</button>` : ''}`;
         }
         else if (tab === 'club') sub = `<b>🛡 ${esc(this.acct.club.name)}</b><span class="small">${this.acct.club.list.filter((p) => p.on).length} online</span>`;
         else sub = `<b>🎉 Party</b><span class="small">${this.acct.party.members.map((p) => esc(p.name)).join(', ')}</span>`;

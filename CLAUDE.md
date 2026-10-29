@@ -5,7 +5,7 @@ You build a mech from parts in the Workshop, then fight online (bots fill empty 
 It runs in the browser (three.js r128, no build step), as a Windows app (Electron) and an Android app (Capacitor),
 and on game portals (itch.io, CrazyGames, Poki). The online server is zero-dependency Node.js.
 
-**Live:** https://cogwild.duckdns.org (download page `/download`) · **Code:** https://github.com/TheBlueDucky/CogWIld (public; commits as theblueduckymc@gmail.com) · **Current version:** v1.9.7 · **Online protocol:** `cogwild-net-10`
+**Live:** https://cogwild.duckdns.org (download page `/download`) · **Code:** https://github.com/TheBlueDucky/CogWIld (public; commits as theblueduckymc@gmail.com) · **Current version:** v1.9.8 · **Online protocol:** `cogwild-net-10`
 The user is not a programmer: explain things in plain words, test everything yourself, and show screenshots as proof.
 
 ## How the user wants things done
@@ -54,7 +54,19 @@ The user is not a programmer: explain things in plain words, test everything you
   top (Accept / Decline; in a call a bar with the time, 🎤, hang up); a live call counts as voice context; ringtones are WebAudio
   (`CW.RINGTONES`) or your own file (localStorage `cogwild.ringtone`, ≤1.5 MB), `settings.ring/ringVol`. Voices in matches: no
   distance falloff (rolloff 0), equal-power left/right only; game sounds duck to 55% while someone talks (`game.setDuck`).
-  Fullscreen button: desktop app → ipc `fullscreen` (window, same as F11); browser F11 can't be left by script (toast). Brawl Stars-like, but not a copy. Must fit phones (Galaxy A57 sideways
+  Fullscreen button: desktop app → ipc `fullscreen` (window, same as F11); browser F11 can't be left by script (toast).
+  v1.9.8 (CSS block "v1.9.8"): Settings order account, display, keybinds, controls, touch, voice, sound, chat, online, support,
+  help, save, news; every Settings button / drop-down / checkbox hovers with the `--muted2` line and its row's words turn
+  `--muted2` (div rows too); buttons in rows are 32 px like the drop-downs; focus = `--muted2` everywhere. `CW.ICON.phone/mobile/pad`
+  (parts.js) = blue SVG icons (calls, Touch screen, Controls); `toast(msg, ico)`. Glass look `settings.glass` → `html.glass`
+  (backdrop-filter on lobby buttons/cards, chat, call card, toasts, Settings window; HUD boxes scaled by `--hudBg`).
+  `settings.hudBox` (null = `CW.hudBoxDefault`: 50%, 85% with glass) → `--hudBg`. `settings.fpsCap` (null = VSync, a number, 'off'):
+  `game.frameMs` skips refreshes in `loop()`; the desktop app turns Chromium's VSync off from the next start
+  (`userData/cogwild-app.json`, ipc `vsync` + `restart`; Settings asks first). Emails show as `CW.hideEmail`. Ringtones:
+  `ringHtml/bindRing` in meta.js, `calls.preview(id, mine)` / `stopPreview` (plays twice, own file ≤ 8 s, never loops). The call
+  card drags (`calls.pos`, ⟲ `#ccReset`; a new call resets it). Clips / replays: `CW.saveFile(kind, name, blob)` (js/desktop.js) →
+  desktop/files.js writes Documents\Cogwild\Clips|Replays (only .webm/.mp4/.cwreplay); every match's replay is saved there too;
+  `CW.openFolder`. Browsers download as before. Brawl Stars-like, but not a copy. Must fit phones (Galaxy A57 sideways
   ≈ 915×412; also check 780×350).
 - **Driving (v1.8, they asked for it):** mechs drive like racing-game cars: A/D steer (`inp.manual`: the wheel turns in
   smoothly and snaps straight on release), front wheels visibly steer, S brakes then reverses, the body leans in turns.
@@ -91,6 +103,7 @@ The user is not a programmer: explain things in plain words, test everything you
 | `js/net.js` | online: rooms, matchmaking, sync (host runs bots/rules; each player runs their own mech), host migration, spectating |
 | `js/account.js` | login/sign-up box (Google in the player's browser: `startGoogle`), wallet (server coins), Cog Pass panel, clubs, friends, party, Trophy Road, leaderboard |
 | `js/talk.js` | the chat window (💬 / Enter): Match (quick chat only), Party, Club, Friends (private messages); tap a name: profile / block / report |
+| `desktop/files.js` | the desktop app saves clips and replay files into Documents\Cogwild\Clips / Replays and opens those folders (v1.9.8) |
 | `js/calls.js` | calls between friends / club-mates (v1.9.7): ringing card, ringtones (built-in or your own file), in-call bar |
 | `js/voice.js` | voice chat (WebRTC audio, through the server's TURN relay): only joined in a party (or a room when hearing "my match"), mic opened only while unmuted/undeafened; push-to-talk B, mute M, deafen N (any can be "No key"), devices, the first-time "Use voice chat?" question |
 | `js/pics.js` | picking your own / your club's picture: square cropper (shown as a circle), sends a 256×256 JPEG |

@@ -101,20 +101,18 @@
       if (!this.game.isPractice()) this.game.meta.track('clip');
     }
 
+    // the clip as a video file on this device
     download(slot) {
       const type = (this.mime || 'video/webm').split(';')[0];
       const blob = new Blob(slot.chunks, { type });
       const ext = type.includes('mp4') ? 'mp4' : 'webm';
       const d = new Date();
       const name = `cogwild-clip-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}${String(d.getSeconds()).padStart(2, '0')}.${ext}`;
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = name;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
-      this.game.toast(`🎬 Clip saved: ${name} (check your Downloads)`);
-      this.lastSaved = { name, size: blob.size };
+      // the desktop app: Documents\Cogwild\Clips (Settings › Display › 📂 opens it); a browser: Downloads
+      CW.saveFile('clips', name, blob).then((r) => {
+        this.game.toast(r.where ? `🎬 Clip saved in your Clips folder: ${name}` : `🎬 Clip saved: ${name} (check your Downloads)`);
+        this.lastSaved = { name, size: blob.size, where: r.where || '' };
+      }, () => this.game.toast("🎬 Couldn't save the clip"));
     }
   }
 

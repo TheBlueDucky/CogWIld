@@ -42,6 +42,10 @@
     async del(id) { await this.run('meta', 'readwrite', (s) => s.delete(id)); await this.run('data', 'readwrite', (s) => s.delete(id)); },
   };
 
+  // a replay as a file you can keep or send (.cwreplay)
+  const replayName = (x) => `cogwild-${x.mode}-${x.arena}-${new Date(x.at).toISOString().slice(0, 16).replace(/[:T]/g, '-')}.cwreplay`;
+  const replayBlob = (x, data) => new Blob([JSON.stringify({ cogwildReplay: FORMAT, meta: x, data })], { type: 'application/json' });
+
   // ======================= RECORDING =======================
   class Recorder {
     constructor(game) {
@@ -128,6 +132,8 @@
       };
       const data = { v: FORMAT, mode: r.mode, format: r.format, arena: r.arena, tod: r.tod, at: r.at, roster: r.roster, frames: r.frames, events: r.events };
       const saved = DB.put(meta, data).then(() => this.prune()).then(() => meta.id).catch((e) => { console.warn('replay not saved', e); return null; });
+      // the desktop app also keeps every replay as a file in Documents\Cogwild\Replays (v1.9.8)
+      if (CW.deviceFolders) CW.saveFile('replays', replayName(meta), replayBlob(meta, data)).catch((e) => console.warn('replay file not saved', e));
       g.lastReplay = saved;
       return saved;
     }
@@ -167,9 +173,10 @@
           <button class="ws-btn" data-del="${x.id}" aria-label="Delete">🗑</button>
         </div>`;
       }).join('');
-      body.innerHTML = `<div class="small">Your last ${KEEP} matches are kept on this device. ☆ keeps one for good${files ? ', 💾 saves it as a file you can send to a friend' : ''}.</div>
+      const dev = CW.deviceFolders;
+      body.innerHTML = `<div class="small"><span>Your last ${KEEP} matches are kept on this device.</span> <span>${files ? (dev ? '☆ keeps one for good, 💾 saves it as a file you can send to a friend. Every match is also saved in your Replays folder.' : '☆ keeps one for good, 💾 saves it as a file you can send to a friend (in your Downloads).') : '☆ keeps one for good.'}</span></div>
         <div class="rp-list">${rows || '<div class="small" style="padding:18px 4px">No replays yet: play a match and it shows up here.</div>'}</div>
-        ${files ? '<div class="other-play"><button class="ws-btn" id="rpOpenFile">📂 Open a replay file</button><input type="file" id="rpFileIn" accept=".cwreplay,.json" class="hidden"></div>' : ''}`;
+        ${files ? `<div class="other-play rp-files"><button class="ws-btn line" id="rpOpenFile">📂 Open a replay file</button>${dev ? '<button class="ws-btn line" id="rpFolder">🗂 Open the Replays folder</button>' : ''}<input type="file" id="rpFileIn" accept=".cwreplay,.json" class="hidden"></div>` : ''}`;
       body.querySelectorAll('[data-watch]').forEach((b) => (b.onclick = () => this.watch(b.dataset.watch)));
       body.querySelectorAll('[data-star]').forEach((b) => (b.onclick = async () => {
         const x = list.find((y) => y.id === b.dataset.star);
@@ -187,13 +194,10 @@
       body.querySelectorAll('[data-file]').forEach((b) => (b.onclick = async () => {
         const rec = await DB.get(b.dataset.file), x = list.find((y) => y.id === b.dataset.file);
         if (!rec) return;
-        const blob = new Blob([JSON.stringify({ cogwildReplay: FORMAT, meta: x, data: rec.data })], { type: 'application/json' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `cogwild-${x.mode}-${x.arena}-${new Date(x.at).toISOString().slice(0, 16).replace(/[:T]/g, '-')}.cwreplay`;
-        document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        const r = await CW.saveFile('replays', replayName(x), replayBlob(x, rec.data)).catch(() => null);
+        g.toast(!r ? "Couldn't save the replay file" : r.where ? '💾 Saved in your Replays folder' : '💾 Saved in your Downloads');
       }));
+      if ($('rpFolder')) $('rpFolder').onclick = () => CW.openFolder('replays');
       if (files) {
         $('rpOpenFile').onclick = () => $('rpFileIn').click();
         $('rpFileIn').onchange = async (e) => {

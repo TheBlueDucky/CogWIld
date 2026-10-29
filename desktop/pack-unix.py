@@ -16,7 +16,7 @@ os.makedirs(out, exist_ok=True)
 def app_files():
     pkg = '{"name": "cogwild", "productName": "Cogwild", "version": "%s", "main": "main.js", "author": "BlueDucky Games"}\n' % ver
     yield 'package.json', pkg.encode()
-    for f in ('main.js', 'preload.js', 'discord.js'):
+    for f in ('main.js', 'preload.js', 'discord.js', 'files.js'):
         yield f, open(os.path.join(HERE, f), 'rb').read()
     root = os.path.join(HERE, 'app')
     for d, _, files in os.walk(root):

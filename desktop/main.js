@@ -1,5 +1,6 @@
 // Cogwild desktop wrapper: opens the web game in its own window (for a Windows / Steam build)
 const { app, BrowserWindow, Menu, shell, session, ipcMain } = require('electron');
+const fs = require('fs');
 const path = require('path');
 const discord = require('./discord'); // the "Playing Cogwild" status on Discord
 
@@ -8,6 +9,10 @@ app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 // Linux: many distributions block Chromium's sandbox helper for apps run from a folder; the game only shows its own
 // files and talks to its own server, so it runs without it (like most Linux games built this way)
 if (process.platform === 'linux') app.commandLine.appendSwitch('no-sandbox');
+// Settings › Frame rate limit (v1.9.8): with VSync off the game may draw faster than the screen (a number or Unlimited)
+const CONF = path.join(app.getPath('userData'), 'cogwild-app.json');
+const conf = (() => { try { return JSON.parse(fs.readFileSync(CONF, 'utf8')) || {}; } catch (e) { return {}; } })();
+if (conf.vsync === false) { app.commandLine.appendSwitch('disable-frame-rate-limit'); app.commandLine.appendSwitch('disable-gpu-vsync'); }
 
 // the title bar (v1.9.4): no white Windows bar; the game draws a dark one of its own (js/desktop.js) and Windows/Linux
 // draw only the ─ □ ✕ buttons on top of it, in the game's colors. A Mac keeps its three buttons at the top left.
@@ -72,6 +77,17 @@ ipcMain.on('fullscreen', (e) => {
   if (!w) return;
   if (w.isFullScreen()) { e.sender.executeJavaScript('document.fullscreenElement && document.exitFullscreen()').catch(() => {}); w.setFullScreen(false); } else w.setFullScreen(true);
 });
+
+// VSync for the next start, and a restart to use it now (Settings asks first)
+ipcMain.on('vsync', (e, on) => {
+  if ((conf.vsync !== false) === !!on) return;
+  conf.vsync = !!on;
+  try { fs.writeFileSync(CONF, JSON.stringify(conf)); } catch (err) { /* can't save it: stays as it is */ }
+});
+ipcMain.on('restart', () => setTimeout(() => { app.relaunch(); app.quit(); }, 400)); // a moment for the save to reach the disk
+
+// clips (F8) and replay files: straight into Documents\Cogwild\Clips / Replays, no "Save as" window
+require('./files')(ipcMain, () => path.join(app.getPath('documents'), 'Cogwild'), (dir) => shell.openPath(dir));
 
 // COGWILD_SMOKE=1: hidden self-check of a built app (loads the game, connects online, prints, quits)
 async function smoke() {
