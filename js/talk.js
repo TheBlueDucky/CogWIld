@@ -86,6 +86,7 @@
           if (m.mode) { const was = this.mode; this.mode = m.mode; if (was !== m.mode) this.game.voice.apply(); }
           if (m.blocked) this.blocked = m.blocked;
           if (m.unread) this.unread = Object.assign({}, m.unread);
+          if (m.seen) this.seenFrom(m.seen);
           this.refresh();
           if (this.game.meta.panel === 'settings' && !$('panel').classList.contains('hidden')) this.game.meta.renderPanel();
           return true;
@@ -306,7 +307,16 @@
       if (newest <= this.seenTime(tab)) return;
       this.seenAt[tab] = newest;
       try { localStorage.setItem(this.seenKey(), JSON.stringify(this.seenAt)); } catch (e) { /* private window */ }
+      if (this.acct.loggedIn) this.net.send({ t: 'chatSeen', tab, at: newest }); // your other devices know too (v1.9.9)
       this.badges();
+    }
+    // logged in: what you read on your other devices (the website, the app, a phone) counts as read here too
+    seenFrom(seen) {
+      let changed = false;
+      for (const tab of ['club', 'party']) {
+        if ((+seen[tab] || 0) > this.seenTime(tab)) { this.seenAt[tab] = +seen[tab]; changed = true; }
+      }
+      if (changed) try { localStorage.setItem(this.seenKey(), JSON.stringify(this.seenAt)); } catch (e) { /* private window */ }
     }
     lines(tab) {
       if (tab === 'party') return (this.acct.party && this.acct.party.log) || [];

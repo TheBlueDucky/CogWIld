@@ -40,6 +40,7 @@
     musicVol: 1, keys: {}, touch: 'auto', touchSize: 1, vibrate: true, aimAssist: true, friendOnline: true, otherChat: true,
     // chat and voice chat (js/talk.js, js/voice.js); voice: undefined until the game has asked
     chatNotes: true, vcHear: 'game', vcMode: 'open', vcVol: 1, vcMic: '', vcOut: '',
+    discord: true, // v1.9.9: the desktop app shows what you're playing on your Discord profile
   };
   // keys you can change in Settings (Esc always pauses); def is the key the game reads internally
   CW.KEY_ACTIONS = [
@@ -406,12 +407,12 @@
           <section class="set-sec" data-sec="account"><h3>👤 Account</h3><div id="setAcctBox">${acct ? acct.accountHtml() : ''}</div>
           </section><section class="set-sec" data-sec="display"><h3>🖥 Display</h3>
           <label class="set-row"><span>🌐 Language</span><select id="setLang" translate="no">${CW.LANGS.map(([id, n]) => `<option value="${id}" ${CW.I18N.lang === id ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
-          <label class="set-row"><span>Graphics quality</span><select id="setGfx"><option value="auto">Auto (recommended)</option><option value="low">Low (fast, for older laptops and phones)</option><option value="medium">Medium</option><option value="high">High (shadows + max detail)</option></select></label>
+          <label class="set-row"><span>Graphics quality</span><select id="setGfx"><option value="auto">Auto (recommended)</option><option value="low">Low (fast, for older laptops, phones)</option><option value="medium">Medium</option><option value="high">High (shadows + max detail)</option></select></label>
           <label class="set-row"><span>Field of view <b id="setFovV"></b></span><input type="range" id="setFov" min="60" max="105" step="1"></label>
           <label class="set-row"><span>Camera</span><select id="setCam"><option value="first">First person (from your Camera part)</option><option value="third">Chase (behind the mech)</option></select></label>
           <div class="set-row"><span>Fullscreen</span><button class="set-btn" id="setFull">⛶ Toggle fullscreen</button></div>
-          <label class="set-row chk"><input type="checkbox" id="setGlass"><span>Glass look: see-through, blurred buttons and boxes (like an iPhone). Off = the usual solid look</span></label>
-          <div class="set-row"><span>Box behind the health bar and match info <b id="setHudBoxV"></b><small>How solid the boxes behind your health, the score and the map are in matches. 0% = no box, only the text and bars</small></span><span class="key-pair"><input type="range" id="setHudBox" min="0" max="1" step="0.05"><button class="set-btn" id="setHudBoxReset">Reset</button></span></div>
+          <div class="set-row"><span>Background opacity <b id="setHudBoxV"></b><small>Menu buttons and the boxes in matches. 0% = no background</small></span><span class="key-pair"><input type="range" id="setHudBox" min="0" max="1" step="0.05"><button class="set-btn" id="setHudBoxReset">Reset</button></span></div>
+          <label class="set-row chk"><input type="checkbox" id="setGlass"><span>Glass Look</span></label>
           <label class="set-row chk"><input type="checkbox" id="setShake"><span>Screen shake</span></label>
           <label class="set-row chk"><input type="checkbox" id="setDmg"><span>Floating damage numbers</span></label>
           <label class="set-row chk"><input type="checkbox" id="setFps"><span>Show FPS counter</span></label>
@@ -437,6 +438,7 @@
           <label class="set-row"><span>Music volume <b id="setMusicVolV"></b></span><input type="range" id="setMusicVol" min="0" max="1" step="0.05"></label>
           </section><section class="set-sec" data-sec="online"><h3>🌐 Online</h3>
           <label class="set-row chk"><input type="checkbox" id="setFriendOn"><span>Tell me when a friend comes online</span></label>
+          <label class="set-row chk"><input type="checkbox" id="setDiscord"><span>Show Cogwild in my Discord activity<small>What you're playing shows on your Discord profile while the desktop app is open</small></span></label>
           </section><section class="set-sec" data-sec="voice"><h3>🎤 Voice chat</h3>
           ${voiceNote ? `<div class="small set-note">${voiceNote}</div>` : ''}
           <label class="set-row chk"><input type="checkbox" id="setVoice"><span>Voice chat: talk with your party and the players in your match</span></label>
@@ -530,6 +532,7 @@
         bindRange('setTouchSize', 'touchSize', (v) => Math.round(v * 100) + '%');
         const bindChk = (id, key) => { const el = $(id); el.checked = !!s[key]; el.onchange = () => { s[key] = el.checked; this.apply(); }; };
         bindChk('setFriendOn', 'friendOnline');
+        bindChk('setDiscord', 'discord');
         bindChk('setChatNotes', 'chatNotes');
         bindChk('setChatStay', 'chatStay');
         // the glass look, and the box behind the health bar (its default follows the look; Reset goes back to it)
@@ -664,6 +667,7 @@
     // What's new (Settings › Change logs, and the 📰 News button on phones)
     newsHtml() {
       return `<ul class="news">
+          <li><b>v1.9.9</b>: 🎚 <b>Background opacity</b> (Settings › Display) now sets the background of the menu buttons and the boxes in matches, in the normal and the Glass Look (0% = no background at all). 💬 Messages you read on one device (the website, the app, a phone) aren't shown as new on another. 🎮 A setting to hide Cogwild from your Discord activity (Settings › Online). Lighter Controls and Touch screen icons, and a shorter graphics menu.</li>
           <li><b>v1.9.8</b>: 🪟 A <b>glass look</b> (Settings › Display): see-through, blurred buttons and boxes. 🎞 A frame rate limit (VSync, 30–240 FPS or unlimited; above your screen's rate in the desktop app). The box behind your health bar is 50% by default and has a Reset button. 🎬 In the desktop app clips and replays are saved straight into Documents › Cogwild, with buttons that open those folders. ${CW.ICON.phone} Listen to every ringtone before you pick it, and drag the call card anywhere. ⚙ Settings in a new order, every button and menu there lights up the same gray-blue when you point at it, blue icons, and your email is shown hidden (t*****r@gmail.com).</li>
           <li><b>v1.9.7</b>: ${CW.ICON.phone} <b>Calls</b>: call a friend or a club member who's online, no party or match needed. Pick a ringtone, use your own sound file and set its volume in Settings › Voice chat. ⛰ Fast mechs can drive up mountains and the arena's sides (the force field is at the very top now); too slow and you roll back, too fast into the field and you flip. 🎤 Voices in matches are as clear and loud as in the lobby. 💬 Type to everyone while you wait for a match; a click outside the chat closes it (or keep it open in Settings › Chat); chat and voice keys can be two keys like Shift + Tab. 🛡 Clubs: the owner can rename the club and click its picture to change or reset it, members show when they were last online, and Direct Message. ⚙ A slider for the health and info boxes, square Settings categories, calmer buttons, and the fullscreen button always works.</li>
           <li><b>v1.9.6</b>: 🧹 A calmer lobby on PCs: Help and these change logs moved to Settings (at the bottom), the Trophy Road opens from the trophy bar and the challenges from the challenge card. In a party, every lobby button can be clicked again. Settings › Keys is now Keybinds.</li>

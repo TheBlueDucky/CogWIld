@@ -273,7 +273,10 @@
       // old full box, 0 = no box; 50% unless you moved it, more with the glass look)
       const s = this.settings, root = document.documentElement;
       root.classList.toggle('glass', !!s.glass);
-      root.style.setProperty('--hudBg', String(Math.max(0, Math.min(1, s.hudBox ?? CW.hudBoxDefault(s)))));
+      const bg = Math.max(0, Math.min(1, s.hudBox ?? CW.hudBoxDefault(s)));
+      root.style.setProperty('--hudBg', String(bg));
+      // v1.9.9: the same slider for the menu buttons and the small buttons in matches (1 = their usual look at the default)
+      root.style.setProperty('--bgK', (bg / CW.hudBoxDefault(s)).toFixed(3));
       // Settings › Display › Frame rate limit: the shortest time between two frames (0 = as fast as the screen / app allows)
       this.frameMs = typeof s.fpsCap === 'number' && s.fpsCap > 0 ? 1000 / s.fpsCap : 0;
       if (window.CogwildDesktop && CogwildDesktop.vsync) CogwildDesktop.vsync(!s.fpsCap);

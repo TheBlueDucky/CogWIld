@@ -74,7 +74,7 @@ class Talk {
 
   handle(c, m) {
     const fn = {
-      chatMode: () => this.setMode(c, m), dmSend: () => this.dmSend(c, m), dmOpen: () => this.dmOpen(c, m), dmRead: () => this.dmRead(c, m),
+      chatMode: () => this.setMode(c, m), dmSend: () => this.dmSend(c, m), dmOpen: () => this.dmOpen(c, m), dmRead: () => this.dmRead(c, m), chatSeen: () => this.chatSeen(c, m),
       partySay: () => this.partySay(c, m), clubSay: () => this.clubSay(c, m), block: () => this.block(c, m, true), unblock: () => this.block(c, m, false),
       report: () => this.report(c, m), vcState: () => this.vcState(c, m), vcSig: () => this.vcSig(c, m),
       roomSay: () => this.roomSay(c, m), callStart: () => this.callStart(c, m), callAnswer: () => this.callAnswer(c, m), callEnd: () => this.callDrop(c.user, 'hung up'),
@@ -84,11 +84,20 @@ class Talk {
     return true;
   }
 
-  // just logged in: your chat mode, who you blocked and unread messages
+  // just logged in: your chat mode, who you blocked, unread messages and how far you've read club / party chat
   onLogin(c) {
     const u = this.a.me(c);
     if (!u) return;
-    this.send(c, { t: 'talk', mode: u.cm === 'quick' ? 'quick' : 'free', blocked: (u.blocked || []).map((k) => (this.db.users[k] || { name: k }).name), unread: u.unread || {} });
+    this.send(c, { t: 'talk', mode: u.cm === 'quick' ? 'quick' : 'free', blocked: (u.blocked || []).map((k) => (this.db.users[k] || { name: k }).name), unread: u.unread || {}, seen: u.chatSeen || {} });
+  }
+  // v1.9.9: the newest club / party line you've read, kept on the account so every device knows (read stays read)
+  chatSeen(c, m) {
+    const u = this.a.me(c), at = Math.floor(+m.at || 0);
+    if (!u || !['club', 'party'].includes(m.tab) || !(at > 0) || at > Date.now() + 60000) return;
+    u.chatSeen = u.chatSeen || {};
+    if (at <= (u.chatSeen[m.tab] || 0)) return;
+    u.chatSeen[m.tab] = at;
+    this.a.dirty();
   }
 
   // one message: { q } a quick line, or { x } free text. null when it can't be sent (the player is told why)

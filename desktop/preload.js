@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('CogwildDesktop', {
   saveFile: (kind, name, bytes) => ipcRenderer.invoke('saveFile', String(kind), String(name), bytes),
   openFolder: (kind) => ipcRenderer.invoke('openFolder', String(kind)),
   presence: (info) => ipcRenderer.send('presence', {
+    hidden: !!(info && info.hidden), // Settings › Online: don't show Cogwild on Discord
     details: String((info && info.details) || '').slice(0, 120),
     state: String((info && info.state) || '').slice(0, 120),
     since: +(info && info.since) || 0,

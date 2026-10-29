@@ -616,7 +616,21 @@ async function main() {
   check(joined.members === 2, 'a second player joins');
   check(!!(await cA.next('club', (m) => m.club && m.club.list.length === 2)), 'the owner sees them join');
   cB.send({ t: 'clubSay', x: 'hi club' });
-  check((await cA.next('clubMsg')).msg.x === 'hi club', 'club chat reaches members');
+  const hiClub = await cA.next('clubMsg');
+  check(hiClub.msg.x === 'hi club', 'club chat reaches members');
+  // v1.9.9: how far you've read club chat is kept on the account, so another device knows
+  cA.send({ t: 'chatSeen', tab: 'club', at: hiClub.msg.at });
+  cA.send({ t: 'chatSeen', tab: 'club', at: Date.now() + 10 * 86400000 }); // a time in the future is ignored
+  cA.send({ t: 'chatSeen', tab: 'secret', at: 5 }); // only club and party
+  await wait(300);
+  const cA2 = await player();
+  cA2.send({ t: 'acctLogin', name: 'Spender', pass: 'spend1234' });
+  const seenTalk = await cA2.next('talk');
+  check(seenTalk.seen && seenTalk.seen.club === hiClub.msg.at && !('secret' in seenTalk.seen), `read club chat is read on another device too (${JSON.stringify(seenTalk.seen)})`);
+  cA2.ws.close();
+  await wait(300);
+  cA.send({ t: 'acctLogin', name: 'Spender', pass: 'spend1234' }); // the other device took over the account: back on this one
+  await cA.next('acctOk');
   // players in the same club can message each other without being friends
   const cBname = cB.last('acctOk').me.name;
   await wait(600);

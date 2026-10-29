@@ -75,6 +75,8 @@ class Presence {
   set(info) {
     if (!this.on) return;
     const clip = (s, n) => String(s || '').slice(0, n);
+    // the player turned it off (Settings › Online): clear the status, nothing about the game shows
+    if (info && info.hidden) { this.want = { hidden: true }; if (this.sock) this.push(); return; }
     this.want = {
       details: clip(info && info.details, 120) || 'In the menu',
       state: clip(info && info.state, 120) || undefined,
@@ -88,7 +90,7 @@ class Presence {
   }
   push() {
     if (!this.ready || !this.want) return;
-    this.send(1, { cmd: 'SET_ACTIVITY', args: { pid: process.pid, activity: this.want }, nonce: String(Date.now()) + Math.random().toString(36).slice(2) });
+    this.send(1, { cmd: 'SET_ACTIVITY', args: this.want.hidden ? { pid: process.pid } : { pid: process.pid, activity: this.want }, nonce: String(Date.now()) + Math.random().toString(36).slice(2) });
   }
   stop() { clearTimeout(this.retry); if (this.sock) { try { this.sock.destroy(); } catch (e) { /* closed */ } } this.sock = null; }
 }

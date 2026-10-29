@@ -2,7 +2,7 @@
 (function () {
   const CW = (window.CW = window.CW || {});
 
-  CW.VERSION = 'v1.9.8';
+  CW.VERSION = 'v1.9.9';
   // escape text before it goes into innerHTML (mech/player names can come from pasted save codes)
   // "3h 12m" / "5d 4h" / "12m" until something ends
   CW.timeLeft = (ms) => { const m = Math.max(1, Math.ceil(ms / 60000)); return m >= 2880 ? `${Math.floor(m / 1440)}d ${Math.floor((m % 1440) / 60)}h` : m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; };
@@ -37,12 +37,13 @@
   // v1.9.7: the force field stands at the very top of the slopes around the arena (they rise from 166 to 195), so a fast
   // mech can drive up the sides until the edge instead of hitting a wall half-way up
   CW.FIELD = 192;
-  // v1.9.8: icons in the game's blue (the phone and controller emoji are red / gray): calls, Touch screen, Controls
-  const ico = (d) => `<svg class="cw-ico" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="${d}"/></svg>`;
+  // v1.9.8: icons drawn for the game (the phone emoji is red): calls in the game's blue; v1.9.9: Touch screen and
+  // Controls white-gray with a soft shade, like the emoji around them in Settings
+  const ico = (d, lt) => `<svg class="cw-ico${lt ? ' lt' : ''}" viewBox="0 0 24 24" aria-hidden="true">${lt ? '<defs><linearGradient id="cwLt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#b8c4dc"/></linearGradient></defs>' : ''}<path fill="${lt ? 'url(#cwLt)' : 'currentColor'}" d="${d}"/></svg>`;
   CW.ICON = {
     phone: ico('M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1z'),
-    mobile: ico('M16.5 1h-9C6.1 1 5 2.1 5 3.5v17C5 21.9 6.1 23 7.5 23h9c1.4 0 2.5-1.1 2.5-2.5v-17C19 2.1 17.9 1 16.5 1zM12 21.6c-.8 0-1.4-.6-1.4-1.4s.6-1.4 1.4-1.4 1.4.6 1.4 1.4-.6 1.4-1.4 1.4zM17 18H7V4h10z'),
-    pad: ico('M21.6 16.1l-1.1-7.7C20.2 6.5 18.5 5 16.5 5h-9C5.5 5 3.8 6.5 3.5 8.4l-1.1 7.7C2.2 17.6 3.4 19 4.9 19c.7 0 1.3-.3 1.8-.8L9 16h6l2.3 2.3c.5.5 1.1.8 1.8.8 1.5-.1 2.7-1.5 2.5-3zM11 11H9v2H8v-2H6v-1h2V8h1v2h2zm4-1c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1zm2 3c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1z'),
+    mobile: ico('M16.5 1h-9C6.1 1 5 2.1 5 3.5v17C5 21.9 6.1 23 7.5 23h9c1.4 0 2.5-1.1 2.5-2.5v-17C19 2.1 17.9 1 16.5 1zM12 21.6c-.8 0-1.4-.6-1.4-1.4s.6-1.4 1.4-1.4 1.4.6 1.4 1.4-.6 1.4-1.4 1.4zM17 18H7V4h10z', true),
+    pad: ico('M21.6 16.1l-1.1-7.7C20.2 6.5 18.5 5 16.5 5h-9C5.5 5 3.8 6.5 3.5 8.4l-1.1 7.7C2.2 17.6 3.4 19 4.9 19c.7 0 1.3-.3 1.8-.8L9 16h6l2.3 2.3c.5.5 1.1.8 1.8.8 1.5-.1 2.7-1.5 2.5-3zM11 11H9v2H8v-2H6v-1h2V8h1v2h2zm4-1c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1zm2 3c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1z', true),
   };
   // Settings › Display: the box behind the health bar and match info (50% normally, more with the glass look)
   CW.hudBoxDefault = (s) => (s && s.glass ? 0.85 : 0.5);

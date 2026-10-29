@@ -56,10 +56,11 @@
       else if (st === 'replay') details = 'Watching a replay';
     }
     was = st;
-    const key = `${details}|${state}|${since}`;
+    const hidden = g.settings.discord === false; // Settings › Online (v1.9.9)
+    const key = hidden ? 'hidden' : `${details}|${state}|${since}`;
     if (key === last) return;
     last = key;
-    try { window.CogwildDesktop.presence({ details, state, since }); } catch (e) { /* the app is closing */ }
+    try { window.CogwildDesktop.presence(hidden ? { hidden: true } : { details, state, since }); } catch (e) { /* the app is closing */ }
   };
   setTimeout(tick, 1500);
   setInterval(tick, 3000);

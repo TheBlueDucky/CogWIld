@@ -42,6 +42,14 @@ srv.listen(base + '2', async () => {
   await new Promise((r) => setTimeout(r, 300));
   const last = got.filter((g) => g.op === 1).pop().msg.args.activity;
   check(last.details === 'Building a mech in the Workshop' && !last.state, 'updates when you do something else');
+  // v1.9.9: Settings › Online › off clears the status (no activity at all), on shows it again
+  discord.set({ hidden: true });
+  await new Promise((r) => setTimeout(r, 300));
+  const off = got.filter((g) => g.op === 1).pop().msg;
+  check(off.cmd === 'SET_ACTIVITY' && off.args.pid === process.pid && !('activity' in off.args), 'turned off in Settings: the status is cleared');
+  discord.set({ details: 'In the menu', state: '', since: 0 });
+  await new Promise((r) => setTimeout(r, 300));
+  check(got.filter((g) => g.op === 1).pop().msg.args.activity.details === 'In the menu', 'turned on again: it shows again');
   discord.stop();
   srv.close();
   console.log(failed ? `${failed} FAILED` : 'all passed');
