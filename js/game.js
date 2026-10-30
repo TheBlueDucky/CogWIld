@@ -25,6 +25,11 @@
     rush: { name: 'Rush Build', icon: '⏱', sub: 'Build from scratch in the match', color: '#ff8c42', fromScratch: true, buildTime: 75, budget: CW.ECON.RUSH_BUDGET, formats: FOUR, desc: 'Everyone starts with just a Core. Build from scratch in 75 seconds, then fight. Your Workshop mechs stay at home.' },
     clash: { name: 'Workshop Clash', icon: '🔧', sub: 'Use the mech you built in the lobby', color: '#3a86ff', fromScratch: false, formats: FOUR, desc: 'Bring a mech you built in the Workshop. No building during the match: your design is everything.' },
     koth: { name: 'King of the Hill', icon: '👑', sub: 'Hold the zone · respawns on', color: '#ffd23f', objective: 'koth', respawn: true, timeLimit: 240, scoreToWin: 100, formats: FOUR, desc: 'Stand in the glowing zone to score. It moves every minute. Wrecked? You respawn in 4 seconds.' },
+    // v1.10 modes
+    heist: { name: 'Core Heist', icon: '🔋', sub: 'Steal their core · respawns on', color: '#9b5de5', objective: 'heist', respawn: true, respawnDelay: 4, timeLimit: 300, scoreToWin: 3, formats: ['squads', 'duel'], desc: 'Each team guards a power core at its base. Grab the enemy core and carry it to your base while your own core is safe at home. Carrying it slows you down. 3 captures win.' },
+    ball: { name: 'Mech Ball', icon: '⚽', sub: 'Push the ball into their goal', color: '#06d6a0', objective: 'ball', respawn: true, respawnDelay: 3, timeLimit: 240, scoreToWin: 5, formats: ['squads', 'duel'], desc: 'A giant ball and a goal at each base. Ram it, dash into it or shoot it into the other team\'s goal. First to 5 goals wins.' },
+    derby: { name: 'Demolition Derby', icon: '🚗', sub: 'No guns · ram everything', color: '#ef476f', fromScratch: false, noGuns: true, formats: ['ffa', 'squads'], desc: 'Guns are off! Every crash hurts (spikes, saws and big wheels hurt more). Supers and gadgets still work. Last mech standing wins.' },
+    scrap: { name: 'Scrap Wars', icon: '🔩', sub: 'Collect scrap, upgrade · respawns on', color: '#b08968', objective: 'scrap', respawn: true, timeLimit: 210, scoreToWin: 45, formats: ['ffa', 'squads'], desc: 'Every part you blow off drops scrap. Every 6 scrap you carry upgrades your mech: more damage, armor and speed. A wreck spills half. First to 45 wins.' },
     gold: { name: 'Gold Rush', icon: '💰', sub: 'Grab the most gold · respawns on', color: '#f4a261', objective: 'gold', respawn: true, timeLimit: 180, scoreToWin: 40, formats: FOUR, desc: 'Collect gold nuggets all over the map. Wreck enemies and they spill half their gold. Richest team wins.' },
     race: { name: 'Combat Race', icon: '🏁', sub: '2 laps · weapons on', color: '#4cc9f0', objective: 'race', respawn: true, respawnDelay: 2.5, timeLimit: 300, laps: 2, formats: ['race'], desc: 'Fly, drive or swim through 8 checkpoints, twice. Shoot your rivals off course. Fast designs win!' },
     bounty: { name: 'Bounty Hunt', icon: '🎯', sub: 'Wrecks win stars · respawns on', color: '#ff4d6d', objective: 'bounty', respawn: true, timeLimit: 150, scoreToWin: 30, formats: FOUR, desc: 'Wreck enemies to win the stars on their head. Every wreck in a row makes YOUR bounty bigger, and being wrecked resets it. Most stars wins!' },
@@ -44,7 +49,7 @@
   const COOP = ['solo', 'squad'];
   CW.MODES = MODES; CW.FORMATS = FORMATS; CW.TEAMS = TEAMS;
   // what PLAY plays in each mode (the server uses the same table)
-  CW.MM_FORMAT = { clash: 'ffa', rush: 'ffa', koth: 'squads', gold: 'squads', bounty: 'squads', race: 'race', boss: 'squad', survival: 'squad' };
+  CW.MM_FORMAT = { clash: 'ffa', rush: 'ffa', koth: 'squads', gold: 'squads', bounty: 'squads', race: 'race', boss: 'squad', survival: 'squad', heist: 'squads', ball: 'squads', derby: 'ffa', scrap: 'ffa' };
 
   // ---------------- tiny synth audio ----------------
   class Audio {
@@ -192,6 +197,9 @@
       this.meta = new CW.Meta(this);
       this.pickups = new CW.Pickups(this);
       this.chests = new CW.Chests(this);
+      this.loot = new CW.Loot(this);
+      this.hazards = new CW.Hazards(this);
+      this.pings = new CW.Pings(this);
       this.tutorial = new CW.Tutorial(this);
       this.clips = new CW.Clips(this);
       this.gamepad = new CW.Gamepad(this);
@@ -873,6 +881,11 @@
       this.gadgets.clear();
       this.pickups.clear();
       this.chests.clear();
+      this.loot.clear();
+      this.hazards.clear();
+      this.pings.clear();
+      this.sonarUntil = 0;
+      this.endKillcam();
       $('tags').innerHTML = '';
       $('feed').innerHTML = '';
       this.paused = false;
@@ -919,8 +932,10 @@
       this.suddenDeath = false;
       this.respawns = [];
       this.streak = 0; this.matchStreak = 0; this.lastWreckT = -99; this.firstBlood = false; this.bonusCoins = 0;
+      this.combosTold = false;
       this.pickups.spawnAll(no ? no.seed : undefined);
       this.chests.start();
+      this.hazards.start(!this.isPractice());
       this.bonusXp = 0;
       if (this.showcase) this.showcase.visible = false;
       for (const st of (this.stage || new Map()).values()) { this.scene.remove(st.g); this.scene.remove(st.ped); }
@@ -1210,6 +1225,7 @@
     }
 
     afterSpawn() {
+      this.tellCombos();
       const pm = this.player.mech;
       this.cam.yaw = pm.yaw;
       this.cam.pitch = -0.12;
@@ -1227,8 +1243,14 @@
       this.netSeq = Math.max(this.netSeq, c.netId + 1);
       this.net.byId.set(c.netId, c);
       c.bp = CW.cloneBp(o.bp);
+      // v1.10 loadout (js/loadout.js): yours from Settings, other players' from their mech, bots pick their own
+      const diffId = (this.net.active && this.netOpts && this.netOpts.difficulty) || this.settings.difficulty || 'normal';
+      c.lo = o.isPlayer ? CW.myLoadout(this)
+        : o.human || (o.bp && o.bp.lo) ? CW.cleanLo(o.bp.lo) || {} : o.ai === 'boss' || o.ai === 'dummy' ? {} : CW.botLoadout(o.bp, diffId);
+      c.bp.lo = c.lo; // the roster carries it to the other players' games
       c.mech = new CW.Mech(this, CW.cloneBp(o.bp), { combatant: c, color: o.color });
       c.mech.name = o.bp.name;
+      if ((MODES[this.modeId] || {}).noGuns && c.ai.style === 'ground') c.ai.style = 'rammer'; // Demolition Derby
       this.mechs.push(c.mech);
       this.combatants.push(c);
       this.net.added(c);
@@ -1333,6 +1355,8 @@
       const k = this.keys;
       const locked = this.countdown > 0 || this.ended || this.paused;
       const sens = 0.0023 * this.settings.sens;
+      // the ping wheel (hold Z) uses the mouse to pick, so the view holds still meanwhile
+      if (this.pings.wheel) { this.pings.wheelMove(this.mouse.dx, this.mouse.dy); this.mouse.dx = this.mouse.dy = 0; }
       this.cam.yaw -= this.mouse.dx * sens;
       this.cam.pitch = clamp(this.cam.pitch - this.mouse.dy * sens * (this.settings.invertY ? -1 : 1), -1.2, 0.85);
       this.mouse.dx = this.mouse.dy = 0;
@@ -1570,8 +1594,10 @@
         const landOnly = s.domains.has('land') && !s.domains.has('water') && !s.domains.has('air');
         const dist = Math.hypot(tp.x - m.pos.x, tp.z - m.pos.z);
         // objective modes: head for the hill / gold / next checkpoint unless an enemy is right here
-        const objGoal = this.obj && this.obj.botGoal(c);
-        const dest = objGoal && (this.modeId === 'race' || dist > 18) ? objGoal : tp;
+        // a team-mate's ping (js/pings.js) comes first for a few seconds, then the objective
+        const pinged = ai.pingT > this.time && ai.pingGoal && Math.hypot(ai.pingGoal.x - m.pos.x, ai.pingGoal.z - m.pos.z) > 14 ? ai.pingGoal : null;
+        const objGoal = pinged || (this.obj && this.obj.botGoal(c));
+        const dest = objGoal && (this.modeId === 'race' || pinged || (this.obj && this.obj.urgent && this.obj.urgent(c)) || dist > 18) ? objGoal : tp;
         let goal = dest;
         if (landOnly && m.medium === 'land') {
           const wp = this.routeTarget(m, dest);
@@ -1594,6 +1620,12 @@
               const d = ch.pos.distanceTo(m.pos) * (ch.rarity === 'epic' ? 0.5 : 1);
               if (d < bd) { bd = d; best = ch; }
             }
+            if (best) { goal = best.pos; if (best.pos.distanceTo(m.pos) < m.radius + 2.6) ai.atChest = true; }
+          }
+          // loot lying around (v1.10)
+          if (goal === tp) {
+            let best = null, bd = 26;
+            for (const it of this.loot.items) { const d = it.pos.distanceTo(m.pos); if (d < bd) { bd = d; best = it; } }
             if (best) goal = best.pos;
           }
         }
@@ -1637,6 +1669,7 @@
           if (Math.abs(err) > 1.3) inp.throttle *= 0.3;
         }
         if (waterOnly && m.medium === 'water' && ahead > CW.WATER_Y - 0.6 && ai.wander <= 0) inp.throttle = Math.min(inp.throttle, 0);
+        if (ai.atChest) { ai.atChest = false; inp.throttle = 0; inp.turn = 0; } // opening a chest takes a moment
         if (ai.style === 'heli' || ai.style === 'plane') {
           const gAhead = Math.max(ahead, this.world.groundAt(m.pos.x, m.pos.z), CW.WATER_Y);
           const wantY = Math.max(tp.y + ai.alt, gAhead + 7);
@@ -1767,6 +1800,11 @@
       this.net.mechDestroyed(mech, who);
       const c = mech.combatant;
       if (who && !CW.sameTeam(who, c)) who.wrecks++;
+      if (!this.isPractice()) this.streaks(c, who);
+      // Scavenger perk: an enemy you wreck drops a repair orb (the host's game throws the loot)
+      if (!this.net.client && !this.isPractice() && who && who !== c && !CW.sameTeam(who, c) && CW.hasPerk(who, 'scavenger')) this.loot.spawn(mech.pos.clone(), [['repair', 0]]);
+      if (who && who.isPlayer && c !== who) this.audio.tone(130, 0.28, 'square', 0.16, 0.45); // a heavy "ka-chunk" for your wreck
+      if (c.isPlayer && who && who !== c && !CW.sameTeam(who, c) && (MODES[this.modeId] || {}).respawn) this.startKillcam(who);
       if (who && who.ai && !who.isPlayer && !who.human && Math.random() < 0.3 + who.ai.flair * 0.6 * (who.ai.smarts || 0.7)) who.ai.celebrate = 1.2 + Math.random();
       if (this.isPractice()) {
         if (c.dummyIndex !== undefined) {
@@ -1819,6 +1857,35 @@
       if (who && who.isPlayer && !CW.sameTeam(who, c)) this.onPlayerWreck();
     }
 
+    // v1.10 wreck streaks without dying (everyone's), and a SHUTDOWN bonus for ending one
+    streaks(c, who) {
+      const was = c.lifeStreak || 0;
+      c.lifeStreak = 0;
+      if (!who || who === c || CW.sameTeam(who, c)) return;
+      const name = (x) => (x.isPlayer ? 'You' : esc(x.name));
+      if (was >= 3) {
+        this.feed(`💀 SHUTDOWN! ${name(who)} ended ${c.isPlayer ? 'your' : esc(c.name) + "'s"} ${was}-wreck streak`, who.isPlayer ? 'good' : c.isPlayer ? 'bad' : '');
+        if (who.isPlayer) { this.bonusCoins += 10 * was; this.toast(`💀 SHUTDOWN! +${10 * was} 🪙`); }
+      }
+      const n = who.lifeStreak = (who.lifeStreak || 0) + 1;
+      const said = { 3: 'is on a rampage', 5: 'is unstoppable', 8: 'is LEGENDARY' }[n];
+      if (said) {
+        this.feed(`🔥 ${who.isPlayer ? 'You are' : esc(who.name)} ${who.isPlayer ? said.replace(/^is /, '') : said} (${n} wrecks without dying)`, who.isPlayer ? 'good' : 'bad');
+        if (who.isPlayer) { this.bigMsg(`🔥 ${n} WRECK STREAK`, 'Don\'t get wrecked: ending it is worth a lot!', 1.6); this.audio.fanfare(); }
+      }
+    }
+    // after you're wrecked: the camera shows who did it for a few seconds
+    startKillcam(who) {
+      const m = who.mech && who.mech.alive ? who.mech : null;
+      this.killcam = { who, t: 3 };
+      let el = $('killcam');
+      if (!el) { el = document.createElement('div'); el.id = 'killcam'; $('hud').appendChild(el); }
+      el.innerHTML = `<span>💀 Wrecked by</span> <b style="color:${hex(who.color)}"></b><small>${m ? `${esc(m.name)} · ${Math.round(m.integrity() * 100)}% left` : 'on foot'}</small>`;
+      el.querySelector('b').textContent = who.name;
+      el.classList.remove('hidden');
+    }
+    endKillcam() { this.killcam = null; const el = $('killcam'); if (el) el.classList.add('hidden'); }
+
     respawnTestPlayer() {
       const old = this.player;
       if (old.pilot) { old.pilot.dispose(); this.pilots = this.pilots.filter((p) => p !== old.pilot); }
@@ -1832,11 +1899,27 @@
     }
 
     teamAlive(team) { return this.combatants.some((c) => c.team === team && c.alive); }
+    // v1.10 comeback: a team far behind in an objective mode (30% of the winning score) charges its super 35% faster
+    behind(team) {
+      if (!this.teamMode || !this.obj || this.modeId === 'race' || this.modeId === 'boss' || this.matchTime < 20) return false;
+      const goal = this.obj.goal ? this.obj.goal() : (MODES[this.modeId] || {}).scoreToWin;
+      if (!goal) return false;
+      const top = Math.max(...this.obj.teams().map((t) => this.obj.teamScore(t)));
+      return top - this.obj.teamScore(team) >= goal * 0.3;
+    }
+    // part combos of your mech, said once at the start of a match (js/loadout.js)
+    tellCombos() {
+      const m = this.player && this.player.mech;
+      if (this.combosTold || !m) return;
+      this.combosTold = true;
+      for (const cb of m.mods.combos) this.feed(`${cb.icon} Combo: <b>${cb.name}</b> (${cb.desc})`, 'good');
+    }
     aliveTeams() { return new Set(this.combatants.filter((c) => c.alive).map((c) => c.team)); }
 
     onPilotKilled(pilot, who) {
       this.net.pilotKilled(pilot, who);
       const c = pilot.combatant;
+      if (c.isPlayer && who && who !== c && !CW.sameTeam(who, c) && !this.isPractice()) this.startKillcam(who);
       this.pilots = this.pilots.filter((p) => p !== pilot);
       if (this.isPractice()) {
         this.respawns.push({ t: 2.5, fn: () => this.respawnTestPlayer() });
@@ -1905,8 +1988,9 @@
       }
       this.fx.burst(mech.pos, { n: 10, color: this.trailMat(c), speed: 6, life: 0.5, size: 0.5 });
     }
-    onPartBroken(mech, who) {
-      if (who && who.isPlayer && mech.combatant !== who) { this.meta.track('parts'); this.killMarker = 0.3; this.audio.tone(220, 0.08, 'square', 0.12, 0.6); }
+    onPartBroken(mech, who, part) {
+      if (this.obj && this.obj.onPart && part) this.obj.onPart(mech, part); // Scrap Wars
+      if (who && who.isPlayer && mech.combatant !== who) { this.meta.track('parts'); this.killMarker = 0.3; this.audio.tone(220, 0.08, 'square', 0.12, 0.6); this.audio.noise(0.1, 0.18, 1200); }
     }
 
     // floating damage numbers (pooled DOM elements)
@@ -1916,8 +2000,10 @@
       const box = $('dmgNums');
       let el = this._dmgPool && this._dmgPool.pop();
       if (!el) { el = document.createElement('div'); el.className = 'dmg'; }
-      el.textContent = Math.max(1, Math.round(dmg));
+      const crit = this.time - (this.critT || -9) < 0.05; // a core hit (+40%)
+      el.textContent = (crit ? '✸' : '') + Math.max(1, Math.round(dmg));
       el.classList.toggle('big', dmg >= 25);
+      el.classList.toggle('crit', crit);
       const z = this.uiZoom || 1;
       el.style.left = ((v.x * 0.5 + 0.5) * this.view.w / z + (Math.random() - 0.5) * 30) + 'px';
       el.style.top = ((-v.y * 0.5 + 0.5) * this.view.h / z) + 'px';
@@ -2257,6 +2343,9 @@
     // who the camera follows: the player, or an ally/anyone while spectating
     viewTarget() {
       const p = this.player;
+      const kc = this.killcam, kb = kc && kc.who.alive && ((kc.who.mech && kc.who.mech.alive) || (kc.who.pilot && kc.who.pilot.alive));
+      const mine = p.alive && ((p.mech && p.mech.alive && p.mech.occupied) || (p.pilot && p.pilot.alive));
+      if (kc && kb && !mine) return kc.who;
       if (p.alive && ((p.mech && p.mech.alive && p.mech.occupied) || (p.pilot && p.pilot.alive))) { this.spectating = null; return p; }
       if (!p.alive) {
         if (!this.spectating || !this.spectating.alive) {
@@ -2289,6 +2378,18 @@
       }
     }
 
+    // v1.10: next to a chest, "Hold O to open" with a ring that fills while you hold it
+    chestHint(ch, k) {
+      let el = $('chestHint');
+      if (!ch) { if (el && !el.classList.contains('hidden')) el.classList.add('hidden'); return; }
+      if (!el) { el = document.createElement('div'); el.id = 'chestHint'; $('hud').appendChild(el); }
+      el.classList.remove('hidden');
+      const key = this.touch.on ? '🎁' : CW.keyName((this.settings.keys || {}).open || 'KeyO');
+      const T = CW.CHEST_TYPES[ch.rarity];
+      const html = `<i class="ch-ring" style="--k:${Math.round(Math.min(1, k) * 100)}%"><b>${esc(key)}</b></i><span>Hold to open<small>${T.name}</small></span>`;
+      if (el.innerHTML !== html) el.innerHTML = html;
+    }
+
     updateHud() {
       this.updateFlyHint();
       const p = this.player;
@@ -2310,7 +2411,9 @@
         if (!pos || !c.alive) { c.tagEl.style.display = 'none'; continue; }
         const dist = this.camera.position.distanceTo(v);
         v.project(this.camera);
-        if (v.z > 1 || dist > 170 || Math.abs(v.x) > 1.1 || Math.abs(v.y) > 1.1) { c.tagEl.style.display = 'none'; continue; }
+        const sonar = this.sonarUntil > this.time && !CW.sameTeam(c, this.player); // v1.10 Sonar Ping gadget
+        if (sonar !== !!c.tagSonar) { c.tagSonar = sonar; c.tagEl.classList.toggle('sonar', sonar); }
+        if (v.z > 1 || dist > (sonar ? 420 : 170) || Math.abs(v.x) > 1.1 || Math.abs(v.y) > 1.1) { c.tagEl.style.display = 'none'; continue; }
         c.tagEl.style.display = 'block';
         c.tagEl.style.transform = `translate(${(v.x * 0.5 + 0.5) * w}px, ${(-v.y * 0.5 + 0.5) * h}px) translate(-50%, -100%) scale(${clamp(40 / dist, 0.6, 1.1)})`;
         c.tagBar.style.width = Math.max(0, frac * 100) + '%';
@@ -2336,8 +2439,8 @@
           ${m.shieldMax ? `<div class="st-row"><span>Shield</span><div class="bar"><i style="width:${(m.shield / m.shieldMax) * 100}%;background:#4cc9f0"></i></div></div>` : ''}
           ${m.overcharge > 0 || m.turbo > 0 ? `<div class="buffs">${m.overcharge > 0 ? `<span class="buff oc">⚡ Overcharge ${Math.ceil(m.overcharge)}s</span>` : ''}${m.turbo > 0 ? `<span class="buff tb">💨 Turbo ${Math.ceil(m.turbo)}s</span>` : ''}</div>` : ''}
           <div class="st-row"><span>Dash ⇧</span><div class="bar"><i style="width:${m.dashCd > 0 ? (1 - m.dashCd / (m.dashMax || 1)) * 100 : 100}%;background:${m.dashCd > 0 ? '#8d99ae' : '#ff9f1c'}"></i></div><em class="dash-ready">${m.dashCd > 0 ? m.dashCd.toFixed(1) + 's' : 'READY'}</em></div>
-          ${(() => { const sp = CW.SUPERS[this.supers.type(p)], k = p.superCharge || 0; return `<div class="st-row super-row ${k >= 1 ? 'ready' : ''}"><span>${sp.icon} Super</span><div class="bar"><i style="width:${k * 100}%"></i></div><em>${k >= 1 ? (this.touch.on ? 'TAP ⭐' : 'X / RMB') : Math.floor(k * 100) + '%'}</em></div>`; })()}
-          ${(() => { const gd = CW.GADGETS[this.gadgets.type(p)], n = this.gadgets.left(p), cd = p.gadgetCd || 0; return `<div class="st-row gadget-row ${n > 0 && cd <= 0 ? 'ready' : ''}"><span>${gd.icon} Gadget</span><div class="pips">${'●'.repeat(n)}${'○'.repeat(Math.max(0, 3 - n))}</div><em>${n <= 0 ? 'used up' : cd > 0 ? cd.toFixed(1) + 's' : this.touch.on ? 'TAP 🧰' : 'G'}</em></div>`; })()}
+          ${(() => { const sp = CW.SUPERS[this.supers.type(p)], k = p.superCharge || 0; const cb = this.behind(p.team); return `<div class="st-row super-row ${k >= 1 ? 'ready' : ''} ${cb ? 'comeback' : ''}"><span aria-label="${sp.name}">${sp.icon} ${cb ? 'Comeback ⚡' : 'Super'}</span><div class="bar"><i style="width:${k * 100}%"></i></div><em>${k >= 1 ? (this.touch.on ? 'TAP ⭐' : 'X / RMB') : Math.floor(k * 100) + '%'}</em></div>`; })()}
+          ${(() => { const gd = CW.GADGETS[this.gadgets.type(p)], n = this.gadgets.left(p), cd = p.gadgetCd || 0; return `<div class="st-row gadget-row ${n > 0 && cd <= 0 ? 'ready' : ''}"><span>${gd.icon} Gadget</span><div class="pips">${'●'.repeat(n)}${'○'.repeat(Math.max(0, (CW.hasPerk(p, 'belt') ? 4 : 3) - n))}</div><em>${n <= 0 ? 'used up' : cd > 0 ? cd.toFixed(1) + 's' : this.touch.on ? 'TAP 🧰' : 'G'}</em></div>`; })()}
           ${m.empT > 0 ? '<div class="buffs"><span class="buff emp">⚡ JAMMED by EMP</span></div>' : ''}
           <div class="st-foot"><span>${Math.round(Math.hypot(m.vel.x, m.vel.z) * 3.6)} km/h</span><span>Alt ${Math.round(m.pos.y - m.baseOff)}</span><span class="${m.pr < 1 ? 'bad' : ''}">⚡ ${Math.round(m.pr * 100)}%</span><span>Parts ${m.parts.filter((q) => q.alive).length}/${m.totalParts}</span>${dom}</div>`;
         $('hint').textContent = 'W/S drive · A/D steer · Mouse aim · Click fire · Shift DASH · X / right-click SUPER · G GADGET · Space up/jump · C fly down · V camera · E exit · T chat · Esc menu' + (this.modeId === 'test' ? ' · T back to Workshop' : '');
@@ -2419,6 +2522,8 @@
         ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4); ctx.fillRect(-2.5, -2.5, 5, 5); ctx.restore();
       }
       if (this.obj && this.obj.minimap) this.obj.minimap(ctx, toMap);
+      this.hazards.minimap(ctx, toMap);
+      this.pings.minimap(ctx, toMap);
       for (const ch of this.chests.items) {
         if (ch.opened) continue;
         const [x, y] = toMap(ch.pos.x, ch.pos.z);
@@ -2451,6 +2556,11 @@
 
     // ---------------- camera ----------------
     updateCamera(dt) {
+      if (this.killcam) {
+        const p = this.player;
+        this.killcam.t -= dt;
+        if (this.killcam.t <= 0 || (p.alive && ((p.mech && p.mech.alive && p.mech.occupied) || (p.pilot && p.pilot.alive)))) this.endKillcam();
+      }
       // the view turns with your own steering in the same frame (no lag, so aiming stays steady)
       const own = this.player && this.player.mech;
       if (own && own.camFollowYaw) { this.cam.yaw += own.camFollowYaw; own.camFollowYaw = 0; }
@@ -2552,8 +2662,9 @@
       this.headlight.target.position.copy(this.camera.position).addScaledVector(dir, 20);
       const under = this.camera.position.y < CW.WATER_Y;
       this.scene.fog.color.copy(under ? this.waterFog : this.skyColor);
-      this.scene.fog.near = under ? 1 : 140;
-      this.scene.fog.far = under ? 45 : this.world.fogFar || 430;
+      const hz = this.hazards; // v1.10 sandstorm
+      this.scene.fog.near = under ? 1 : hz.fogNear || 140;
+      this.scene.fog.far = under ? 45 : hz.fogFar || this.world.fogFar || 430;
       this.scene.background.copy(under ? this.waterFog : this.skyColor);
       this.world.sky.visible = !under;
     }
@@ -2828,6 +2939,9 @@
         this.fx.update(dt);
         this.pickups.update(dt);
         this.chests.update(dt);
+        this.loot.update(dt);
+        this.hazards.update(dt);
+        this.pings.update(dt);
         this.updateSurvival(dt);
         this.updateRespawns(dt);
         if (this.obj) this.obj.update(dt);
@@ -2854,21 +2968,37 @@
       this.afterRender && this.afterRender();
     }
 
+    // v1.10: push / pull a mech (Harpoon, Magnet, Tidal Wave, Gravity Well…) and jam it (EMP Grenade). Only the game that
+    // controls `who` decides it; online the target's own game applies it ('kick' event)
+    kick(m, v, who, jam) {
+      if (!m || !m.alive) return;
+      const net = this.net;
+      if (net.active && !net.owns(who || m.combatant)) return;
+      if (!net.active || net.owns(m.combatant)) { m.vel.add(v); if (jam) m.empT = Math.max(m.empT || 0, jam); return; }
+      const r = (x) => Math.round(x * 10) / 10;
+      net.events.push({ k: 'kick', c: m.combatant.netId, by: who ? who.netId : -1, v: [r(v.x), r(v.y), r(v.z)], j: jam || 0 });
+    }
+    jam(m, t, who) { this.kick(m, new V3(), who, t); }
+
     // Spiked mech `a` slams into `b`: damage b's parts nearest to a, knock it back
     ram(a, b, speed) {
       if (a.ramCd > 0 || !b.alive) return;
       a.ramCd = 0.6;
-      const dmg = speed * 2.2 * Math.min(3, a.spikes) * a.dmgMult();
+      // v1.10: in Demolition Derby (and for Monster Truck builds) any mech rams; heavier mechs hit harder there
+      const derby = !!(MODES[this.modeId] || {}).noGuns;
+      const spikes = Math.min(3, a.spikes) + (derby || a.mods.ramAll ? 1 + Math.min(1.5, (a.bigWheels || 0) * 0.4) : 0);
+      const heavy = derby ? clamp(a.mass / Math.max(1, b.mass), 0.6, 1.6) * 1.3 : 1;
+      const dmg = speed * 2.2 * spikes * a.dmgMult() * a.mods.ramK * heavy;
       const near = b.parts.filter((p) => p.alive).sort((p, q) => p.wp.distanceTo(a.pos) - q.wp.distanceTo(a.pos)).slice(0, 3);
       const contact = near[0] ? near[0].wp.clone() : b.pos.clone();
-      for (const p of near) b.hit(p, dmg / near.length, a.combatant);
+      for (const p of near) b.hit(p, dmg / near.length, a.combatant, 'ram');
       const n = b.pos.clone().sub(a.pos).setY(0).normalize();
       b.vel.addScaledVector(n, speed * 0.8);
       b.vel.y += 4;
       this.fx.burst(contact, { n: 14, color: 'spark', speed: 12, life: 0.5, size: 0.25, grav: 15 });
       this.audio.ram();
       if (a.combatant.isPlayer) {
-        this.announce('SPIKE RAM!', `${Math.round(dmg)} damage`);
+        this.announce(a.spikes > 0 ? 'SPIKE RAM!' : 'CRASH!', `${Math.round(dmg)} damage`);
         this.cam.shake = Math.min(1.5, this.cam.shake + 0.8);
         if (!this.isPractice()) this.meta.track('ram');
         if (this.settings.dmgNumbers) this.damageNumber(contact, dmg);
@@ -2890,8 +3020,9 @@
             // closing speed along the contact normal
             const closing = (a.vel.x - b.vel.x) * nx + (a.vel.z - b.vel.z) * nz;
             if (closing > 5 && !CW.sameTeam(a.combatant, b.combatant)) {
-              if (a.spikes > 0) this.ram(a, b, closing);
-              if (b.spikes > 0) this.ram(b, a, closing);
+              const derby = !!(MODES[this.modeId] || {}).noGuns;
+              if (a.spikes > 0 || derby || a.mods.ramAll) this.ram(a, b, closing);
+              if (b.spikes > 0 || derby || b.mods.ramAll) this.ram(b, a, closing);
             }
             a.pos.x -= nx * push; a.pos.z -= nz * push;
             b.pos.x += nx * push; b.pos.z += nz * push;

@@ -2,7 +2,7 @@
 (function () {
   const CW = (window.CW = window.CW || {});
 
-  CW.VERSION = 'v1.9.10';
+  CW.VERSION = 'v1.10.0';
   // escape text before it goes into innerHTML (mech/player names can come from pasted save codes)
   // "3h 12m" / "5d 4h" / "12m" until something ends
   CW.timeLeft = (ms) => { const m = Math.max(1, Math.ceil(ms / 60000)); return m >= 2880 ? `${Math.floor(m / 1440)}d ${Math.floor((m % 1440) / 60)}h` : m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; };
@@ -99,6 +99,11 @@
     laser:  { name: 'Laser', cat: 'Weapon', cost: 34, mass: 1.5, hp: 35, color: 0x00f5d4, use: 5, weapon: { rate: 10, speed: 0, dmg: 2.6, splash: 0, grav: 0, kind: 'laser', range: 75 }, desc: 'Instant-hit beam. Melts parts at medium range, no travel time.' },
     railgun: { name: 'Railgun', cat: 'Weapon', cost: 42, mass: 2.5, hp: 40, color: 0x48cae4, use: 6, weapon: { rate: 0.45, speed: 340, dmg: 48, splash: 0, grav: 0, kind: 'rail' }, desc: 'Charged long-range slug. Slow to fire, hits like a truck.' },
     flamer: { name: 'Flamethrower', cat: 'Weapon', cost: 28, mass: 1.8, hp: 40, color: 0xff6b1a, use: 4, weapon: { rate: 14, speed: 42, dmg: 2.4, splash: 1.6, grav: -3, kind: 'flame' }, desc: 'Short-range stream of fire that melts everything nearby.' },
+    // v1.10 weapons: they pull, chain, lob and grab
+    mortar: { name: 'Mortar', cat: 'Weapon', cost: 30, mass: 2.4, hp: 45, color: 0x6b705c, use: 3, weapon: { rate: 0.6, speed: 0, dmg: 42, splash: 5.5, grav: 26, kind: 'mortar' }, desc: 'Lobs big shells high over walls and hills onto where you aim.' },
+    harpoon: { name: 'Harpoon', cat: 'Weapon', cost: 28, mass: 1.8, hp: 45, color: 0x8d6e63, use: 3, weapon: { rate: 0.7, speed: 120, dmg: 20, splash: 0, grav: 3, kind: 'hook' }, desc: 'Fires a hook on a chain that yanks the mech it hits toward you.' },
+    tesla: { name: 'Tesla Coil', cat: 'Weapon', cost: 34, mass: 2, hp: 40, color: 0x7b2cbf, use: 5, weapon: { rate: 2.5, speed: 0, dmg: 11, splash: 0, grav: 0, kind: 'tesla', range: 30 }, desc: 'Zaps the closest enemy in front of you, and the shock jumps to 2 more close by.' },
+    magnet: { name: 'Magnet', cat: 'Weapon', cost: 22, mass: 2.2, hp: 50, color: 0xd00000, use: 2, weapon: { rate: 8, speed: 0, dmg: 1, splash: 0, grav: 0, kind: 'magnet', range: 45 }, desc: 'A pulling beam: drags the mech you aim at toward you (great with saws and spikes).' },
     saw: { name: 'Saw Blade', cat: 'Weapon', cost: 16, mass: 1.5, hp: 60, color: 0xced4da, saw: 45, desc: 'Spinning blade that grinds any enemy part it touches.' },
     spikes: { name: 'Spikes', cat: 'Weapon', cost: 10, mass: 1.5, hp: 70, color: 0xadb5bd, ram: 1, desc: 'Ram enemies at speed to smash their parts. Dash into them!' },
     shield: { name: 'Shield', cat: 'Utility', cost: 32, mass: 2, hp: 40, color: 0x4cc9f0, use: 4, shield: 45, desc: 'Adds a regenerating energy shield around your mech.' },
@@ -424,7 +429,7 @@
     const ud = g.userData;
     // inside part models every material gets a metal finish unless a part picks another:
     // weapons/engines are gunmetal, wings/props/rotors carbon fiber, armor tread plate, the rest painted panels
-    const finish = { cannon: 'gunmetal', rocket: 'gunmetal', laser: 'gunmetal', railgun: 'gunmetal', flamer: 'gunmetal', saw: 'gunmetal', jet: 'gunmetal', booster: 'gunmetal', engine: 'gunmetal', spikes: 'gunmetal', wing: 'carbon', prop: 'carbon', rotor: 'carbon', armor: 'plate', bigwheel: 'gunmetal',
+    const finish = { mortar: 'gunmetal', harpoon: 'gunmetal', tesla: 'gunmetal', magnet: 'gunmetal', cannon: 'gunmetal', rocket: 'gunmetal', laser: 'gunmetal', railgun: 'gunmetal', flamer: 'gunmetal', saw: 'gunmetal', jet: 'gunmetal', booster: 'gunmetal', engine: 'gunmetal', spikes: 'gunmetal', wing: 'carbon', prop: 'carbon', rotor: 'carbon', armor: 'plate', bigwheel: 'gunmetal',
       body: 'none', plate: 'none', nose: 'none', cabin: 'none', fender: 'none', spoiler: 'none', lights: 'none', exhaust: 'none' }[t] || 'panel';
     // 'none' = smooth: shiny car paint, glass and chrome
     const M = (color, extra, tex) => {
@@ -766,6 +771,65 @@
         ud.muzzle = 0.95;
         break;
       }
+      case 'mortar': {
+        add(g, box(0.74, 0.42, 0.74), M(0x495057), 0, -0.27, 0);
+        const aim = new THREE.Group();
+        aim.position.y = 0.05;
+        g.add(aim);
+        add(aim, sph(0.3, 12, 10), M(team));
+        // a short fat tube that points up and forward
+        const tube = add(aim, cyl(0.24, 0.2, 0.85, 12), M(0x6b705c), 0, 0.28, 0.22);
+        tube.rotation.x = Math.PI / 2 - 0.7;
+        add(aim, cyl(0.26, 0.26, 0.08, 12), M(0x212529), 0, 0.52, 0.5).rotation.x = Math.PI / 2 - 0.7;
+        aim.rotation.y = Math.PI;
+        ud.aim = aim;
+        ud.muzzle = 0.9;
+        break;
+      }
+      case 'harpoon': {
+        add(g, box(0.62, 0.4, 0.62), M(0x495057), 0, -0.28, 0);
+        const aim = new THREE.Group();
+        aim.position.y = 0.1;
+        g.add(aim);
+        add(aim, box(0.34, 0.32, 0.7), M(team), 0, 0, 0.05);
+        add(aim, cyl(0.07, 0.07, 1.1, 8), M(0x8d6e63), 0, 0.02, 0.6).rotation.x = Math.PI / 2;
+        add(aim, G('hpTip', () => new THREE.ConeGeometry(0.14, 0.32, 8)), M(0xdee2e6, { metalness: 0.9, roughness: 0.2 }), 0, 0.02, 1.2).rotation.x = Math.PI / 2;
+        add(aim, cyl(0.16, 0.16, 0.12, 12), M(0x343a40), 0.22, 0, -0.1).rotation.z = Math.PI / 2; // the chain drum
+        aim.rotation.y = Math.PI;
+        ud.aim = aim;
+        ud.muzzle = 1.3;
+        break;
+      }
+      case 'tesla': {
+        add(g, box(0.62, 0.36, 0.62), M(0x2b2d42), 0, -0.3, 0);
+        const aim = new THREE.Group();
+        aim.position.y = 0.05;
+        g.add(aim);
+        add(aim, cyl(0.12, 0.16, 0.7, 10), M(0x6c757d, { metalness: 0.8 }), 0, 0.2, 0);
+        for (const y of [0.05, 0.22, 0.39]) add(aim, G('tsRing', () => new THREE.TorusGeometry(0.22, 0.05, 6, 16)), M(0xb08968, { metalness: 0.9, roughness: 0.3 }), 0, y, 0).rotation.x = Math.PI / 2;
+        add(aim, sph(0.17, 12, 10), MB(0xc77dff), 0, 0.62, 0);
+        aim.rotation.y = Math.PI;
+        ud.aim = aim;
+        ud.muzzle = 0.3;
+        break;
+      }
+      case 'magnet': {
+        add(g, box(0.66, 0.4, 0.66), M(0x495057), 0, -0.28, 0);
+        const aim = new THREE.Group();
+        aim.position.y = 0.1;
+        g.add(aim);
+        add(aim, box(0.3, 0.3, 0.3), M(team), 0, 0, -0.1);
+        // a horseshoe magnet: red with silver tips
+        for (const sx of [-0.2, 0.2]) {
+          add(aim, box(0.16, 0.2, 0.6), M(0xd00000), sx, 0, 0.3);
+          add(aim, box(0.17, 0.21, 0.14), M(0xdee2e6, { metalness: 0.9, roughness: 0.2 }), sx, 0, 0.66);
+        }
+        add(aim, box(0.56, 0.2, 0.16), M(0xd00000), 0, 0, 0.02);
+        aim.rotation.y = Math.PI;
+        ud.aim = aim;
+        ud.muzzle = 0.75;
+        break;
+      }
       case 'saw': {
         add(g, box(0.5, 0.6, 0.5), M(0x495057), 0, 0, 0.1);
         const spin = new THREE.Group();
@@ -1042,6 +1106,7 @@
     const out = { name: bp.name, parts: bp.parts.map(CW.cleanPart) };
     if (bp.color) out.color = bp.color;
     if (bp.fin) out.fin = bp.fin;
+    if (bp.lo && CW.cleanLo) { const lo = CW.cleanLo(bp.lo); if (lo) out.lo = lo; } // v1.10 loadout
     return out;
   };
 

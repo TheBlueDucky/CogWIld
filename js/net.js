@@ -8,7 +8,7 @@
   const CW = window.CW;
   const V3 = THREE.Vector3;
   const $ = (id) => document.getElementById(id);
-  const NET_VERSION = 'cogwild-net-10';
+  const NET_VERSION = 'cogwild-net-11';
   const SEND_HZ = 20;
   const r2 = (v) => Math.round(v * 100) / 100;
   // names and texts from other players: plain short text only
@@ -331,6 +331,7 @@
       const pick = list[this.bpIndex] && list[this.bpIndex].ok ? list[this.bpIndex] : list.find((e) => e.ok);
       const bp = CW.cloneBp(pick ? pick.bp : CW.PRESETS[0]);
       if (this.game.profile.finish) bp.fin = this.game.profile.finish; // others see your finish
+      bp.lo = CW.myLoadout(this.game); // v1.10: your super, gadget and perks (the server keeps only what you own)
       return bp;
     }
     sendReady() {
@@ -473,7 +474,7 @@
     safeBp(bp) {
       try {
         if (!bp || !Array.isArray(bp.parts)) throw new Error('none');
-        const out = { name: String(bp.name || 'Mech').slice(0, 24), color: bp.color | 0, parts: bp.parts.filter(realPart).slice(0, 160).map(CW.cleanPart) };
+        const out = { name: String(bp.name || 'Mech').slice(0, 24), color: bp.color | 0, parts: bp.parts.filter(realPart).slice(0, 160).map(CW.cleanPart), lo: CW.cleanLo(bp.lo) || {} };
         if (!CW.validate(out.parts, 3, 9999).ok) throw new Error('invalid');
         return out;
       } catch (e) {
@@ -549,7 +550,7 @@
     addFromRoster(e) {
       const g = this.game;
       if (this.byId.has(e.i)) return this.byId.get(e.i);
-      const bp = e.bp && Array.isArray(e.bp.parts) ? { name: clean(e.bp.name, 24), color: e.bp.color | 0, parts: e.bp.parts.filter(realPart).slice(0, 160).map(CW.cleanPart) } : CW.cloneBp(CW.PRESETS[0]);
+      const bp = e.bp && Array.isArray(e.bp.parts) ? { name: clean(e.bp.name, 24), color: e.bp.color | 0, parts: e.bp.parts.filter(realPart).slice(0, 160).map(CW.cleanPart), lo: CW.cleanLo(e.bp.lo) || {} } : CW.cloneBp(CW.PRESETS[0]);
       const c = g.addCombatant({ name: clean(e.n, 16) || 'Bot', isPlayer: !!e.h && e.o === this.id, human: !!e.h, color: e.col | 0, bp, ai: e.ai, team: e.tm | 0, owner: e.o, netId: e.i | 0 });
       c.mech.place(new V3(e.pos[0], 0, e.pos[2]), e.yaw);
       c.mech.protect = 3.5;
@@ -856,11 +857,24 @@
         case 'add': if (hostMsg) { this.addFromRoster(e.r); g.buildTags(); } break;
         case 'pk': if (hostMsg) g.pickups.netCollect(e.i, C(e.c)); break;
         case 'chest': if (hostMsg) g.chests.netSpawn(e); break;
-        case 'open': if (hostMsg) g.chests.netOpen(e.id, C(e.c), e.kinds || []); break;
+        case 'open': if (hostMsg) g.chests.netOpen(e.id, C(e.c)); break;
+        case 'loot': if (hostMsg && Array.isArray(e.l)) for (const it of e.l.slice(0, 20)) if (Array.isArray(it)) g.loot.add(it); break;
+        case 'lget': if (hostMsg) g.loot.netGet(e.id, C(e.c)); break;
+        case 'openReq': if (this.isHost) g.chests.netReq(e.id, C(e.c), from); break;
+        case 'hz': if (hostMsg) g.hazards.netEvent(e); break;
+        case 'ping': g.pings.onRemote(e, C(e.c)); break;
         case 'obj': if (hostMsg && g.obj && g.obj.netApply) g.obj.netApply(e.s); break;
         case 'wave': if (hostMsg) g.netWave(e); break;
         case 'end': if (hostMsg) { if (this.spectating) { g.toast('👁 The match is over'); this.stopSpectating(true); } else g.netEnd(e); } break;
         case 'super': g.supers.onRemote(e); break;
+        // v1.10: a push / pull / jam on one of our mechs, decided by the game that controls the shooter
+        case 'kick': {
+          const c = C(e.c);
+          if (!c || !this.owns(c) || !c.mech || !c.mech.alive || !Array.isArray(e.v)) return;
+          c.mech.vel.add(new V3(+e.v[0] || 0, +e.v[1] || 0, +e.v[2] || 0));
+          if (e.j > 0) c.mech.empT = Math.max(c.mech.empT || 0, Math.min(3, +e.j));
+          break;
+        }
         case 'gadget': g.gadgets.onRemote(e); break;
       }
     }
@@ -906,6 +920,8 @@
       }
       const ch = g.chests;
       if (ch && ch.items) ch.nextId = ch.items.reduce((a, c) => Math.max(a, c.id | 0), 0) + 1;
+      if (g.loot) g.loot.seq = g.loot.items.reduce((a, it) => Math.max(a, it.id | 0), 0) + 1;
+      if (o && o.takeOver) o.takeOver(); // v1.10 modes
       const sv = g.survival;
       if (sv) {
         const foes = g.combatants.some((c) => c.team !== 0 && c.alive);

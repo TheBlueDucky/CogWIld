@@ -605,7 +605,11 @@
         ['☁ Air', air],
         ['Super', (() => { const sp = CW.SUPERS && CW.SUPERS[CW.superFor(this.bp.parts)]; return sp ? `<span aria-label="${sp.desc}">${sp.icon} ${sp.name}</span>` : '—'; })()],
       ];
-      $('wsStats').innerHTML = rows.map(([k, v]) => `<div class="row"><span>${k}</span><span>${v}</span></div>`).join('');
+      // v1.10 part combos: a bonus for building a certain way (js/loadout.js)
+      const combos = CW.combosFor ? CW.combosFor(this.bp.parts) : [];
+      rows.push(['Combos', combos.length ? combos.map((c) => `<span class="ws-combo">${c.icon} ${c.name}</span>`).join(' ') : '<span class="small">none yet</span>']);
+      $('wsStats').innerHTML = rows.map(([k, v]) => `<div class="row"><span>${k}</span><span>${v}</span></div>`).join('') +
+        combos.map((c) => `<div class="ws-combo-desc">${c.icon} <b>${c.name}</b>: ${c.desc}</div>`).join('');
       $('wsWarn').innerHTML =
         v.errors.map((e) => `<div class="err">✖ ${e}</div>`).join('') + v.warnings.map((w) => `<div class="warn">⚠ ${w}</div>`).join('');
       $('wsReady').disabled = !v.ok;

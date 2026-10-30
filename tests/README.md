@@ -76,3 +76,4 @@ And `desktop/node_modules/.bin/electron tests/live-voice.js`: two hidden, muted 
 | `admin-test.js` | the moderation page: a report shows, mute from the page (server with `ADMIN_TOKEN` = 64 × "a") |
 | `lang-test.js` | every language: lobby, PLAY panel, Settings, Workshop and a match translated, right to left for Arabic/Hebrew, back to English (`LANGS=es,hi`) |
 | `i18n-extract.js` | not a test: lists every text the game shows (for the translations in `tools/i18n`) |
+- `v110-test.js`: v1.10 gameplay: the 4 new modes, loadout + perks, every super and gadget, hold-O chests with loot, the new weapons, core crits, combos, pings, arena events and pads, Shop + PLAY loadout, and an online Core Heist (server strips unowned supers).

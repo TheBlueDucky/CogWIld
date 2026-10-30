@@ -1916,6 +1916,57 @@
     backdrop-filter: blur(calc(12px * var(--gK, 1))) saturate(calc(100% + 60% * var(--gK, 1))); -webkit-backdrop-filter: blur(calc(12px * var(--gK, 1))) saturate(calc(100% + 60% * var(--gK, 1)));
     text-shadow: 0 1px 3px rgba(0, 0, 0, .7); }
   html.glass #minimap { border-color: rgba(255, 255, 255, calc(.26 * var(--gK, 1))) !important; }
+  /* v1.10: chests (hold O), pings, killcam, sonar, crits, the loadout and the Shop's supers / gadgets / perks */
+  #chestHint { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 6px 14px 6px 6px;
+    border-radius: var(--rad); background: rgba(12, 18, 40, .6); border: 1px solid rgba(255, 210, 63, .45); color: #fff; font-weight: 800; font-size: 15px;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, .8); pointer-events: none; white-space: nowrap; }
+  #chestHint small { display: block; font-size: 11px; font-weight: 600; color: var(--muted2); }
+  #chestHint kbd { display: inline-block; min-width: 24px; padding: 0 6px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, .5); border-bottom-width: 3px; background: rgba(255, 255, 255, .12); font: inherit; text-align: center; }
+  .ch-ring { position: relative; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-style: normal;
+    background: conic-gradient(#ffd23f var(--k, 0%), rgba(255, 255, 255, .14) 0); }
+  .ch-ring::before { content: ''; position: absolute; inset: 4px; border-radius: 50%; background: #121a33; }
+  .ch-ring b { position: relative; font-size: 14px; }
+  .touch-ui #chestHint { bottom: auto; top: 108px; font-size: 13px; }
+  #pingWheel { position: absolute; left: 50%; top: 50%; width: 230px; height: 230px; transform: translate(-50%, -50%); border-radius: 50%; pointer-events: none;
+    background: radial-gradient(circle, rgba(12, 18, 40, .25) 0 30%, rgba(12, 18, 40, .62) 31% 100%); border: 1px solid rgba(159, 179, 217, .4); }
+  .pw-opt { position: absolute; display: flex; flex-direction: column; align-items: center; width: 92px; color: #dfe6ff; font-weight: 800; font-size: 12px; text-shadow: 0 1px 3px #000; }
+  .pw-opt b { font-size: 26px; line-height: 1.1; transition: transform .1s; }
+  .pw-opt.on { color: var(--hl); } .pw-opt.on b { transform: scale(1.3); }
+  .pw-0 { left: 69px; top: 10px; } .pw-1 { right: 0; top: 92px; } .pw-2 { left: 69px; bottom: 10px; } .pw-3 { left: 0; top: 92px; }
+  .pw-dot { position: absolute; left: 110px; top: 110px; width: 10px; height: 10px; border-radius: 50%; background: #fff; box-shadow: 0 0 6px #000; }
+  .ping-tag { position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 4px; padding: 2px 8px 2px 4px; border-radius: 8px; white-space: nowrap; pointer-events: none;
+    background: rgba(12, 18, 40, .7); border: 1px solid var(--pc, #5ce1ff); color: #fff; font-weight: 800; font-size: 12px; }
+  .ping-tag b { font-size: 16px; }
+  .ping-tag::after { content: attr(data-d); margin-left: 4px; color: var(--muted2); font-weight: 600; font-size: 11px; }
+  #killcam { position: absolute; left: 50%; top: 22%; transform: translateX(-50%); padding: 8px 18px; border-radius: var(--rad); text-align: center; pointer-events: none;
+    background: rgba(12, 18, 40, .7); border: 1px solid rgba(255, 77, 109, .5); color: #fff; font-weight: 800; font-size: 18px; text-shadow: 0 1px 3px #000; }
+  #killcam span { color: #ff8fa3; } #killcam small { display: block; font-size: 12px; color: var(--muted2); font-weight: 600; }
+  .tag.sonar .tag-name { color: #ff4d6d !important; text-shadow: 0 0 6px #ff4d6d, 0 1px 2px #000; }
+  .tag.sonar .tag-name::before { content: '📡 '; }
+  .dmg.crit { color: #ffd23f !important; font-size: 26px; }
+  .super-row.comeback span { color: #ffd23f; }
+  /* the Shop's loadout cards */
+  .swatch.lo { position: relative; display: grid; place-items: center; height: 64px; border-radius: 10px; width: 100%;
+    background: radial-gradient(circle at 50% 55%, rgba(92, 225, 255, .28), rgba(0, 0, 0, 0) 65%), #0d1226; }
+  .swatch.lo-gadgets { background: radial-gradient(circle at 50% 55%, rgba(255, 159, 28, .28), rgba(0, 0, 0, 0) 65%), #0d1226; }
+  .swatch.lo-perks { background: radial-gradient(circle at 50% 55%, rgba(124, 255, 79, .22), rgba(0, 0, 0, 0) 65%), #0d1226; }
+  .swatch.lo i { font-style: normal; font-size: 30px; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .6)); }
+  .lo-item .lo-desc { line-height: 1.25; min-height: 30px; }
+  .lo-need { font-size: 11px; color: var(--muted2); font-weight: 700; }
+  .lo-item.nofit .lo-need { color: #ffb4a2; }
+  .lo-item.is-eq { border-color: var(--muted2) !important; }
+  /* the PLAY panel's loadout */
+  .lo-label { margin: 8px 0 4px; font-size: 13px; font-weight: 700; color: var(--muted2); }
+  .lo-row { display: flex !important; flex-wrap: wrap; gap: 6px; }
+  .lo-chip { display: flex; flex-direction: column; align-items: flex-start; min-width: 118px; max-width: 170px; padding: 6px 10px; border-radius: var(--rad); text-align: left;
+    background: transparent; border: 1px solid var(--line); color: #fff; cursor: pointer; }
+  .lo-chip span { font-size: 20px; line-height: 1.1; } .lo-chip b { font-size: 13px; } .lo-chip small { font-size: 11px; color: var(--muted2); }
+  .lo-chip:hover { border-color: var(--muted2); }
+  .lo-chip.on { border-color: var(--hl); background: rgba(92, 225, 255, .08); }
+  .lo-chip.nofit { opacity: .6; } .lo-chip.nofit small { color: #ffb4a2; }
+  .lo-shop { float: right; font-size: 12px; padding: 3px 10px; }
+  .ws-combo { display: inline-block; padding: 0 6px; margin: 1px 0; border-radius: 6px; border: 1px solid rgba(124, 255, 79, .45); color: #b9ffa0; font-size: 12px; }
+  .ws-combo-desc { font-size: 12px; color: var(--muted2); padding: 1px 0; }
 </style>
 </head>
 <body>
@@ -2383,35 +2434,38 @@
 </div>
 
 <!-- three.js: from the CDN, or the local copy in js/vendor/ when offline (desktop build / no internet) -->
-<script src="js/vendor/three.min.js?v=42"></script>
-<script src="js/economy.js?v=42"></script>
-<script src="js/parts.js?v=42"></script>
-<script src="js/bugs.js?v=42"></script>
-<script src="js/i18n.js?v=42"></script>
-<script src="js/platform.js?v=42"></script>
-<script src="js/featured.js?v=42"></script>
-<script src="js/world.js?v=42"></script>
-<script src="js/entities.js?v=42"></script>
-<script src="js/meta.js?v=42"></script>
-<script src="js/extras.js?v=42"></script>
-<script src="js/modes.js?v=42"></script>
-<script src="js/tutorial.js?v=42"></script>
-<script src="js/clips.js?v=42"></script>
-<script src="js/gamepad.js?v=42"></script>
-<script src="js/workshop.js?v=42"></script>
-<script src="js/config.js?v=42"></script>
-<script src="js/net.js?v=42"></script>
-<script src="js/account.js?v=42"></script>
-<script src="js/touch.js?v=42"></script>
-<script src="js/supers.js?v=42"></script>
-<script src="js/gadgets.js?v=42"></script>
-<script src="js/replay.js?v=42"></script>
-<script src="js/gallery.js?v=42"></script>
-<script src="js/pics.js?v=42"></script>
-<script src="js/talk.js?v=42"></script>
-<script src="js/voice.js?v=42"></script>
-<script src="js/calls.js?v=42"></script>
-<script src="js/game.js?v=42"></script>
-<script src="js/desktop.js?v=42"></script>
+<script src="js/vendor/three.min.js?v=43"></script>
+<script src="js/economy.js?v=43"></script>
+<script src="js/parts.js?v=43"></script>
+<script src="js/loadout.js?v=43"></script>
+<script src="js/bugs.js?v=43"></script>
+<script src="js/i18n.js?v=43"></script>
+<script src="js/platform.js?v=43"></script>
+<script src="js/featured.js?v=43"></script>
+<script src="js/world.js?v=43"></script>
+<script src="js/entities.js?v=43"></script>
+<script src="js/meta.js?v=43"></script>
+<script src="js/extras.js?v=43"></script>
+<script src="js/modes.js?v=43"></script>
+<script src="js/tutorial.js?v=43"></script>
+<script src="js/clips.js?v=43"></script>
+<script src="js/gamepad.js?v=43"></script>
+<script src="js/workshop.js?v=43"></script>
+<script src="js/config.js?v=43"></script>
+<script src="js/net.js?v=43"></script>
+<script src="js/account.js?v=43"></script>
+<script src="js/touch.js?v=43"></script>
+<script src="js/supers.js?v=43"></script>
+<script src="js/gadgets.js?v=43"></script>
+<script src="js/hazards.js?v=43"></script>
+<script src="js/pings.js?v=43"></script>
+<script src="js/replay.js?v=43"></script>
+<script src="js/gallery.js?v=43"></script>
+<script src="js/pics.js?v=43"></script>
+<script src="js/talk.js?v=43"></script>
+<script src="js/voice.js?v=43"></script>
+<script src="js/calls.js?v=43"></script>
+<script src="js/game.js?v=43"></script>
+<script src="js/desktop.js?v=43"></script>
 </body>
 </html>

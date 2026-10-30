@@ -28,6 +28,10 @@
         this.group.add(obj);
         return { t: p.t, x: p.x, y: p.y, z: p.z, r: p.r, s: p.s, hp: def.hp, maxHp: def.hp, obj, alive: true, cd: Math.random() * 0.4, wp: new V3() };
       });
+      // v1.10: perks and part combos (js/loadout.js), e.g. Thick Plating = more HP on every part
+      this.mods = CW.mechMods(this.combatant, this.parts);
+      if (this.mods.hpK !== 1) for (const p of this.parts) p.hp = p.maxHp = Math.round(p.maxHp * this.mods.hpK);
+      if (this.combatant && CW.hasPerk(this.combatant, 'headstart') && game.state === 'match') this.combatant.superCharge = Math.max(this.combatant.superCharge || 0, 0.35);
       this.core = this.parts.find((p) => p.t === 'core');
       this.camPart = this.parts.find((p) => p.t === 'camera');
       // a seated pilot behind the camera lens, so a driven mech never looks empty
@@ -136,6 +140,9 @@
       if (!grounded && !inWater) F += this.rotors * 45;
       F += this.thrust * (inWater ? 0.35 : 1);
       F *= pr * (this.turbo > 0 ? 1.4 : 1) * (this.empT > 0 ? 0.45 : 1) * (mods.speed || 1); // an EMP slows engines
+      // v1.10: combos/perks, Nitro (ground), Afterburner (air) and Scrap Wars upgrades
+      const mm = this.mods;
+      F *= mm.speedK * (inWater ? mm.waterK : !grounded ? mm.airK : 1) * (this.nitroT > 0 && grounded ? 1.9 : 1) * (this.burnerT > 0 && !grounded ? 1.8 : 1) * (1 + 0.04 * ((this.combatant && this.combatant.scrapLv) || 0)) * (this.combatant && this.combatant.carrying ? 0.8 : 1);
       const acc = (F * inp.throttle) / this.stats.moveMass; // heavy mechs don't crawl (CW.moveMass)
       this.vel.x += fx * acc * dt;
       this.vel.z += fz * acc * dt;
@@ -365,6 +372,12 @@
       if (this.overcharge > 0) this.overcharge -= dt;
       if (this.turbo > 0) { this.turbo -= dt; this.dashCd = Math.min(this.dashCd, 0.5); }
       if (this.domeT > 0) this.domeT -= dt; // a Shield Dome super keeps its protection while you shoot
+      // v1.10 timers: Overdrive super, Nitro / Afterburner gadgets
+      if (this.overdriveT > 0) { this.overdriveT -= dt; if (Math.random() < dt * 10) this.game.fx.burst(this.pos, { n: 1, color: 'fire', speed: 2, up: 2, life: 0.4, size: 0.4 }); }
+      if (this.nitroT > 0) { this.nitroT -= dt; if (Math.random() < dt * 20) this.game.fx.burst(this.pos, { n: 1, color: this.game.fx.colorKey(0x4cc9f0), speed: 3, life: 0.4, size: 0.35 }); }
+      if (this.burnerT > 0) { this.burnerT -= dt; if (Math.random() < dt * 20) this.game.fx.burst(this.pos, { n: 1, color: 'fire', speed: 3, life: 0.35, size: 0.4 }); }
+      // Self-Repair perk: slowly fixes the mech after 5 s without being hit
+      if (this.mods.regen && !this.remote && this.game.time - (this.lastHitAt || 0) > 5) this.repair(Math.max(8, this.parts.length * 1.5) * dt, 6);
       // hit flash: only the part that was hit lights up for a blink, then gets its paint back
       if (this.anyFlash) {
         let still = false;
@@ -482,7 +495,7 @@
           if (m.pos.distanceTo(tip) > m.radius + 1) continue;
           for (const p of m.parts) {
             if (!p.alive || p.wp.distanceTo(tip) > 1.25) continue;
-            m.hit(p, CW.PARTS.saw.saw * this.dmgMult() * dt, this.combatant);
+            m.hit(p, CW.PARTS.saw.saw * this.dmgMult() * this.mods.ramK * dt, this.combatant, 'ram');
             if (Math.random() < dt * 20) game.fx.burst(p.wp, { n: 2, color: 'spark', speed: 9, life: 0.25, size: 0.12, grav: 20 });
             if (this.combatant.isPlayer && Math.random() < dt * 4) game.onPlayerHit(p.wp.clone(), CW.PARTS.saw.saw * 0.25, true);
             break;
@@ -506,7 +519,7 @@
       this.vel.x += dx * P;
       this.vel.z += dz * P;
       if (this.medium === 'land') this.vel.y = Math.max(this.vel.y, 3);
-      this.dashCd = this.legs > 0 ? s.dashCd * 0.75 : s.dashCd;
+      this.dashCd = (this.legs > 0 ? s.dashCd * 0.75 : s.dashCd) * this.mods.dashK;
       this.dashMax = this.dashCd;
       this.dashTime = 0.35;
       this.game.onDash(this);
@@ -514,12 +527,14 @@
     }
 
     // damage multiplier: bot difficulty × overcharge power-up
-    dmgMult() { return (this.baseDmg || 1) * (this.overcharge > 0 ? 1.5 : 1); }
+    // (v1.10: × perks/combos × Scrap Wars upgrades)
+    dmgMult() { return (this.baseDmg || 1) * (this.overcharge > 0 ? 1.5 : 1) * this.mods.dmgK * (1 + 0.08 * ((this.combatant && this.combatant.scrapLv) || 0)); }
 
     fireWeapons(aim) {
       if (this.empT > 0) return; // jammed by an EMP
+      if ((CW.MODES[this.game.modeId] || {}).noGuns) return; // Demolition Derby: rams, saws and spikes only
       if (this.protect > 0 && this.weapons.length && !(this.domeT > 0)) this.protect = 0; // shooting ends spawn protection (no free hits)
-      const rateK = 0.4 + 0.6 * this.pr;
+      const rateK = (0.4 + 0.6 * this.pr) * this.mods.rateK * (this.overdriveT > 0 ? 2 : 1);
       const mult = this.dmgMult();
       for (const p of this.weapons) {
         if (!p.alive || p.cd > 0) continue;
@@ -535,6 +550,22 @@
           dir.normalize();
         }
         const start = origin.clone().addScaledVector(dir, ud.muzzle || 0.8);
+        // v1.10 weapons
+        if (w.kind === 'tesla') { this.game.fx.tesla(start, dir.clone(), w.range, w.dmg * mult, this.combatant); p.cd = 1 / (w.rate * rateK); continue; }
+        if (w.kind === 'magnet') { this.game.fx.magnet(start, dir.clone(), w.range, w.dmg * mult, this.combatant, this); p.cd = 1 / (w.rate * rateK); continue; }
+        if (w.kind === 'mortar') {
+          // a high arc that lands on the aim point (up to 120 m away)
+          const tgt = aim.clone().sub(start);
+          const flat = Math.min(120, Math.hypot(tgt.x, tgt.z));
+          const T = Math.max(1.35, Math.min(2.8, flat / 26)); // a high lob, over walls and hills
+          const k = flat / Math.max(0.01, Math.hypot(tgt.x, tgt.z));
+          const vel = new V3((tgt.x * k) / T, (tgt.y + 0.5 * w.grav * T * T) / T, (tgt.z * k) / T);
+          this.game.fx.projectile({ pos: start, vel, dmg: w.dmg * mult, splash: w.splash * this.mods.splashK, grav: w.grav, who: this.combatant, kind: 'mortar' });
+          if (!(this.game.camera && this.game.camera.position.distanceTo(start) < 3)) this.game.fx.burst(start, { n: 6, color: 'smoke', speed: 3, up: 2, life: 0.6, size: 0.4, grow: 1.5 });
+          p.cd = 1 / (w.rate * rateK);
+          this.game.audio.shot('rocket', this.combatant.isPlayer ? 1 : this.game.audio.near(start));
+          continue;
+        }
         if (w.kind === 'laser') {
           this.game.fx.laser(start, dir.clone(), w.range, w.dmg * mult, this.combatant);
           p.cd = 1 / (w.rate * rateK);
@@ -543,7 +574,7 @@
         }
         const vel = dir.clone().multiplyScalar(w.speed).add(this.vel);
         if (w.kind === 'flame') vel.multiplyScalar(0.9 + Math.random() * 0.2).add(new V3((Math.random() - 0.5) * 4, (Math.random() - 0.5) * 3, (Math.random() - 0.5) * 4));
-        this.game.fx.projectile({ pos: start, vel, dmg: w.dmg * mult, splash: w.splash, grav: w.grav, who: this.combatant, kind: w.kind });
+        this.game.fx.projectile({ pos: start, vel, dmg: w.dmg * mult, splash: w.splash * this.mods.splashK, grav: w.grav, who: this.combatant, kind: w.kind, from: w.kind === 'hook' ? this : null });
         // a small muzzle flash (left out right in front of your own camera, where it would cover the screen)
         const nearLens = this.game.camera && this.game.camera.position.distanceTo(start) < 3;
         if (!nearLens) {
@@ -555,10 +586,15 @@
       }
     }
 
-    hit(part, dmg, who) {
+    // kind: 'ram' for rams (Shock Absorbers); arena damage has no `who`
+    hit(part, dmg, who, kind) {
       if (!this.alive || !part.alive) return;
       if (CW.sameTeam(who, this.combatant)) return;
       const net = this.game.net;
+      // v1.10, decided by the game that decides the hit: the core is a weak spot (+40%), and Shock Absorbers soften
+      // rams and the arena
+      if (!net.applying && who && who !== this.combatant && part.t === 'core' && dmg > 0) { dmg *= 1.4; if (who.isPlayer) this.game.critT = this.game.time; }
+      if (!net.applying && (kind === 'ram' || !who)) dmg *= this.mods.absorb;
       // you see every hit land: the mech flashes white for a moment
       if (dmg > 0 && !(this.protect > 0)) { part.flashT = 0.08; this.anyFlash = true; }
       if (!net.applying && this.game.mods && this.game.mods.dmg) dmg *= this.game.mods.dmg; // weekly event: Glass Cannons
@@ -572,7 +608,10 @@
       }
       if (this.protect > 0) { this.shieldFlash = 0.7; return; } // spawn protection
       if (this.dmgTaken) dmg *= this.dmgTaken;
+      if (this.overdriveT > 0) dmg *= 0.7; // Overdrive super
+      if (this.combatant.scrapLv) dmg *= 1 - 0.04 * this.combatant.scrapLv; // Scrap Wars armor upgrades
       this.lastHitBy = who;
+      this.lastHitAt = this.game.time;
       this.shieldDelay = 3;
       if (this.shield > 0) {
         const a = Math.min(this.shield, dmg);
@@ -605,7 +644,7 @@
       this.game.fx.chunks(part.wp, 3, this.color, 0.5);
       this.game.fx.burst(part.wp, { n: 8, color: 'spark', speed: 10, life: 0.35, size: 0.08, grav: 20 });
       this.game.fx.explosion(part.wp, 0.45);
-      this.game.onPartBroken(this, who);
+      this.game.onPartBroken(this, who, part);
       if (part.t === 'camera' && this.combatant.isPlayer) this.game.bigMsg('CAMERA DESTROYED', 'Switched to chase view', 2);
       if (part.t === 'core') { this.destroy(who); return; }
       const alive = this.parts.filter((p) => p.alive);
@@ -631,6 +670,7 @@
     // blown-off parts come back so that even a 40-part rebuild takes about 4 seconds.
     repairWork(dt) {
       const total = this.parts.reduce((a, p) => a + p.maxHp, 0);
+      dt *= this.mods.repairK; // Quick Fix perk
       const fixed = this.repair(Math.max(60, total * 0.25) * dt, 12); // damage heals while lost parts come back
       const missing = this.parts.filter((p) => !p.alive);
       if (!missing.length) return fixed ? 'fix' : 'done';
@@ -879,6 +919,10 @@
         bolt: new THREE.BoxGeometry(0.1, 0.1, 0.8),
         rail: new THREE.BoxGeometry(0.14, 0.14, 3.2),
         flame: new THREE.IcosahedronGeometry(0.3, 0),
+        mortar: new THREE.SphereGeometry(0.32, 10, 8),
+        hook: new THREE.ConeGeometry(0.16, 0.6, 8).rotateX(Math.PI / 2),
+        torpedo: new THREE.CylinderGeometry(0.22, 0.22, 1.4, 10).rotateX(Math.PI / 2),
+        grenade: new THREE.SphereGeometry(0.28, 10, 8),
       };
       this.projMat = {
         shell: new THREE.MeshBasicMaterial({ color: 0xffc46b, transparent: true, opacity: 0.9 }),
@@ -886,6 +930,10 @@
         bolt: new THREE.MeshBasicMaterial({ color: 0x5cf2ff }),
         rail: new THREE.MeshBasicMaterial({ color: 0xbff6ff }),
         flame: new THREE.MeshBasicMaterial({ color: 0xff8c1a, transparent: true, opacity: 0.85, depthWrite: false }),
+        mortar: new THREE.MeshBasicMaterial({ color: 0x3d3d3d }),
+        hook: new THREE.MeshBasicMaterial({ color: 0xdee2e6 }),
+        torpedo: new THREE.MeshBasicMaterial({ color: 0xffb703 }),
+        grenade: new THREE.MeshBasicMaterial({ color: 0x7df9ff }),
       };
     }
 
@@ -903,7 +951,7 @@
       const mesh = new THREE.Mesh(this.projGeo[o.kind], this.projMat[o.kind]);
       mesh.position.copy(o.pos);
       this.game.scene.add(mesh);
-      const life = o.kind === 'rocket' ? 4 : o.kind === 'flame' ? 0.38 : o.kind === 'rail' ? 1.2 : 2.5;
+      const life = o.kind === 'rocket' ? 4 : o.kind === 'flame' ? 0.38 : o.kind === 'rail' ? 1.2 : o.kind === 'mortar' ? 5 : o.kind === 'torpedo' ? 3 : 2.5;
       this.projectiles.push({ ...o, prev: o.pos.clone(), life, maxLife: life, mesh, trail: 0 });
     }
 
@@ -970,6 +1018,88 @@
       beam.scale.set(1, 1, start.distanceTo(end));
       this.game.scene.add(beam);
       this.beams.push({ mesh: beam, life: 0.07 });
+    }
+
+    // v1.10 Tesla Coil: zaps the closest enemy part in front (within range), then the shock jumps to 2 more mechs
+    tesla(start, dir, range, dmg, who) {
+      const game = this.game;
+      let best = null, bd = range;
+      for (const m of game.mechs) {
+        if (!m.alive || CW.sameTeam(m.combatant, who)) continue;
+        const to = m.pos.clone().sub(start);
+        const d = to.length();
+        if (d > range + m.radius || to.normalize().dot(dir) < 0.88) continue;
+        if (d < bd) { bd = d; best = m; }
+      }
+      const zap = (a, m, k) => {
+        const part = m.parts.filter((q) => q.alive).sort((x, y) => x.wp.distanceTo(a) - y.wp.distanceTo(a))[0];
+        if (!part) return null;
+        const at = part.wp.clone();
+        this.bolt(a, at, 0xc77dff);
+        m.hit(part, dmg * k, who);
+        if (who && who.isPlayer) game.onPlayerHit(at, dmg * k, true);
+        return at;
+      };
+      if (!best) { this.bolt(start, start.clone().addScaledVector(dir, 6 + Math.random() * 4), 0xc77dff); return; }
+      let from = zap(start, best, 1);
+      const done = new Set([best]);
+      for (let j = 0; j < 2 && from; j++) {
+        const next = game.mechs.filter((m) => m.alive && !done.has(m) && !CW.sameTeam(m.combatant, who) && m.pos.distanceTo(from) < 11 + m.radius)
+          .sort((a, b) => a.pos.distanceTo(from) - b.pos.distanceTo(from))[0];
+        if (!next) break;
+        done.add(next);
+        from = zap(from, next, 0.7);
+      }
+      if (who && who.isPlayer && Math.random() < 0.5) game.audio.tone(1800, 0.06, 'sawtooth', 0.06, 0.4);
+    }
+    // a jagged electric line from a to b (gone in a moment)
+    bolt(a, b, color) {
+      const pts = [];
+      const n = 7;
+      for (let i = 0; i <= n; i++) {
+        const p = a.clone().lerp(b, i / n);
+        if (i > 0 && i < n) p.add(new V3((Math.random() - 0.5) * 0.9, (Math.random() - 0.5) * 0.9, (Math.random() - 0.5) * 0.9));
+        pts.push(p);
+      }
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color }));
+      this.game.scene.add(line);
+      this.later(0.09, () => { this.game.scene.remove(line); line.geometry.dispose(); line.material.dispose(); });
+      this.burst(b, { n: 2, color: this.colorKey(color), speed: 4, life: 0.2, size: 0.2 });
+    }
+    // v1.10 Magnet: a pulling beam; the mech it touches gets dragged toward the shooter (a few pushes a second)
+    magnet(start, dir, range, dmg, who, mech) {
+      const game = this.game;
+      const end = start.clone().addScaledVector(dir, range);
+      const hit = this.segmentHit(start, end, who);
+      if (hit && hit.mech) {
+        end.copy(hit.point);
+        hit.mech.hit(hit.part, dmg, who);
+        const m = hit.mech;
+        m.magPull = (m.magPull || 0) + 1;
+        if (m.magPull >= 2) { // every other zap (~4 per second)
+          m.magPull = 0;
+          const v = mech.pos.clone().sub(m.pos).setY(0);
+          if (v.length() > m.radius + mech.radius) game.kick(m, v.normalize().multiplyScalar(6).setY(0.8), who);
+        }
+      }
+      if (!this.magGeo) {
+        this.magGeo = new THREE.CylinderGeometry(0.12, 0.05, 1, 6).rotateX(Math.PI / 2).translate(0, 0, 0.5);
+        this.magMat = new THREE.MeshBasicMaterial({ color: 0xff4d6d, transparent: true, opacity: 0.45, depthWrite: false });
+      }
+      this.beams = this.beams || [];
+      const beam = new THREE.Mesh(this.magGeo, this.magMat);
+      beam.position.copy(start);
+      beam.lookAt(end);
+      beam.scale.set(1, 1, start.distanceTo(end));
+      game.scene.add(beam);
+      this.beams.push({ mesh: beam, life: 0.12 });
+    }
+    // the Harpoon's chain while the hook flies (and for a moment after it bites)
+    chain(from, to) {
+      if (!this.chainMat) this.chainMat = new THREE.LineBasicMaterial({ color: 0x9d9d9d });
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([from.pos.clone().setY(from.pos.y + 0.6), to.clone()]), this.chainMat);
+      this.game.scene.add(line);
+      this.later(0.02, () => { this.game.scene.remove(line); line.geometry.dispose(); });
     }
 
     burst(pos, o) {
@@ -1153,6 +1283,7 @@
         r.mesh.material.opacity = Math.max(0, r.life / 0.55) * 0.9;
         if (r.life <= 0) { game.scene.remove(r.mesh); r.mesh.geometry.dispose(); r.mesh.material.dispose(); this.rings.splice(i, 1); }
       }
+      if (this.chainT) { this.chainT.t -= dt; if (this.chainT.t <= 0 || !this.chainT.b.alive) this.chainT = null; else this.chain(this.chainT.a, this.chainT.b.pos); }
       if (this.beams) {
         for (let i = this.beams.length - 1; i >= 0; i--) {
           const b = this.beams[i];
@@ -1175,6 +1306,15 @@
           p.vel.multiplyScalar(Math.exp(-2.5 * dt));
         }
         if (Math.abs(p.pos.x) > CW.FIELD || Math.abs(p.pos.z) > CW.FIELD || p.pos.y > CW.CEILING + 10) p.life = 0; // stopped by the force field
+        if (p.kind === 'mortar' || p.kind === 'torpedo' || p.kind === 'grenade') {
+          p.trail -= dt;
+          if (p.trail <= 0) { p.trail = 0.04; this.burst(p.pos, { n: 1, color: p.kind === 'torpedo' ? 'water' : p.kind === 'grenade' ? this.colorKey(0x7df9ff) : 'smoke', speed: 0.4, life: 0.5, size: 0.3, grow: 1.4 }); }
+          // a torpedo skims along the water (and the ground) instead of diving in
+          if (p.kind === 'torpedo') { const gy = Math.max(CW.WATER_Y + 0.15, world.groundAt(p.pos.x, p.pos.z, p.pos.y + 2) + 0.4); if (p.pos.y < gy) { p.pos.y = gy; p.vel.y = 0; } }
+        }
+        if (p.kind === 'hook' && p.from) this.chain(p.from, p.pos);
+        // Mech Ball: shots push the ball
+        if (game.obj && game.obj.ballHit && game.obj.ballHit(p)) { game.scene.remove(p.mesh); this.projectiles.splice(i, 1); continue; }
         if (p.kind === 'rocket') {
           p.trail -= dt;
           if (p.trail <= 0) { p.trail = 0.025; this.burst(p.pos, { n: 1, color: 'smoke', speed: 0.5, life: 0.6, size: 0.3, grow: 1.2 }); }
@@ -1208,7 +1348,7 @@
         }
         let impact = null;
         if (hit) impact = new V3(a.x + ab.x * bestT, a.y + ab.y * bestT, a.z + ab.z * bestT);
-        if (!impact && p.pos.y < world.groundAt(p.pos.x, p.pos.z, p.pos.y)) impact = p.pos.clone();
+        if (!impact && p.kind !== 'torpedo' && p.pos.y < world.groundAt(p.pos.x, p.pos.z, p.pos.y)) impact = p.pos.clone();
         let inWater = false;
         if (!impact && p.prev.y >= CW.WATER_Y && p.pos.y < CW.WATER_Y) {
           if (p.splash > 0) { impact = p.pos.clone(); inWater = true; }
@@ -1232,7 +1372,32 @@
           this.projectiles.splice(i, 1);
           continue;
         }
+        if (p.kind === 'grenade' && (impact || p.life <= 0)) {
+          // EMP Grenade: jams and hurts enemies where it lands (the thrower's game decides)
+          const at = impact || p.pos;
+          this.burst(at, { n: 30, color: this.colorKey(0x7df9ff), speed: 14, life: 0.5, size: 0.3 });
+          game.audio.boom(0.8, at);
+          if (!game.net.active || game.net.owns(p.who)) {
+            for (const m of game.mechs) {
+              if (!m.alive || CW.sameTeam(m.combatant, p.who) || m.pos.distanceTo(at) > 7 + m.radius) continue;
+              m.splash(m.pos, 3, 10, p.who);
+              game.jam(m, 2, p.who);
+            }
+          }
+          game.scene.remove(p.mesh);
+          this.projectiles.splice(i, 1);
+          continue;
+        }
         if (impact || p.life <= 0) {
+          // Harpoon: a hit yanks that mech toward the shooter
+          if (p.kind === 'hook' && hit && hit.mech && p.from && p.from.alive) {
+            const v = p.from.pos.clone().sub(hit.mech.pos);
+            const d = v.length();
+            v.setY(0).normalize().multiplyScalar(Math.min(34, 10 + d * 0.6));
+            v.y = 5;
+            game.kick(hit.mech, v, p.who);
+            this.chainT = { a: p.from, b: hit.mech, t: 0.35 };
+          }
           if (impact) {
             if (p.kind === 'rail') this.burst(impact, { n: 10, color: this.colorKey(0x48cae4), speed: 9, life: 0.4, size: 0.2 });
             if (hit && hit.part) { hit.mech.hit(hit.part, p.dmg, p.who); if (p.who && p.who.isPlayer) game.onPlayerHit(impact, p.dmg); }
@@ -1245,7 +1410,7 @@
               }
               if (any && p.who && p.who.isPlayer && !hit) game.onPlayerHit(impact, p.dmg * 0.6);
               if (inWater) this.splashFx(impact, 1.4);
-              else this.explosion(impact, 1);
+              else this.explosion(impact, p.kind === 'mortar' ? 1.5 : 1);
             } else if (inWater) this.splashFx(impact, 0.4);
             else this.burst(impact, { n: hit ? 4 : 3, color: hit ? 'spark' : 'smoke', speed: hit ? 6 : 3, life: hit ? 0.25 : 0.4, size: hit ? 0.09 : 0.18, grav: hit ? 18 : 0 });
           }

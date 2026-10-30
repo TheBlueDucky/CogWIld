@@ -13,10 +13,11 @@
   const BUTTONS = [
     ['fire', '💥', null, true], ['dash', '💨', 'ShiftLeft', false], ['up', '⬆', 'Space', true], ['down', '⬇', 'KeyC', true],
     ['exit', '🚪', 'KeyE', false], ['repair', '🔧', 'KeyR', true], ['unstuck', '🆘', 'KeyF', false], ['super', '⭐', 'KeyX', false], ['gadget', '🧰', 'KeyG', false],
+    ['open', '🎁', 'KeyO', true], ['ping', '📍', 'KeyZ', false],
   ];
   // where they go: the right thumb's arc (aim + fire), the left thumb (up/down above the stick), and the
   // rarely-needed ones in the bottom-middle row, away from both thumbs (Exit needs a short hold)
-  const ARC = ['fire', 'super', 'gadget', 'dash'], LEFT = ['up', 'down'], AUX = ['exit', 'repair', 'unstuck'];
+  const ARC = ['fire', 'super', 'gadget', 'dash'], LEFT = ['up', 'down', 'open'], AUX = ['exit', 'repair', 'unstuck', 'ping'];
   const HOLD_EXIT = 0.45; // seconds
   // ☰ Menu: resume, restart, settings and quit (also skip the tutorial / back to the Workshop); the phone's Back does it too
   const SMALL = [['pause', '☰ Menu'], ['cam', '🎥'], ['scores', '📋'], ['chat', '💬']];
@@ -184,6 +185,8 @@
       if (this.shown && g.player) {
         this.root.querySelector('.t-super').classList.toggle('ready', (g.player.superCharge || 0) >= 1);
         this.root.querySelector('.t-gadget').classList.toggle('ready', g.gadgets.left(g.player) > 0 && !(g.player.gadgetCd > 0));
+        const op = this.root.querySelector('.t-open');
+        if (op.classList.contains('hidden') === !!g.chests.near) op.classList.toggle('hidden', !g.chests.near);
       }
       const show = this.on && g.state === 'match' && !g.paused && !g.ended;
       if (show === this.shown) return;

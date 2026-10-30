@@ -972,7 +972,7 @@ class Accounts {
       if (had) this.importGuest(u.w, u.save.data.profile, 50000, 200000);
     }
     const w = u.w;
-    for (const k of ['finishes', 'wrecks']) if (!Array.isArray(w.owned[k])) w.owned[k] = []; // added in v1.8.2
+    for (const k of ['finishes', 'wrecks', 'supers', 'gadgets', 'perks']) if (!Array.isArray(w.owned[k])) w.owned[k] = []; // added in v1.8.2 / v1.10
     if (w.xp === undefined) w.xp = Math.min(200000, Math.max(0, Math.floor(+(u.save && u.save.data && u.save.data.profile && u.save.data.profile.xp) || 0)));
     if (!w.ch) w.ch = { day: '', got: [] };
     const s = E.season().id;
@@ -1029,6 +1029,8 @@ class Accounts {
   // whose wallet this connection uses: the account, or the device's guest record
   owner(c) { return c.user ? this.db.users[c.user] || null : c.guest ? this.db.guests[c.guest] || null : null; }
   level(c) { const o = this.owner(c); return o ? E.levelOf(this.wallet(o).xp) : 1; }
+  // v1.10: a player's loadout (super, gadget, perks) with only what their wallet owns
+  loadout(c, lo) { const o = this.owner(c), w = o && this.wallet(o); return E.cleanLoadout(lo, (k, id) => !!(w && w.owned[k] && w.owned[k].includes(id)), w ? E.levelOf(w.xp) : 1); }
   sendWallet(c, u, extra) { this.dirty(); this.send(c, Object.assign({ t: 'wallet', w: this.walletView(u) }, extra || {})); }
   // a device without an account: its token picks its guest record (a new device gets one)
   guestHello(c, m) {

@@ -23,14 +23,14 @@ const { Referee } = require('./referee');
 
 const PORT = parseInt(process.env.PORT || '8765', 10);
 const ROOT = path.resolve(__dirname, '..');
-const NET_VERSION = 'cogwild-net-10';
+const NET_VERSION = 'cogwild-net-11';
 const MAX_PLAYERS = 8;
 // Matchmaking (PLAY): each arena has its own queue. A search lasts up to SEARCH_SECS; then bots fill every
 // empty seat (at least one, so there's always someone to fight) and the match starts. A full room starts at once.
 const SEARCH = parseInt(process.env.SEARCH_SECS || process.env.BOT_WAIT_SEC || '30', 10) * 1000;
 const FULL_START = 3000; // a room that fills up with players starts after this short pause
 // what PLAY plays in each mode, and how many seats that has (co-op modes: you + 2 teammates)
-const MM_FORMAT = { clash: 'ffa', rush: 'ffa', koth: 'squads', gold: 'squads', bounty: 'squads', race: 'race', boss: 'squad', survival: 'squad' };
+const MM_FORMAT = { clash: 'ffa', rush: 'ffa', koth: 'squads', gold: 'squads', bounty: 'squads', race: 'race', boss: 'squad', survival: 'squad', heist: 'squads', ball: 'squads', derby: 'ffa', scrap: 'ffa' };
 const SEATS = { duel: 2, squads: 6, quads: 8, ffa: 8, race: 6, solo: 1, squad: 3 };
 // trophy matchmaking: rooms within ±150 trophies of you, widening 10 per second the search has run;
 // bot difficulty follows the room's trophies
@@ -228,7 +228,7 @@ function cleanSettings(s) {
   s = s || {};
   const pick = (v, ok, d) => (ok.includes(v) ? v : d);
   return {
-    mode: pick(s.mode, ['rush', 'clash', 'koth', 'gold', 'bounty', 'race', 'survival', 'boss'], 'clash'),
+    mode: pick(s.mode, ['rush', 'clash', 'koth', 'gold', 'bounty', 'race', 'survival', 'boss', 'heist', 'ball', 'derby', 'scrap'], 'clash'),
     format: pick(s.format, ['duel', 'squads', 'quads', 'ffa', 'race', 'solo', 'squad'], 'ffa'),
     arena: clean(s.arena, 16) || 'random',
     tod: pick(s.tod, ['random', 'day', 'sunset', 'night'], 'random'),
@@ -288,7 +288,7 @@ function resultProblem(room, res, n) {
   const solo = ['ffa', 'race'].includes(room.settings.format);
   if (solo && new Set(places.map(([, p]) => p)).size !== places.length) return 'two players in the same place';
   // last mech standing: whoever was knocked out first must place behind whoever lasted longer
-  if (solo && ['clash', 'rush'].includes(room.settings.mode) && room.out) {
+  if (solo && ['clash', 'rush', 'derby'].includes(room.settings.mode) && room.out) {
     for (const [a, pa] of places) {
       for (const [b, pb] of places) {
         const oa = room.out.get(a), ob = room.out.get(b);
@@ -305,7 +305,7 @@ function broadcast(room, msg, exceptId) {
 }
 // friends watching a match: they get its start, what happened so far, then everything live
 const MAX_SPECTATORS = 6, LOG_MAX = 600;
-const LOGGED = new Set(['add', 'wreck', 'elim', 'spawn', 'wave', 'chest', 'open', 'pk', 'super']);
+const LOGGED = new Set(['add', 'wreck', 'elim', 'spawn', 'wave', 'chest', 'open', 'pk', 'super', 'loot', 'lget']);
 function spectate(c, friend) {
   const room = friend.room && rooms.get(friend.room);
   if (!room || room.state !== 'playing' || room.phase !== 'match' || !room.beginPayload) return c.ws.send({ t: 'err', msg: `${friend.name} isn't in a match right now` });
@@ -482,7 +482,7 @@ function handle(c, data) {
     case 'ready':
       if (!room || room.state !== 'lobby') break;
       c.ready = !!m.ready;
-      c.bp = m.bp && Array.isArray(m.bp.parts) && m.bp.parts.length <= E.MAX_PARTS ? { name: clean(m.bp.name, 24), color: m.bp.color & 0xffffff, parts: cleanParts(m.bp.parts), fin: E.item('finishes', String(m.bp.fin || '')) ? String(m.bp.fin) : undefined } : null;
+      c.bp = m.bp && Array.isArray(m.bp.parts) && m.bp.parts.length <= E.MAX_PARTS ? { name: clean(m.bp.name, 24), color: m.bp.color & 0xffffff, parts: cleanParts(m.bp.parts), fin: E.item('finishes', String(m.bp.fin || '')) ? String(m.bp.fin) : undefined, lo: accounts.loadout(c, m.bp.lo) || undefined } : null;
       // the mech must fit this player's level (from the server's XP) and the budget
       if (c.bp) {
         const why = E.mechProblem(c.bp.parts, accounts.level(c), E.BUDGET);
@@ -520,6 +520,8 @@ function handle(c, data) {
         room.log = [];
         // every player's mech in the match must fit that player's level and the mode's budget
         const budget = room.settings.mode === 'rush' ? E.RUSH_BUDGET : E.BUDGET;
+        // v1.10: each player's super / gadget / perks: only what they own
+        for (const e of m.payload.roster) if (e && e.h && e.bp && typeof e.bp === 'object' && clients.get(e.o | 0)) { const lo = accounts.loadout(clients.get(e.o | 0), e.bp.lo); if (lo) e.bp.lo = lo; else delete e.bp.lo; }
         const bad = m.payload.roster.find((e) => e && e.h && clients.get(e.o | 0) && E.mechProblem(e.bp && e.bp.parts, accounts.level(clients.get(e.o | 0)), budget));
         if (bad) {
           console.warn(`match refused in ${room.code}: ${clean(bad.n, 16)}'s mech is not allowed`);

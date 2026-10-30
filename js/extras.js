@@ -143,12 +143,128 @@
   }
 
   // ======================= LOOT CHESTS =======================
-  // Common (wood), Rare (steel), Epic (gold). Touch one with your mech or pilot to open it.
+  // Common (wood), Rare (steel), Epic (gold). v1.10: drive up to one and hold O (🎁 on phones, d-pad down on a
+  // controller) for about a second; it bursts open and throws real loot around it: coin piles, power-up orbs,
+  // super charge and gadget refills. Anyone can grab the loot, so be quick!
   CW.CHEST_TYPES = {
-    common: { name: 'Common Chest', color: 0x9c6b3c, band: 0x6c757d, beam: 0xffffff, coins: 10, xp: 5, buffs: 1 },
-    rare: { name: 'Rare Chest', color: 0x3a86ff, band: 0xdee2e6, beam: 0x4cc9f0, coins: 25, xp: 15, buffs: 2 },
-    epic: { name: 'EPIC CHEST', color: 0xffc43d, band: 0x7209b7, beam: 0xffd23f, coins: 60, xp: 35, buffs: 3 },
+    common: { name: 'Common Chest', color: 0x9c6b3c, band: 0x6c757d, beam: 0xffffff, xp: 5, loot: { coin: [3, 5], orb: 1 } },
+    rare: { name: 'Rare Chest', color: 0x3a86ff, band: 0xdee2e6, beam: 0x4cc9f0, xp: 15, loot: { coin: [4, 7], orb: 2, charge: 1 } },
+    epic: { name: 'EPIC CHEST', color: 0xffc43d, band: 0x7209b7, beam: 0xffd23f, xp: 35, loot: { coin: [6, 10], orb: 3, charge: 1, gadget: 1 } },
   };
+  const r1 = (v) => Math.round(v * 10) / 10;
+  CW.CHEST_HOLD = 1; // seconds of holding O (Treasure Hunter perk: a third of that)
+  const CHEST_SIZE = 1.35;
+  // what the loot is: coins, the power-ups, a super cell and a gadget refill
+  CW.LOOT = {
+    coin: { name: 'Coins', icon: '🪙', color: 0xffc43d },
+    repair: { name: 'Repair Kit', icon: '🔧', color: 0x52e05c },
+    overcharge: { name: 'Overcharge', icon: '⚡', color: 0xffd23f },
+    shield: { name: 'Shield Cell', icon: '🛡', color: 0x4cc9f0 },
+    turbo: { name: 'Turbo', icon: '💨', color: 0xff8c42 },
+    charge: { name: 'Super Cell', icon: '⭐', color: 0xc77dff, desc: '+35% super' },
+    gadget: { name: 'Gadget Refill', icon: '🧰', color: 0xff4d6d, desc: '+1 gadget use' },
+  };
+
+  class Loot {
+    constructor(game) {
+      this.game = game;
+      this.items = [];
+      this.seq = 1;
+      this.coinGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.12, 14);
+      this.orbGeo = new THREE.OctahedronGeometry(0.55, 0);
+      this.starGeo = new THREE.IcosahedronGeometry(0.55, 0);
+      this.boxGeo = new THREE.BoxGeometry(0.8, 0.55, 0.55);
+      this.mats = {};
+    }
+    mat(kind) { return this.mats[kind] || (this.mats[kind] = kind === 'coin' ? CW.mat(0xffc43d, { emissive: 0x6a4a00, metalness: 0.9, roughness: 0.25 }) : new THREE.MeshBasicMaterial({ color: CW.LOOT[kind].color })); }
+    clear() { for (const it of this.items) this.game.scene.remove(it.mesh); this.items = []; }
+    // the host's game throws loot out of a chest (or a wreck): [[kind, value], …]; everyone's game shows the same
+    spawn(at, list) {
+      const g = this.game;
+      if (g.net.client) return;
+      const out = [];
+      list.forEach(([kind, val], i) => {
+        const a = (i / list.length) * Math.PI * 2 + Math.random() * 0.6, sp = 5 + Math.random() * 5;
+        const e = [this.seq++, kind, val | 0, r1(at.x), r1(at.y + 1.6), r1(at.z), r1(Math.cos(a) * sp), r1(9 + Math.random() * 5), r1(Math.sin(a) * sp)];
+        out.push(e);
+        this.add(e);
+      });
+      g.net.event({ k: 'loot', l: out });
+    }
+    add([id, kind, val, x, y, z, vx, vy, vz]) {
+      if (!CW.LOOT[kind] || this.items.some((it) => it.id === id)) return;
+      const g = this.game;
+      const geo = kind === 'coin' ? this.coinGeo : kind === 'charge' ? this.starGeo : kind === 'gadget' ? this.boxGeo : this.orbGeo;
+      const group = new THREE.Group();
+      const mesh = new THREE.Mesh(geo, this.mat(kind));
+      mesh.castShadow = true;
+      if (kind === 'coin') { // a little pile of coins
+        mesh.position.y = 0; for (let k = 1; k < 3; k++) { const c2 = new THREE.Mesh(geo, this.mat(kind)); c2.position.set((k - 1.5) * 0.3, k * 0.13, (k % 2) * 0.25); group.add(c2); }
+      }
+      group.add(mesh);
+      group.position.set(x, y, z);
+      g.scene.add(group);
+      this.items.push({ id, kind, val, mesh: group, pos: group.position, vel: new V3(vx, vy, vz), t: 0, base: null });
+    }
+    // online: the host's game says who grabbed it
+    netGet(id, c) { const it = this.items.find((x) => x.id === id); if (it && c) this.collect(it, c); }
+    collect(it, c) {
+      const g = this.game;
+      g.scene.remove(it.mesh);
+      this.items = this.items.filter((x) => x !== it);
+      if (!g.net.client) g.net.event({ k: 'lget', id: it.id, c: c.netId });
+      const L = CW.LOOT[it.kind];
+      g.fx.burst(it.pos, { n: 10, color: g.fx.colorKey(L.color), speed: 6, life: 0.4, size: 0.25 });
+      const m = c.mech && c.mech.alive && c.mech.occupied ? c.mech : null;
+      const ent = m || (c.pilot && c.pilot.alive ? c.pilot : null);
+      if (g.net.owns(c) && ent) {
+        if (['repair', 'overcharge', 'shield', 'turbo'].includes(it.kind)) g.pickups.apply(it.kind, c, ent);
+        else if (it.kind === 'charge') c.superCharge = Math.min(1, (c.superCharge || 0) + 0.35);
+        else if (it.kind === 'gadget') c.gadgetN = g.gadgets.left(c) + 1;
+      }
+      if (c.isPlayer) {
+        const practice = g.isPractice();
+        if (it.kind === 'coin') {
+          const n = Math.round(it.val * (CW.hasPerk(c, 'treasure') ? 1.5 : 1));
+          if (!practice) g.bonusCoins += n;
+          g.toast(`🪙 +${n} coins`);
+          g.audio.tone(1500, 0.06, 'triangle', 0.12);
+        } else {
+          g.toast(`${L.icon} ${L.name}${L.desc ? ` · ${L.desc}` : ''}`);
+          g.audio.pickup();
+        }
+        if (!practice) g.meta.track('pickup');
+      }
+    }
+    update(dt) {
+      const g = this.game;
+      for (let i = this.items.length - 1; i >= 0; i--) {
+        const it = this.items[i];
+        it.t += dt;
+        if (it.vel) {
+          it.vel.y -= 24 * dt;
+          it.pos.addScaledVector(it.vel, dt);
+          const gy = Math.max(g.world.groundAt(it.pos.x, it.pos.z, it.pos.y + 1), CW.WATER_Y) + 0.6;
+          if (it.pos.y < gy) {
+            it.pos.y = gy;
+            if (Math.abs(it.vel.y) > 4) { it.vel.y = -it.vel.y * 0.35; it.vel.x *= 0.5; it.vel.z *= 0.5; }
+            else { it.vel = null; it.base = gy; }
+          }
+        } else it.pos.y = it.base + 0.15 + Math.sin(g.time * 3 + it.id) * 0.15;
+        it.mesh.rotation.y += dt * 2.5;
+        if (it.t > 30) { g.scene.remove(it.mesh); this.items.splice(i, 1); continue; }
+        // grab it by touching it (half a second after it lands, so the opener isn't the only one with a chance)
+        if (g.net.client || it.t < 0.5) continue;
+        for (const c of g.combatants) {
+          if (!c.alive) continue;
+          const ent = c.mech && c.mech.alive && c.mech.occupied ? c.mech : c.pilot && c.pilot.alive ? c.pilot : null;
+          if (!ent) continue;
+          const r = (ent === c.mech ? c.mech.radius + 1.2 : 1.8) * CW.grabK(c);
+          if (ent.pos.distanceTo(it.pos) < r) { this.collect(it, c); break; }
+        }
+      }
+    }
+  }
 
   class Chests {
     constructor(game) {
@@ -156,11 +272,15 @@
       this.items = [];
       this.timer = 0;
       this.dropTimer = 0;
+      this.near = null; // the chest the player could open now
+      this.hold = 0;
     }
 
     clear() {
       for (const ch of this.items) this.game.scene.remove(ch.group);
       this.items = [];
+      this.near = null;
+      this.hold = 0;
     }
 
     start() {
@@ -189,11 +309,14 @@
     model(rarity) {
       const T = CW.CHEST_TYPES[rarity];
       const g = new THREE.Group();
+      const box = new THREE.Group(); // the chest itself (bigger since v1.10), the beam stays as it was
+      box.scale.setScalar(CHEST_SIZE);
+      g.add(box);
       const tex = rarity === 'common' ? 'wood' : 'panel';
       const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1, 1.2), CW.mat(T.color, { metalness: rarity === 'epic' ? 0.8 : 0.3, roughness: 0.4 }, tex));
       body.position.y = 0.5;
       body.castShadow = true;
-      g.add(body);
+      box.add(body);
       const lid = new THREE.Group();
       lid.position.set(0, 1, 0.6); // hinge at the back edge
       const lidMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 1.8, 14, 1, false, 0, Math.PI), CW.mat(T.color, { metalness: rarity === 'epic' ? 0.8 : 0.3, roughness: 0.4 }, tex));
@@ -201,20 +324,20 @@
       lidMesh.position.z = -0.6;
       lidMesh.castShadow = true;
       lid.add(lidMesh);
-      g.add(lid);
+      box.add(lid);
       for (const x of [-0.6, 0.6]) {
         const band = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.05, 1.25), CW.mat(T.band, { metalness: 0.7, roughness: 0.3 }));
         band.position.set(x, 0.5, 0);
-        g.add(band);
+        box.add(band);
       }
       const lock = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.36, 0.1), CW.mat(0xffd23f, { metalness: 0.9, roughness: 0.2 }));
       lock.position.set(0, 0.85, -0.63);
-      g.add(lock);
+      box.add(lock);
       // glowing beam so chests can be spotted from far away
       const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 40, 10, 1, true), new THREE.MeshBasicMaterial({ color: T.beam, transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide }));
       beam.position.y = 20;
       g.add(beam);
-      return { g, lid, beam };
+      return { g, lid, beam, box };
     }
 
     spawn(pos, rarity, fromSky, id, drop) {
@@ -223,7 +346,7 @@
       rarity = rarity || this.roll();
       id = id || this.nextId++;
       this.game.net.event({ k: 'chest', id, x: Math.round(pos.x * 10) / 10, z: Math.round(pos.z * 10) / 10, r: rarity, sky: fromSky ? 1 : 0, drop: drop ? 1 : 0 });
-      const { g, lid, beam } = this.model(rarity);
+      const { g, lid, beam, box } = this.model(rarity);
       const ground = this.game.world.groundAt(pos.x, pos.z, 100);
       g.position.set(pos.x, fromSky ? ground + 90 : ground, pos.z);
       g.rotation.y = Math.random() * Math.PI * 2;
@@ -234,21 +357,28 @@
         g.add(chute);
       }
       this.game.scene.add(g);
-      const ch = { id, group: g, lid, beam, chute, rarity, pos: g.position, ground, opened: false, openT: 0, falling: !!fromSky };
+      const ch = { id, group: g, lid, beam, box, chute, rarity, pos: g.position, ground, opened: false, openT: 0, falling: !!fromSky, drop: !!drop };
       this.items.push(ch);
       return ch;
     }
 
     // online: chests from the host's game
     netSpawn(e) {
-      this.spawn(new V3(e.x, 0, e.z), e.r, !!e.sky, e.id);
+      const ch = this.spawn(new V3(e.x, 0, e.z), e.r, !!e.sky, e.id);
+      if (ch) ch.drop = !!e.drop;
       if (e.drop) this.dropNews();
     }
-    netOpen(id, c, kinds) {
+    netOpen(id, c) {
       const ch = this.items.find((x) => x.id === id && !x.opened);
       if (!ch || !c) return;
-      const ent = c.mech && c.mech.alive && c.mech.occupied ? c.mech : c.pilot && c.pilot.alive ? c.pilot : c.mech;
-      if (ent) this.open(ch, c, ent, kinds.filter((k) => CW.POWERUPS[k]));
+      this.open(ch, c);
+    }
+    // online, host: another player held O next to a chest
+    netReq(id, c, from) {
+      const ch = this.items.find((x) => x.id === id && !x.opened && !x.falling);
+      if (!ch || !c || c.owner !== from) return;
+      const b = this.body(c);
+      if (b && b.pos.distanceTo(ch.pos) < this.reach(c, b) + 8) this.open(ch, c);
     }
 
     // a supply drop: an epic chest parachutes in somewhere in the arena
@@ -261,8 +391,13 @@
     dropNews() {
       const g = this.game;
       g.feed('📦 Supply drop incoming! (gold beam on the map)', 'good');
-      if (g.state === 'match') g.announce('📦 SUPPLY DROP', 'An epic chest is falling. Grab it first!');
+      if (g.state === 'match') g.announce('📦 SUPPLY DROP', 'An epic chest is falling: hold O next to it for big loot!');
     }
+
+    body(c) { return c.mech && c.mech.alive && c.mech.occupied ? c.mech : c.pilot && c.pilot.alive ? c.pilot : null; }
+    // how close you have to be to open one
+    reach(c, b) { return b === c.mech ? c.mech.radius + 3.2 : 3.4; }
+    holdTime(c) { return CW.CHEST_HOLD / (CW.hasPerk(c, 'treasure') ? 3 : 1); }
 
     update(dt) {
       const game = this.game;
@@ -277,6 +412,27 @@
         this.dropTimer -= dt;
         if (this.dropTimer <= 0) { this.dropTimer = 60 + Math.random() * 25; this.airdrop(); }
       }
+      // the player: hold O next to a chest
+      const me = game.player, mb = me && me.alive && !game.spectator ? this.body(me) : null;
+      let near = null;
+      if (mb && game.countdown <= 0 && !game.ended) {
+        let bd = Infinity;
+        for (const ch of this.items) {
+          if (ch.opened || ch.falling) continue;
+          const d = mb.pos.distanceTo(ch.pos);
+          if (d < this.reach(me, mb) && d < bd) { bd = d; near = ch; }
+        }
+      }
+      if (near !== this.near) { this.near = near; this.hold = 0; }
+      if (near && game.keys.KeyO && !game.paused) {
+        this.hold += dt;
+        if (this.hold >= this.holdTime(me)) {
+          this.hold = 0;
+          if (host) this.open(near, me);
+          else if (!near.asked) { near.asked = true; game.net.events.push({ k: 'openReq', id: near.id, c: me.netId }); setTimeout(() => { near.asked = false; }, 1500); }
+        }
+      } else this.hold = Math.max(0, this.hold - dt * 3);
+      game.chestHint(near, this.hold / this.holdTime(me || {}));
       for (let i = this.items.length - 1; i >= 0; i--) {
         const ch = this.items[i];
         if (ch.falling) {
@@ -288,40 +444,55 @@
         if (ch.opened) {
           ch.openT += dt;
           ch.lid.rotation.x = Math.min(1.9, ch.openT * 6);
+          ch.box.scale.setScalar(CHEST_SIZE * (1 + Math.max(0, 0.18 - ch.openT) * 1.5)); // a little pop
           ch.beam.material.opacity = Math.max(0, 0.5 - ch.openT * 0.2);
           if (ch.openT > 6) { game.scene.remove(ch.group); this.items.splice(i, 1); }
           continue;
         }
         ch.beam.material.opacity = 0.14 + Math.sin(game.time * 3 + i) * 0.06;
+        // the chest wiggles while someone opens it
+        ch.box.rotation.z = ch === this.near && this.hold > 0 ? Math.sin(game.time * 40) * 0.05 * Math.min(1, this.hold * 3) : 0;
         if (!host) continue;
+        // bots: stay next to it for a moment to open it (the player and other players hold O on their own game)
         for (const c of game.combatants) {
-          if (!c.alive) continue;
-          const ent = c.mech && c.mech.alive && c.mech.occupied ? c.mech : c.pilot && c.pilot.alive ? c.pilot : null;
-          if (!ent) continue;
-          const r = ent === c.mech ? c.mech.radius + 1.4 : 2;
-          if (ent.pos.distanceTo(new V3(ch.pos.x, ch.pos.y + 0.5, ch.pos.z)) < r) { this.open(ch, c, ent); break; }
+          if (!c.alive || c.isPlayer || c.human || !c.ai || !game.net.owns(c)) continue;
+          const b = this.body(c);
+          if (!b || b.pos.distanceTo(ch.pos) > this.reach(c, b)) { if (c.ai.chest === ch) c.ai.chestT = 0; continue; }
+          if (c.ai.chest !== ch) { c.ai.chest = ch; c.ai.chestT = 0; }
+          c.ai.chestT += dt;
+          if (c.ai.chestT >= this.holdTime(c) + 0.3) { c.ai.chestT = 0; this.open(ch, c); break; }
         }
       }
     }
 
-    open(ch, c, ent, kinds) {
+    open(ch, c) {
       const game = this.game;
+      if (ch.opened) return;
       const T = CW.CHEST_TYPES[ch.rarity];
       ch.opened = true;
       ch.beam.material.color.setHex(T.beam);
-      kinds = kinds || ['repair', 'overcharge', 'shield', 'turbo'].sort(() => Math.random() - 0.5).slice(0, T.buffs);
-      if (game.net.owns(c)) for (const k of kinds) game.pickups.apply(k, c, ent);
-      game.net.event({ k: 'open', id: ch.id, c: c.netId, kinds });
-      const top = ch.pos.clone().add(new V3(0, 1.2, 0));
-      game.fx.burst(top, { n: 30, color: game.fx.colorKey(T.beam), speed: 10, up: 6, life: 0.9, size: 0.3, grav: 12 });
-      game.fx.burst(top, { n: 12, color: game.fx.colorKey(0xffd23f), speed: 6, up: 8, life: 1.2, size: 0.2, grav: 18 });
+      game.net.event({ k: 'open', id: ch.id, c: c.netId });
+      // the loot flies out (the host decides it, everyone sees it)
+      if (!game.net.client) {
+        const L = T.loot, list = [];
+        const piles = L.coin[0] + (ch.drop ? 2 : 0);
+        for (let k = 0; k < piles; k++) list.push(['coin', L.coin[1]]);
+        const orbs = ['repair', 'overcharge', 'shield', 'turbo'].sort(() => Math.random() - 0.5);
+        for (let k = 0; k < L.orb; k++) list.push([orbs[k % 4], 0]);
+        for (let k = 0; k < (L.charge || 0); k++) list.push(['charge', 0]);
+        for (let k = 0; k < (L.gadget || 0); k++) list.push(['gadget', 0]);
+        game.loot.spawn(ch.pos.clone(), list.sort(() => Math.random() - 0.5));
+      }
+      const top = ch.pos.clone().add(new V3(0, 1.8, 0));
+      game.fx.burst(top, { n: 40, color: game.fx.colorKey(T.beam), speed: 12, up: 7, life: 1, size: 0.35, grav: 12 });
+      game.fx.burst(top, { n: 18, color: game.fx.colorKey(0xffd23f), speed: 7, up: 9, life: 1.3, size: 0.22, grav: 18 });
+      game.audio.boom(0.5, ch.pos);
       if (c.isPlayer) {
         const practice = game.isPractice();
-        if (!practice) { game.bonusCoins += T.coins; game.bonusXp = (game.bonusXp || 0) + T.xp; game.meta.track('chest'); }
-        const icons = kinds.map((k) => CW.POWERUPS[k].icon).join(' ');
-        game.announce(`🧰 ${T.name}`, `${practice ? '' : `+${T.coins} 🪙 · +${T.xp} XP · `}${icons}`);
+        if (!practice) { game.bonusXp = (game.bonusXp || 0) + T.xp; game.meta.track('chest'); }
+        game.announce(`🧰 ${T.name}`, `${practice ? '' : `+${T.xp} XP · `}grab the loot!`);
         game.audio.fanfare();
-        game.cam.shake = Math.min(1, game.cam.shake + 0.3);
+        game.cam.shake = Math.min(1, game.cam.shake + 0.35);
       }
     }
   }
@@ -476,7 +647,7 @@
   CW.mutateBp = function (preset, budget, allowedDomains) {
     const bp = CW.cloneBp(preset);
     const rnd = Math.random;
-    const weapons = ['cannon', 'rocket', 'laser', 'railgun', 'flamer'];
+    const weapons = ['cannon', 'rocket', 'laser', 'railgun', 'flamer', 'mortar', 'harpoon', 'tesla', 'magnet'];
     for (const p of bp.parts) if (CW.PARTS[p.t].weapon && rnd() < 0.35) p.t = weapons[Math.floor(rnd() * weapons.length)];
     const occupied = (x, y, z) => bp.parts.some((p) => p.x === x && p.y === y && p.z === z);
     const cam = bp.parts.find((p) => p.t === 'camera');
@@ -503,5 +674,6 @@
 
   CW.Pickups = Pickups;
   CW.Chests = Chests;
+  CW.Loot = Loot;
   CW.Music = Music;
 })();

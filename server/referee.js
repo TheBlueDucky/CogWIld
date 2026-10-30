@@ -47,6 +47,13 @@ class Referee {
         if (!e || typeof e !== 'object') return false;
         if (e.k === 'add' && e.r) { if (id === this.hostId) this.add(Object.assign({}, e.r, { o: this.hostId })); return id === this.hostId; }
         if (e.k === 'hit' || e.k === 'phit') return this.hit(id, e, now);
+        // v1.10: a push or pull (harpoon, magnet, waves): only by a mech this game controls, and not too strong
+        if (e.k === 'kick') {
+          const u = this.units.get(e.by);
+          if (!u || u.o !== id || !Array.isArray(e.v) || e.v.length !== 3) return false;
+          e.v = e.v.map((x) => Math.max(-60, Math.min(60, +x || 0)));
+          return true;
+        }
         if ((e.k === 'wreck' || e.k === 'elim' || e.k === 'spawn') && this.owner(e.c) !== id) return false; // only about your own mechs
         if (e.k === 'wreck' || e.k === 'spawn') { const u = this.units.get(e.c); if (u) { u.recv = []; u.pos = null; } }
         return true;
@@ -108,7 +115,8 @@ class Referee {
       u.hpSeen = Math.min(u.hpSeen, left);
       const took = u.recv.reduce((a, r) => a + r.d, 0);
       if (took > u.hp * 3 && left > u.hp * 0.9) this.note(id, 'took far more damage than its mech has, without breaking');
-      if (left > u.hp * 1.05 + 60) this.note(id, 'reported more HP than its mech has');
+      // v1.10: perks and part combos can add up to ~42% HP (js/loadout.js)
+      if (left > u.hp * 1.45 + 60) this.note(id, 'reported more HP than its mech has');
     }
   }
 }

@@ -107,7 +107,75 @@
     ],
     // the emoji avatars were removed in v1.9.5 (default pictures instead, js/account.js); nothing is sold here any more
     avatars: [],
+    // v1.10: supers, gadgets and perks you pick before PLAY (the loadout, js/loadout.js). price 0 = free for everyone.
+    // need: what your mech must have for it to work (a part from the list, or a way of moving); without it you get
+    // your build's own super / the Repair Kit. The gameplay lives in js/supers.js, js/gadgets.js and js/loadout.js
+    supers: [
+      { id: 'dome', name: 'Shield Dome', icon: '🛡', desc: '3.5 s invulnerable and repair 25%', price: 0, need: ['shield'] },
+      { id: 'ram', name: 'Turbo Ram', icon: '💥', desc: 'A huge lunge, then 4 s of turbo and 1.5× damage', price: 0, need: ['spikes', 'saw', 'booster'] },
+      { id: 'barrage', name: 'Missile Barrage', icon: '🚀', desc: '8 rockets at the nearest enemies', price: 0, need: 'air' },
+      { id: 'emp', name: 'EMP Shockwave', icon: '⚡', desc: 'Blast around you: enemies take damage and jam for 2.5 s', price: 0 },
+      { id: 'orbital', name: 'Orbital Strike', icon: '☄', desc: 'A beam from the sky hits where you aim a second later: a huge blast', price: 900 },
+      { id: 'overdrive', name: 'Overdrive', icon: '🔥', desc: '6 s of double fire rate, turbo and 30% less damage taken', price: 700 },
+      { id: 'gravity', name: 'Gravity Well', icon: '🌀', desc: 'A black hole where you aim pulls enemies in for 3 s, then bursts', price: 1000 },
+      { id: 'slam', name: 'Ground Pound', icon: '🦶', desc: 'Leap high and slam down: a shockwave that throws enemies away', price: 700, need: 'land' },
+      { id: 'inferno', name: 'Inferno Nova', icon: '🌋', desc: 'A ring of fire around you burns every enemy close by for 4 s', price: 600, need: ['flamer'] },
+      { id: 'swarm', name: 'Drone Swarm', icon: '🐝', desc: '4 attack drones circle you and shoot enemies for 8 s', price: 800, need: ['drone'] },
+      { id: 'lance', name: 'Rail Lance', icon: '🔱', desc: 'A giant beam straight ahead that goes through everything in its way', price: 800, need: ['railgun'] },
+      { id: 'tidal', name: 'Tidal Wave', icon: '🌊', desc: 'A wave that throws every enemy around you away and hurts them', price: 600, need: 'water' },
+    ],
+    gadgets: [
+      { id: 'repair', name: 'Repair Kit', icon: '🔧', desc: 'Fix about 30% of your mech at once', price: 0, level: 1 },
+      { id: 'mine', name: 'Proximity Mine', icon: '💣', desc: 'A mine behind you blows up under the first enemy close by', price: 0, level: 3 },
+      { id: 'jump', name: 'Jump Jets', icon: '🦘', desc: 'A big leap up and forward', price: 0, level: 5 },
+      { id: 'smoke', name: 'Smoke Screen', icon: '💨', desc: 'Bots lose you for 4 s and you get 4 s of turbo', price: 0, level: 8 },
+      { id: 'grapple', name: 'Grapple Hook', icon: '🪝', desc: 'Pull yourself to where you aim (up to 60 m)', price: 500 },
+      { id: 'bubble', name: 'Bubble Shield', icon: '🫧', desc: 'An instant 150-point shield', price: 550 },
+      { id: 'decoy', name: 'Hologram Decoy', icon: '👥', desc: 'A copy of your mech fools bots for 6 s while you slip away', price: 450 },
+      { id: 'sonar', name: 'Sonar Ping', icon: '📡', desc: 'Shows every enemy to you and your team for 6 s, even through walls', price: 400 },
+      { id: 'empnade', name: 'EMP Grenade', icon: '🧨', desc: 'Throw it: enemies where it lands jam for 2 s', price: 600 },
+      { id: 'nitro', name: 'Nitro', icon: '🏎', desc: '3 s of huge speed on the ground', price: 400, need: 'land' },
+      { id: 'torpedo', name: 'Torpedo', icon: '🐟', desc: 'A fast torpedo that hits hard (water mechs)', price: 450, need: 'water' },
+      { id: 'afterburner', name: 'Afterburner', icon: '✈', desc: '3 s of top speed in the air and a moment of protection', price: 450, need: 'air' },
+    ],
+    // perks: small bonuses that are always on; you equip up to 2 (CW.PERK_SLOTS)
+    perks: [
+      { id: 'plating', name: 'Thick Plating', icon: '🧱', desc: 'Every part of your mech has 12% more HP', price: 600 },
+      { id: 'overclock', name: 'Overclock', icon: '⚙', desc: 'Your weapons deal 7% more damage', price: 800 },
+      { id: 'headstart', name: 'Head Start', icon: '⭐', desc: 'Start every life with your super 35% full', price: 650 },
+      { id: 'belt', name: 'Gadget Belt', icon: '🎒', desc: 'One more gadget use per match (4)', price: 550 },
+      { id: 'quickfix', name: 'Quick Fix', icon: '🔩', desc: 'Repairing (hold R) is 40% faster', price: 400 },
+      { id: 'regen', name: 'Self-Repair', icon: '💚', desc: 'Slowly fixes your mech when you haven\'t been hit for 5 s', price: 700 },
+      { id: 'dashpro', name: 'Dash Pro', icon: '💨', desc: 'Your dash recharges 25% faster', price: 450 },
+      { id: 'absorbers', name: 'Shock Absorbers', icon: '🪶', desc: '45% less damage from rams, lava and the arena', price: 450 },
+      { id: 'magnet', name: 'Loot Magnet', icon: '🧲', desc: 'Grab power-ups, loot, gold and scrap from twice as far', price: 350 },
+      { id: 'scavenger', name: 'Scavenger', icon: '🦝', desc: 'Enemies you wreck drop a repair orb', price: 500 },
+      { id: 'treasure', name: 'Treasure Hunter', icon: '🗝', desc: 'Open chests 3× faster and get 50% more coins from them', price: 400 },
+    ],
   };
+  const PERK_SLOTS = 2;
+  // can this mech use that super / gadget? (parts: [{ t }], need from the Shop list)
+  const LAND = ['wheel', 'bigwheel', 'leg'], WATER = ['float', 'prop'], AIR = ['wing', 'rotor', 'jet'];
+  function fits(need, parts) {
+    if (!need) return true;
+    const has = (list) => (parts || []).some((p) => p && list.includes(p.t));
+    if (need === 'land') return has(LAND);
+    if (need === 'water') return has(WATER);
+    if (need === 'air') return has(AIR);
+    return has(need);
+  }
+  // keep only the loadout things this wallet owns (free ones always count): { sp, gd, pk: [] }
+  function cleanLoadout(lo, owns, level) {
+    if (!lo || typeof lo !== 'object') return null;
+    const ok = (kind, id) => { const it = item(kind, String(id || '')); return it && (it.price === 0 ? (it.level || 1) <= (level || 99) : owns(kind, it.id)) ? it.id : null; };
+    const out = {};
+    const sp = ok('supers', lo.sp), gd = ok('gadgets', lo.gd);
+    if (sp) out.sp = sp;
+    if (gd) out.gd = gd;
+    const pk = [...new Set(Array.isArray(lo.pk) ? lo.pk.map(String) : [])].map((id) => ok('perks', id)).filter(Boolean).slice(0, PERK_SLOTS);
+    if (pk.length) out.pk = pk;
+    return out;
+  }
   // v1.9.5: the old emoji avatars (sold, on the Trophy Road and the Cog Pass) became coins: owners get their price back
   const OLD_AVATARS = [
       { id: 'av24', idx: 24, name: 'Dragon', price: 400 }, { id: 'av25', idx: 25, name: 'Eagle', price: 250 }, { id: 'av26', idx: 26, name: 'Scorpion', price: 250 },
@@ -128,7 +196,7 @@
   function dailyDeals(dayStr, owns) {
     const rnd = seeded('deal' + dayStr);
     const pool = [];
-    for (const kind of ['paints', 'trails', 'avatars', 'finishes', 'wrecks']) for (const it of SHOP[kind]) if (!it.pass && !it.event && it.price > 0 && !owns(kind, it.id)) pool.push({ kind, it });
+    for (const kind of ['paints', 'trails', 'avatars', 'finishes', 'wrecks', 'supers', 'gadgets', 'perks']) for (const it of SHOP[kind]) if (!it.pass && !it.event && it.price > 0 && !owns(kind, it.id)) pool.push({ kind, it });
     pool.sort((a, b) => (a.kind + a.it.id < b.kind + b.it.id ? -1 : 1));
     const out = [];
     while (out.length < 3 && pool.length) out.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]);
@@ -237,6 +305,8 @@
     // since v1.8: big wheels and car/truck body parts
     bigwheel: [22, 'land', 1, 60, 0], body: [6, null, 1, 50, 0], plate: [3, null, 1, 30, 0], nose: [6, null, 1, 45, 0], cabin: [10, null, 1, 55, 0],
     fender: [4, null, 1, 30, 0], spoiler: [5, null, 1, 25, 0], lights: [3, null, 1, 20, 0], exhaust: [3, null, 1, 20, 0],
+    // since v1.10: weapons that pull, chain, lob and grab
+    magnet: [22, null, 2, 50, 8], mortar: [30, null, 3, 45, 30], harpoon: [28, null, 4, 45, 16], tesla: [34, null, 5, 40, 32],
   };
   // a mech's total HP and the most damage per second its weapons can deal (for the referee)
   function mechPower(parts) {
@@ -297,6 +367,11 @@
     { type: 'wave', text: 'Reach wave {n} in Survival', n: [4, 6], reward: 80 },
     { type: 'bountywin', text: 'Win a Bounty Hunt match', n: [1], reward: 90 },
     { type: 'gadget', text: 'Use your gadget {n} times', n: [5, 10], reward: 50 },
+    // v1.10
+    { type: 'super', text: 'Use your super {n} times', n: [3, 5], reward: 60 },
+    { type: 'heist', text: 'Capture a core in Core Heist', n: [1], reward: 90 },
+    { type: 'goal', text: 'Score {n} goal{s} in Mech Ball', n: [1, 2], reward: 90 },
+    { type: 'pad', text: 'Use boost or jump pads {n} times', n: [5, 10], reward: 40 },
   ];
   const DAILY_CHALLENGES = 6;
   function dailyChallenges(dayStr) {
@@ -306,7 +381,7 @@
     while (list.length < DAILY_CHALLENGES) {
       const c = pool.splice(Math.floor(rnd() * pool.length), 1)[0];
       const n = c.n[Math.floor(rnd() * c.n.length)];
-      list.push({ type: c.type, text: c.text.replace('{n}', n).replace('{es}', n > 1 ? 'es' : ''), target: n, reward: c.reward + (n > c.n[0] ? 30 : 0) });
+      list.push({ type: c.type, text: c.text.replace('{n}', n).replace('{es}', n > 1 ? 'es' : '').replace('{s}', n > 1 ? 's' : ''), target: n, reward: c.reward + (n > c.n[0] ? 30 : 0) });
     }
     return list;
   }
@@ -384,7 +459,7 @@
     return Object.assign({}, CUP.rewards.find((r) => rank <= r.upTo));
   }
 
-  const api = { CUP, cup, cupPoints, cupScore, cupReward, EVENTS, EVENT_PTS, event, nextEvent, eventRewards, TALK_QUICK, xpFor, levelOf, domainsAt, PARTS, partLook, mechPower, BUDGET, RUSH_BUDGET, MAX_PARTS, GRID, mechProblem, CHALLENGES, DAILY_CHALLENGES, dailyChallenges, ACH, SHOP, OLD_AVATARS, AVATAR_COUNT, FREE_AVATARS, item, dealPrice, dailyDeals, ROAD, giftAmount, EARN, EARN_PER_DAY, MATCH_GAP, day, nextMidnight, seeded, hash, season, PASS, passRewards, WEEKLY, week, RANKED };
+  const api = { PERK_SLOTS, fits, cleanLoadout, CUP, cup, cupPoints, cupScore, cupReward, EVENTS, EVENT_PTS, event, nextEvent, eventRewards, TALK_QUICK, xpFor, levelOf, domainsAt, PARTS, partLook, mechPower, BUDGET, RUSH_BUDGET, MAX_PARTS, GRID, mechProblem, CHALLENGES, DAILY_CHALLENGES, dailyChallenges, ACH, SHOP, OLD_AVATARS, AVATAR_COUNT, FREE_AVATARS, item, dealPrice, dailyDeals, ROAD, giftAmount, EARN, EARN_PER_DAY, MATCH_GAP, day, nextMidnight, seeded, hash, season, PASS, passRewards, WEEKLY, week, RANKED };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.CW = root.CW || {}; root.CW.ECON = api; root.CW.SHOP = SHOP; root.CW.ROAD = ROAD; }
 })(this);

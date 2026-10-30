@@ -197,7 +197,7 @@
         for (const c of g.combatants) {
           const b = c.alive && this.body(c);
           if (!b) continue;
-          const r = b === c.mech ? c.mech.radius + 1 : 1.6;
+          const r = (b === c.mech ? c.mech.radius + 1 : 1.6) * CW.grabK(c); // Loot Magnet perk: twice as far
           if (b.pos.distanceTo(n.mesh.position) < r) {
             this.gold.set(c, this.carried(c) + 1);
             g.scene.remove(n.mesh);
@@ -562,5 +562,410 @@
     summary(c) { return `${this.teamScore(c.team)} stars`; }
   }
 
-  CW.OBJECTIVES = { koth: KingOfTheHill, gold: GoldRush, race: CombatRace, boss: BossBattle, bounty: BountyHunt };
+  // ======================= v1.10: two-team helpers =======================
+  // the two team bases the host's game picked (game.teamBases), as flat safe spots; online they come in netState
+  const baseSpots = (g) => {
+    const w = g.world;
+    return [0, 1].map((t) => {
+      const b = (g.teamBases && g.teamBases[t]) || w.landSpawns[t % w.landSpawns.length];
+      const p = w.isSafeSpot(b.x, b.z) ? b : g.safeSpotNear ? g.safeSpotNear(b) : b;
+      return new V3(p.x, w.groundAt(p.x, p.z), p.z);
+    });
+  };
+  const flatDist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+
+  // ======================= CORE HEIST =======================
+  // Each team has a power core at its base. Touch the enemy core to grab it and bring it to your own base while
+  // your own core is at home: a capture. A carrier is slower and glows; wreck them and the core drops. Touch your
+  // dropped core to send it home (it also goes home by itself after 25 s). 3 captures win.
+  class CoreHeist extends Objective {
+    start() {
+      this.score = {};
+      this.bases = baseSpots(this.game);
+      this.cores = [0, 1].map((t) => this.makeCore(t));
+      this.synced = false;
+    }
+    makeCore(t) {
+      const col = CW.TEAMS[t].color;
+      const base = new THREE.Group();
+      const pad = new THREE.Mesh(new THREE.CylinderGeometry(9, 9.5, 0.4, 32), CW.mat(0x2b2d42, { metalness: 0.6 }));
+      const ring = new THREE.Mesh(new THREE.RingGeometry(8.2, 9, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.8, side: THREE.DoubleSide }));
+      ring.position.y = 0.25;
+      const ped = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.3, 2, 10), CW.mat(0x495057, { metalness: 0.7 }));
+      ped.position.y = 1.2;
+      base.add(pad, ring, ped);
+      base.position.copy(this.bases[t]);
+      this.add(base);
+      const gem = new THREE.Group();
+      const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(1.3, 0), CW.mat(col, { emissive: CW.shade(col, -0.25), metalness: 0.4, roughness: 0.2 }));
+      crystal.scale.y = 1.5;
+      const glow = new THREE.Mesh(new THREE.SphereGeometry(2, 16, 12), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.18, depthWrite: false }));
+      gem.add(crystal, glow);
+      this.add(gem);
+      const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 50, 8, 1, true), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide }));
+      beam.position.y = 25;
+      gem.add(beam);
+      return { t, base, gem, crystal, pos: this.bases[t].clone().setY(this.bases[t].y + 3.4), carrier: null, home: true, dropT: 0 };
+    }
+    teamScore(t) { return this.score[t] | 0; }
+    home(core) { core.home = true; core.carrier = null; core.pos.copy(this.bases[core.t]).setY(this.bases[core.t].y + 3.4); }
+    carrying(c) { return this.cores.find((k) => k.carrier === c) || null; }
+    update(dt) {
+      const g = this.game;
+      for (const k of this.cores) {
+        const b = k.carrier && this.body(k.carrier);
+        if (b) k.pos.copy(b.pos).setY(b.pos.y + (b === k.carrier.mech ? k.carrier.mech.radius + 2.2 : 3));
+        k.gem.position.copy(k.pos);
+        k.crystal.rotation.y += dt * 2;
+        k.gem.position.y += Math.sin(g.time * 3 + k.t) * 0.2;
+      }
+      for (const c of g.combatants) c.carrying = !!this.carrying(c); // slows the carrier (js/entities.js)
+      if (g.countdown > 0 || g.ended || g.net.client) return;
+      for (const k of this.cores) {
+        // the carrier was wrecked: the core drops where it was
+        if (k.carrier && (!k.carrier.alive || !this.body(k.carrier) || (k.carrier.mech && !k.carrier.mech.alive && !(k.carrier.pilot && k.carrier.pilot.alive)))) {
+          const who = k.carrier;
+          k.carrier = null;
+          k.dropT = 25;
+          k.pos.y = Math.max(g.world.groundAt(k.pos.x, k.pos.z, k.pos.y), CW.WATER_Y) + 2;
+          g.feed(`🔋 ${who.isPlayer ? 'You' : CW.esc(who.name)} dropped ${this.teamName(k.t)}'s core!`);
+        }
+        if (!k.home && !k.carrier) { k.dropT -= dt; if (k.dropT <= 0) { this.home(k); g.feed(`🔋 ${this.teamName(k.t)}'s core went home`); } }
+        if (k.carrier) continue;
+        for (const c of g.combatants) {
+          const b = c.alive && this.body(c);
+          if (!b || flatDist(b.pos, k.pos) > (b === c.mech ? c.mech.radius + 2.5 : 2.5) || Math.abs(b.pos.y - k.pos.y) > 8) continue;
+          if (c.team !== k.t && !this.carrying(c)) {
+            k.carrier = c; k.home = false;
+            g.feed(`🔋 ${c.isPlayer ? 'You' : CW.esc(c.name)} grabbed ${this.teamName(k.t)}'s core!`, c.team === g.player.team ? 'good' : 'bad');
+            if (c.isPlayer) g.announce('🔋 YOU HAVE THE CORE', 'Bring it to your base!');
+            else if (k.t === g.player.team) g.announce('🔋 YOUR CORE WAS STOLEN', 'Wreck the carrier!');
+            break;
+          }
+          if (c.team === k.t && !k.home) { this.home(k); g.feed(`🔋 ${c.isPlayer ? 'You' : CW.esc(c.name)} saved ${this.teamName(k.t)}'s core`, 'good'); break; }
+        }
+      }
+      // a carrier at its own base, with its own core at home: capture
+      for (const k of this.cores) {
+        const c = k.carrier;
+        if (!c) continue;
+        const mine = this.cores[c.team];
+        const b = this.body(c);
+        if (b && mine && mine.home && flatDist(b.pos, this.bases[c.team]) < 9.5) {
+          this.score[c.team] = this.teamScore(c.team) + 1;
+          this.home(k);
+          g.announce(`🔋 ${this.teamName(c.team).toUpperCase()} CAPTURES!`, `${c.isPlayer ? 'You' : c.name} brought the core home · ${this.teamScore(0)} - ${this.teamScore(1)}`);
+          g.feed(`🔋 ${c.isPlayer ? 'You' : CW.esc(c.name)} captured the core!`, c.team === g.player.team ? 'good' : 'bad');
+          if (c.isPlayer) { g.bonusCoins += 40; if (!g.isPractice()) g.meta.track('heist'); }
+        }
+      }
+    }
+    netState() {
+      return { b: this.bases.map((p) => [r1(p.x), r1(p.z)]), k: this.cores.map((k) => [r1(k.pos.x), r1(k.pos.y), r1(k.pos.z), k.carrier ? k.carrier.netId : -1, k.home ? 1 : 0]), s: this.score };
+    }
+    netApply(s) {
+      const g = this.game;
+      if (s.b && !this.synced) {
+        this.synced = true;
+        s.b.forEach(([x, z], t) => { const p = new V3(x, g.world.groundAt(x, z), z); this.bases[t] = p; this.cores[t].base.position.copy(p); });
+      }
+      const before = { ...this.score };
+      this.score = s.s || {};
+      (s.k || []).forEach(([x, y, z, cid, home], t) => {
+        const k = this.cores[t];
+        if (!k) return;
+        const was = k.carrier;
+        k.carrier = cid >= 0 ? g.net.byId.get(cid) || null : null;
+        k.home = !!home;
+        if (!k.carrier) k.pos.set(x, y, z);
+        if (k.carrier && k.carrier !== was) {
+          if (k.carrier.isPlayer) g.announce('🔋 YOU HAVE THE CORE', 'Bring it to your base!');
+          else if (k.t === g.player.team) g.announce('🔋 YOUR CORE WAS STOLEN', 'Wreck the carrier!');
+        }
+      });
+      for (const t of [0, 1]) if ((this.score[t] | 0) > (before[t] | 0)) g.announce(`🔋 ${this.teamName(t).toUpperCase()} CAPTURES!`, `${this.teamScore(0)} - ${this.teamScore(1)}`);
+    }
+    hud() {
+      const my = this.cores[this.game.player.team];
+      const st = !my ? '' : my.home ? 'Your core is safe' : my.carrier ? '<span class="bad">Your core was stolen!</span>' : '<span class="bad">Your core is on the ground</span>';
+      const have = this.carrying(this.game.player) ? ' · <b>You carry the core: go home!</b>' : '';
+      return `<b>🔋 Core Heist</b> · ${this.scoreBars((v) => v)} · ${st}${have} · ${this.clock()}`;
+    }
+    urgent(c) { return !!this.carrying(c); }
+    botGoal(c) {
+      const b = this.body(c);
+      if (!b) return null;
+      if (this.carrying(c)) return this.bases[c.team];
+      const mine = this.cores[c.team], theirs = this.cores[1 - c.team];
+      if (mine && !mine.home) return mine.pos; // get our core back
+      if (theirs && !theirs.carrier && (c.netId % 3 !== 0)) return theirs.pos; // most go for theirs, a third stays to fight
+      if (theirs && theirs.carrier && theirs.carrier.team === c.team) { const cb = this.body(theirs.carrier); return cb ? cb.pos : null; } // escort
+      return null;
+    }
+    respawnSpot(c) { return this.game.safeNear(this.bases[c.team] || this.game.world.landSpawns[0], Math.floor(Math.random() * 5), []); }
+    check() {
+      for (const t of this.teams()) if (this.teamScore(t) >= this.mode.scoreToWin) return { winner: t };
+      if (this.timeLeft() <= 0) return this.byScore();
+      return null;
+    }
+    minimap(ctx, toMap) {
+      for (const k of this.cores) {
+        const [bx, by] = toMap(this.bases[k.t].x, this.bases[k.t].z);
+        ctx.strokeStyle = hex(CW.TEAMS[k.t].color); ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(bx, by, 7, 0, Math.PI * 2); ctx.stroke();
+        const [x, y] = toMap(k.pos.x, k.pos.z);
+        ctx.fillStyle = hex(CW.TEAMS[k.t].color); ctx.strokeStyle = '#fff';
+        ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4); ctx.fillRect(-4, -4, 8, 8); ctx.strokeRect(-4, -4, 8, 8); ctx.restore();
+        ctx.lineWidth = 1;
+      }
+    }
+    summary(c) { return `${this.teamScore(c.team)} capture${this.teamScore(c.team) === 1 ? '' : 's'}`; }
+  }
+
+  // ======================= MECH BALL =======================
+  // A giant ball and a goal at each base: push it, ram it, dash into it or shoot it into the other team's goal.
+  // The host's game runs the ball; the others follow it. First to 5 goals.
+  const BALL_R = 3.2;
+  class MechBall extends Objective {
+    start() {
+      const g = this.game;
+      this.score = {};
+      this.goals = baseSpots(g);
+      this.center = this.midSpot();
+      const mat = CW.mat(0xf1f3f5, { metalness: 0.3, roughness: 0.35 }, 'panel');
+      this.ball = new THREE.Mesh(new THREE.SphereGeometry(BALL_R, 24, 18), mat);
+      this.ball.castShadow = true;
+      for (let k = 0; k < 3; k++) {
+        const band = new THREE.Mesh(new THREE.TorusGeometry(BALL_R * 1.005, 0.16, 6, 40), CW.mat(0x5ce1ff, { emissive: 0x0b5c73 }));
+        band.rotation.set(k === 0 ? Math.PI / 2 : 0, k === 1 ? Math.PI / 2 : 0, 0);
+        this.ball.add(band);
+      }
+      this.add(this.ball);
+      this.pos = this.center.clone().setY(this.center.y + BALL_R + 6);
+      this.vel = new V3();
+      this.freeze = 0;
+      this.goalMeshes = [0, 1].map((t) => this.makeGoal(t));
+      this.synced = false;
+    }
+    midSpot() {
+      const g = this.game, w = g.world;
+      const m = this.goals[0].clone().add(this.goals[1]).multiplyScalar(0.5);
+      const p = w.isSafeSpot(m.x, m.z) ? m : g.safeSpotNear ? g.safeSpotNear(m) : m;
+      return new V3(p.x, w.groundAt(p.x, p.z), p.z);
+    }
+    makeGoal(t) {
+      const col = CW.TEAMS[t].color;
+      const grp = new THREE.Group();
+      const ring = new THREE.Mesh(new THREE.RingGeometry(8, 9, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.85, side: THREE.DoubleSide }));
+      ring.position.y = 0.25;
+      const fill = new THREE.Mesh(new THREE.CircleGeometry(8, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.18, depthWrite: false }));
+      fill.position.y = 0.2;
+      grp.add(ring, fill);
+      // posts and a crossbar facing the middle of the field
+      const toMid = Math.atan2(this.center.x - this.goals[t].x, this.center.z - this.goals[t].z);
+      const frame = new THREE.Group();
+      for (const s of [-1, 1]) { const post = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 9, 10), CW.mat(0xf1f3f5, null, 'hazard')); post.position.set(s * 8, 4.5, 0); frame.add(post); }
+      const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 16, 10), CW.mat(col)); bar.rotation.z = Math.PI / 2; bar.position.y = 9; frame.add(bar);
+      frame.rotation.y = toMid;
+      grp.add(frame);
+      grp.position.copy(this.goals[t]);
+      this.add(grp);
+      return { grp, fill };
+    }
+    teamScore(t) { return this.score[t] | 0; }
+    // a shot that touches the ball pushes it (and stops there)
+    ballHit(p) {
+      if (!this.ball || p.kind === 'flame') return false;
+      const a = p.prev, b = p.pos, ab = b.clone().sub(a), L2 = ab.lengthSq() || 1e-6;
+      const t = Math.max(0, Math.min(1, this.pos.clone().sub(a).dot(ab) / L2));
+      if (a.clone().addScaledVector(ab, t).distanceTo(this.pos) > BALL_R + 0.3) return false;
+      if (!this.game.net.client && this.freeze <= 0) this.vel.addScaledVector(p.vel.clone().normalize(), Math.max(3, Math.min(26, p.dmg * 0.7)));
+      this.game.fx.burst(a.clone().addScaledVector(ab, t), { n: 5, color: 'spark', speed: 6, life: 0.25, size: 0.15 });
+      return true;
+    }
+    physics(dt) {
+      const g = this.game, w = g.world;
+      const grav = CW.GRAV * ((g.mods && g.mods.grav) || 1) * (CW.arena.grav || 1);
+      this.vel.y -= grav * dt;
+      this.pos.addScaledVector(this.vel, dt);
+      const gy = w.groundAt(this.pos.x, this.pos.z, this.pos.y);
+      if (this.pos.y - BALL_R < gy) {
+        this.pos.y = gy + BALL_R;
+        // bounce off the ground, and roll down slopes
+        const nx = w.groundAt(this.pos.x - 1, this.pos.z) - w.groundAt(this.pos.x + 1, this.pos.z), nz = w.groundAt(this.pos.x, this.pos.z - 1) - w.groundAt(this.pos.x, this.pos.z + 1);
+        this.vel.x += nx * 6 * dt; this.vel.z += nz * 6 * dt;
+        if (this.vel.y < 0) this.vel.y = -this.vel.y * (this.vel.y < -6 ? 0.45 : 0);
+        const f = Math.exp(-0.7 * dt);
+        this.vel.x *= f; this.vel.z *= f;
+      }
+      if (this.pos.y < CW.WATER_Y + BALL_R * 0.4) { this.vel.y += 40 * dt; this.vel.multiplyScalar(Math.exp(-1.5 * dt)); } // it floats
+      const H = CW.ARENA_HALF - BALL_R;
+      for (const ax of ['x', 'z']) if (Math.abs(this.pos[ax]) > H) { this.pos[ax] = Math.sign(this.pos[ax]) * H; this.vel[ax] *= -0.6; }
+      if (this.vel.length() > 70) this.vel.setLength(70);
+    }
+    update(dt) {
+      const g = this.game;
+      const client = g.net.client;
+      if (this.freeze > 0) this.freeze -= dt;
+      if (!client) {
+        if (g.countdown <= 0 && !g.ended && this.freeze <= 0) {
+          this.physics(dt);
+          // mechs push it (a dash or a ram sends it flying)
+          for (const m of g.mechs) {
+            if (!m.alive) continue;
+            const d = this.pos.distanceTo(m.pos), min = BALL_R + m.radius * 0.7;
+            if (d > min || d < 0.01) continue;
+            const n = this.pos.clone().sub(m.pos).normalize();
+            this.pos.copy(m.pos).addScaledVector(n, min);
+            const push = Math.max(0, m.vel.dot(n)) * 1.35 + 4;
+            this.vel.addScaledVector(n, push);
+            this.vel.y = Math.max(this.vel.y, 3 + push * 0.15);
+            this.lastTouch = m.combatant;
+          }
+          // goal!
+          for (const t of [0, 1]) {
+            if (flatDist(this.pos, this.goals[t]) > 8 || this.pos.y - this.goals[t].y > 12) continue;
+            const by = 1 - t;
+            this.score[by] = this.teamScore(by) + 1;
+            this.goalFx(by, this.lastTouch);
+            this.freeze = 2.5;
+            this.pos.copy(this.center).setY(this.center.y + BALL_R + 10);
+            this.vel.set(0, 0, 0);
+          }
+        }
+      } else if (this.target) {
+        // follow the host's ball smoothly (and keep it moving between updates)
+        this.target.p.addScaledVector(this.target.v, dt);
+        this.pos.lerp(this.target.p, Math.min(1, dt * 10));
+      }
+      this.ball.position.copy(this.pos);
+      if (this.vel.lengthSq() > 0.1) { const ax = new V3(this.vel.z, 0, -this.vel.x).normalize(); this.ball.rotateOnWorldAxis(ax, (Math.hypot(this.vel.x, this.vel.z) / BALL_R) * dt); }
+      for (const [t, gm] of this.goalMeshes.entries()) gm.fill.material.opacity = 0.14 + Math.sin(g.time * 3 + t) * 0.06;
+    }
+    goalFx(team, who) {
+      const g = this.game;
+      g.announce(`⚽ GOAL! ${this.teamName(team).toUpperCase()}`, `${who ? (who.isPlayer ? 'You' : who.name) + ' · ' : ''}${this.teamScore(0)} - ${this.teamScore(1)}`);
+      g.fx.burst(this.ball.position, { n: 50, color: g.fx.colorKey(CW.TEAMS[team].color), speed: 16, up: 8, life: 1.2, size: 0.4 });
+      g.confetti && team === g.player.team && g.confetti();
+      if (who && who.isPlayer && who.team === team) { g.bonusCoins += 30; if (!g.isPractice()) g.meta.track('goal'); }
+    }
+    netState() {
+      return { b: [r1(this.pos.x), r1(this.pos.y), r1(this.pos.z), r1(this.vel.x), r1(this.vel.y), r1(this.vel.z)], s: this.score, f: r1(this.freeze), g: this.goals.map((p) => [r1(p.x), r1(p.z)]), l: this.lastTouch ? this.lastTouch.netId : -1 };
+    }
+    netApply(s, first) {
+      const g = this.game;
+      if (s.g && !this.synced) {
+        this.synced = true;
+        s.g.forEach(([x, z], t) => { this.goals[t] = new V3(x, g.world.groundAt(x, z), z); this.goalMeshes[t].grp.position.copy(this.goals[t]); });
+        this.center = this.midSpot();
+      }
+      const before = [this.teamScore(0), this.teamScore(1)];
+      this.score = s.s || {};
+      if (Array.isArray(s.b)) {
+        const p = new V3(s.b[0], s.b[1], s.b[2]), v = new V3(s.b[3], s.b[4], s.b[5]);
+        if (first || !this.target || p.distanceTo(this.pos) > 25) this.pos.copy(p);
+        this.target = { p, v };
+        this.vel.copy(v);
+      }
+      this.freeze = s.f || 0;
+      for (const t of [0, 1]) if (!first && this.teamScore(t) > before[t]) this.goalFx(t, g.net.byId.get(s.l));
+    }
+    hud() { return `<b>⚽ Mech Ball</b> · ${this.scoreBars((v) => v)} · first to ${this.mode.scoreToWin} · ${this.clock()}`; }
+    urgent() { return true; }
+    // bots: get behind the ball (seen from the goal they attack), then drive through it; one per team guards the goal
+    botGoal(c) {
+      const b = this.body(c);
+      if (!b) return null;
+      const their = this.goals[1 - c.team], mine = this.goals[c.team];
+      const mates = this.game.combatants.filter((o) => o.team === c.team && o.alive && !o.human).sort((x, y) => x.netId - y.netId);
+      if (mates.length > 1 && mates[0] === c && flatDist(this.pos, mine) > 45) return mine.clone().lerp(this.pos, 0.25);
+      const dir = this.pos.clone().sub(their).setY(0).normalize();
+      const behind = this.pos.clone().addScaledVector(dir, BALL_R + 5);
+      const lined = b.pos.clone().sub(this.pos).setY(0).normalize().dot(dir) > 0.6;
+      return lined || flatDist(b.pos, this.pos) < 7 ? this.pos : behind;
+    }
+    respawnSpot(c) { return this.game.safeNear(this.goals[c.team] || this.game.world.landSpawns[0], Math.floor(Math.random() * 5), []); }
+    check() {
+      for (const t of this.teams()) if (this.teamScore(t) >= this.mode.scoreToWin) return { winner: t };
+      if (this.timeLeft() <= 0) return this.byScore();
+      return null;
+    }
+    minimap(ctx, toMap) {
+      for (const t of [0, 1]) {
+        const [x, y] = toMap(this.goals[t].x, this.goals[t].z);
+        ctx.strokeStyle = hex(CW.TEAMS[t].color); ctx.lineWidth = 3;
+        ctx.strokeRect(x - 6, y - 6, 12, 12);
+      }
+      const [x, y] = toMap(this.pos.x, this.pos.z);
+      ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.lineWidth = 1;
+    }
+    summary(c) { return `${this.teamScore(c.team)} goal${this.teamScore(c.team) === 1 ? '' : 's'}`; }
+  }
+
+  // ======================= SCRAP WARS =======================
+  // Every part blown off an enemy drops a scrap bolt (a wreck drops a pile). Every 6 scrap you carry is an upgrade
+  // (up to 6): +8% damage, 4% less damage taken, +4% speed each. A wreck spills half your scrap. Most scrap wins.
+  const SCRAP_PER_LV = 6, SCRAP_MAX_LV = 6;
+  class ScrapWars extends GoldRush {
+    start() {
+      this.gold = new Map();
+      this.nuggets = [];
+      this.geo = new THREE.TorusGeometry(0.45, 0.2, 6, 8);
+      this.mat = CW.mat(0xb08968, { metalness: 0.9, roughness: 0.35 });
+      this.nid = 1;
+      if (!this.game.net.client) for (let i = 0; i < 14; i++) this.spawnNugget();
+      this.timer = 0;
+      this.lv = new Map();
+    }
+    goal() { return this.mode.scoreToWin * (this.game.teamMode ? 2 : 1); }
+    update(dt) {
+      super.update(dt);
+      this.timer = Math.min(this.timer, 0); // no random refills: scrap comes from fights (and the start)
+      this.levels();
+    }
+    levels() {
+      const g = this.game;
+      for (const c of g.combatants) {
+        const lv = Math.min(SCRAP_MAX_LV, Math.floor(this.carried(c) / SCRAP_PER_LV));
+        const was = c.scrapLv || 0;
+        c.scrapLv = lv;
+        if (c.isPlayer && lv > was) {
+          g.announce(`🔩 UPGRADE ${lv}`, `+${lv * 8}% damage · ${lv * 4}% armor · +${lv * 4}% speed`);
+          g.audio.tone(700 + lv * 90, 0.15, 'triangle', 0.18, 1.4);
+        }
+      }
+    }
+    // every part blown off an enemy drops a bolt where it was
+    onPart(mech, part) {
+      if (this.game.net.client || this.game.countdown > 0) return;
+      if (Math.random() < 0.7) this.spawnNugget(part.wp.clone());
+    }
+    onWreck(victim) {
+      if (this.game.net.client) return;
+      const n = Math.ceil(this.carried(victim) / 2);
+      this.gold.set(victim, this.carried(victim) - n);
+      const at = victim.mech.pos.clone();
+      for (let i = 0; i < Math.min(n + 3, 18); i++) this.spawnNugget(at.clone());
+      if (victim.isPlayer && n) this.game.feed(`🔩 You dropped ${n} scrap!`, 'bad');
+    }
+    netApply(s) { super.netApply(s); this.levels(); }
+    hud() {
+      const me = this.game.player, n = this.carried(me);
+      return `<b>🔩 Scrap Wars</b> · You: <b>${n}</b> 🔩 · Upgrade <b>${me.scrapLv || 0}</b>/${SCRAP_MAX_LV} · ${this.scoreBars((v) => v + '🔩')} · goal ${this.goal()} · ${this.clock()}`;
+    }
+    check() {
+      for (const t of this.teams()) if (this.teamScore(t) >= this.goal()) return { winner: t };
+      if (this.timeLeft() <= 0) return this.byScore();
+      return null;
+    }
+    minimap(ctx, toMap) {
+      ctx.fillStyle = '#b08968';
+      for (const n of this.nuggets) { const [x, y] = toMap(n.mesh.position.x, n.mesh.position.z); ctx.fillRect(x - 1.5, y - 1.5, 3, 3); }
+    }
+    summary(c) { return `${this.carried(c)} scrap`; }
+  }
+
+  CW.OBJECTIVES = { koth: KingOfTheHill, gold: GoldRush, race: CombatRace, boss: BossBattle, bounty: BountyHunt, heist: CoreHeist, ball: MechBall, scrap: ScrapWars };
 })();

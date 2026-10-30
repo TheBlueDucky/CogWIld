@@ -13,7 +13,8 @@
     el.style.backgroundBlendMode = 'multiply';
   };
   const swatchStyle = (c, tex) => `background:${hex(c)} url(${CW.texURL(tex || 'panel')}) center/160% auto;background-blend-mode:multiply`;
-  const SHOP_LABEL = { paints: 'Paint', trails: 'Dash trail', avatars: 'Avatar', finishes: 'Mech finish', wrecks: 'Wreck effect' };
+  const SHOP_LABEL = { paints: 'Paint', trails: 'Dash trail', avatars: 'Avatar', finishes: 'Mech finish', wrecks: 'Wreck effect', supers: 'Super', gadgets: 'Gadget', perks: 'Perk' };
+  const LO_KINDS = ['supers', 'gadgets', 'perks']; // v1.10 loadout things (js/loadout.js)
   // keys that can be turned off: voice chat (push-to-talk, mute, deafen) and opening the chat
   const OPT_KEYS = { vcPtt: 'KeyB', vcMute: 'KeyM', vcDeaf: 'KeyN', chatKey: 'KeyT' };
   const SUPPORT_EMAIL = 'theblueduckymc@gmail.com'; // BlueDucky Games' public contact (also in privacy.html)
@@ -41,6 +42,7 @@
     // chat and voice chat (js/talk.js, js/voice.js); voice: undefined until the game has asked
     chatNotes: true, vcHear: 'game', vcMode: 'open', vcVol: 1, vcMic: '', vcOut: '',
     discord: true, // v1.9.9: the desktop app shows what you're playing on your Discord profile
+    loSuper: '', loPerks: [], // v1.10 loadout (js/loadout.js): '' = your build's own super
   };
   // keys you can change in Settings (Esc always pauses); def is the key the game reads internally
   CW.KEY_ACTIONS = [
@@ -48,6 +50,7 @@
     { id: 'left', label: 'Turn left / step left', def: 'KeyA' }, { id: 'right', label: 'Turn right / step right', def: 'KeyD' },
     { id: 'up', label: 'Fly up / jump', def: 'Space' }, { id: 'down', label: 'Fly down / dive (also Q, Ctrl)', def: 'KeyC' }, { id: 'dash', label: 'Dash', def: 'ShiftLeft' }, { id: 'super', label: 'Super (also right-click)', def: 'KeyX' }, { id: 'gadget', label: 'Gadget', def: 'KeyG' },
     { id: 'exit', label: 'Exit / enter mech', def: 'KeyE' }, { id: 'repair', label: 'Repair (hold, on foot)', def: 'KeyR' }, { id: 'unstuck', label: 'Unstuck', def: 'KeyF' },
+    { id: 'open', label: 'Open a chest (hold)', def: 'KeyO' }, { id: 'ping', label: 'Ping (hold for the ping wheel)', def: 'KeyZ' },
     { id: 'camera', label: 'Switch camera', def: 'KeyV' }, { id: 'scores', label: 'Scoreboard', def: 'Tab' }, { id: 'clip', label: 'Save clip', def: 'F8' },
   ];
   CW.keyName = (code) => {
@@ -96,8 +99,12 @@
     rollChallenges() {
       const p = this.game.profile;
       const d = E.day();
-      if (p.challenges && p.challenges.date === d && p.challenges.list.length === E.DAILY_CHALLENGES) return;
-      p.challenges = { date: d, list: E.dailyChallenges(d).map((c) => Object.assign(c, { progress: 0, claimed: false })) };
+      const today = E.dailyChallenges(d);
+      const same = (list) => list.length === today.length && list.every((c, i) => c.type === today[i].type && c.target === today[i].target);
+      if (p.challenges && p.challenges.date === d && same(p.challenges.list)) return;
+      // a new day (or an update changed today's list): keep the progress of challenges that stayed the same
+      const old = p.challenges && p.challenges.date === d ? p.challenges.list : [];
+      p.challenges = { date: d, list: today.map((c) => { const o = old.find((x) => x.type === c.type && x.target === c.target); return Object.assign(c, { progress: o ? o.progress : 0, claimed: o ? o.claimed : false }); }) };
       this.save();
     }
 
@@ -215,6 +222,7 @@
         : kind === 'trails' ? `<div class="swatch trail" style="background:${it.colors.length > 1 ? `linear-gradient(90deg,${it.colors.map(hex).join(',')})` : hex(it.colors[0])}"><i></i><i></i><i></i></div>`
           : kind === 'finishes' ? `<div class="swatch fin fin-${it.id}"><i>${it.icon}</i></div>`
             : kind === 'wrecks' ? `<div class="swatch wfx wfx-${it.id}"><i>${it.icon}</i></div>`
+            : LO_KINDS.includes(kind) ? `<div class="swatch lo lo-${kind}"><i>${it.icon}</i></div>`
           : `<div class="swatch av">${CW.avatar(it.idx)}</div>`;
     }
     // "Buy it?" pop-up before any coins are spent
@@ -224,7 +232,7 @@
       const short = price - p.coins;
       $('confirmLook').innerHTML = this.shopLook(kind, it);
       $('confirmTitle').textContent = `Buy ${it.name}?`;
-      $('confirmKind').textContent = SHOP_LABEL[kind] + (deal ? ' · daily deal, 30% off' : '');
+      $('confirmKind').textContent = SHOP_LABEL[kind] + (LO_KINDS.includes(kind) ? ` · ${CW.needText(it.need)}` : '') + (deal ? ' · daily deal, 30% off' : '');
       $('confirmPrice').innerHTML = `${deal ? `<s>${it.price}</s> ` : ''}${price} 🪙`;
       $('confirmDesc').innerHTML = short > 0 ? `You have ${p.coins} 🪙. You need <b>${short}</b> more coins.`
         : `You have ${p.coins} 🪙, ${p.coins - price} 🪙 left after buying.`;
@@ -249,6 +257,7 @@
       if (kind === 'trails') p.trail = id;
       if (kind === 'finishes') { p.finish = id; this.game.refreshShowcase && this.game.refreshShowcase(); }
       if (kind === 'wrecks') p.wreckFx = id;
+      if (LO_KINDS.includes(kind)) this.equipLo(kind, id, true); // a new super / gadget / perk goes straight into your loadout
       if (kind === 'avatars' && this.game.account.loggedIn) this.game.account.net.send({ t: 'profileSet', av: it.idx });
       this.save();
       this.game.toast(`Unlocked ${it.name}!`);
@@ -256,6 +265,46 @@
       this.game.workshop.buildPaint();
       if (this.panel === 'shop' && !$('panel').classList.contains('hidden')) this.renderPanel();
       this.renderMenu();
+    }
+
+    // ---------------- the loadout (v1.10): super, gadget, perks ----------------
+    loEquipped(kind, id) {
+      const s = this.settings;
+      if (kind === 'supers') return (s.loSuper || '') === id;
+      if (kind === 'gadgets') return (s.gadget || 'repair') === id;
+      return (s.loPerks || []).includes(id);
+    }
+    // put it in (or, for a super or a perk, take it out again)
+    equipLo(kind, id, on) {
+      const s = this.settings, it = E.item(kind, id);
+      if (!it) return;
+      if (kind === 'supers') s.loSuper = on === true || s.loSuper !== id ? id : '';
+      else if (kind === 'gadgets') s.gadget = id;
+      else {
+        const list = (s.loPerks || []).filter((x) => E.item('perks', x));
+        if (list.includes(id) && on !== true) list.splice(list.indexOf(id), 1);
+        else if (!list.includes(id)) {
+          if (list.length >= CW.PERK_SLOTS) { const out = list.shift(); this.game.toast(`🎒 ${E.item('perks', out).name} taken off (${CW.PERK_SLOTS} perks at a time)`); }
+          list.push(id);
+        }
+        s.loPerks = list;
+      }
+      this.save();
+      const now = this.loEquipped(kind, id);
+      if (on !== true) this.game.toast(now ? `${it.icon} ${it.name} equipped` : `${it.name} taken off`);
+      if (this.game.net && this.game.net.room && !this.game.net.active) this.game.net.sendReady(); // a room waiting to start gets the new loadout
+    }
+    // the cards for the Shop and the PLAY panel's loadout
+    loCard(kind, it, small) {
+      const own = CW.ownsLo(this.game, kind, it.id), eq = this.loEquipped(kind, it.id);
+      const locked = !own && it.price === 0; // a free gadget above your level
+      const fits = !this.game.currentBp || E.fits(it.need, this.game.currentBp.parts);
+      const act = own ? 'equip' : locked ? '' : 'buy';
+      const tag = eq ? `<span class="owned">★ Equipped${kind === 'gadgets' ? '' : ' · click to take off'}</span>` : own ? '<span class="price equip">Equip</span>'
+        : locked ? `<span class="price">🔒 Level ${it.level}</span>` : `<span class="price">${it.price} 🪙</span>`;
+      const data = act ? ` data-act="${act}" data-kind="${kind}" data-id="${it.id}" role="button" tabindex="0"` : '';
+      if (small) return `<button class="lo-chip ${eq ? 'on' : ''} ${fits ? '' : 'nofit'}" data-lo="${kind}" data-id="${it.id}" aria-label="${it.desc}"><span>${it.icon}</span><b>${it.name}</b><small>${fits ? CW.needText(it.need) : '⚠ ' + CW.needText(it.need)}</small></button>`;
+      return `<div class="shop-item lo-item ${eq ? 'is-eq' : ''} ${act ? 'can-' + act : ''} ${fits ? '' : 'nofit'}"${data}>${this.shopLook(kind, it)}<b>${it.name}</b><span class="small lo-desc">${it.desc}</span><span class="lo-need">${fits ? '' : '⚠ '}${CW.needText(it.need)}</span>${tag}</div>`;
     }
 
     // ---------------- panels ----------------
@@ -353,6 +402,9 @@
           <div class="shop-gift ${giftReady ? 'ready' : ''}"><span class="g-ico">🎁</span><div><b>Daily gift</b><br><span>${giftReady ? `Free coins! Come back every day for a bigger gift.` : `Next gift in ${left} · streak ${streak} day${streak > 1 ? 's' : ''}`}</span></div>${giftReady ? '<button class="ws-btn on" id="shopGift">Claim</button>' : ''}</div>
           <h3>🔥 Daily deals <span class="small" id="dealTimer">new deals in ${left}</span></h3>
           <div class="shop-grid">${deals.length ? deals.map((d) => item(d.kind, d.it, true)).join('') : '<div class="small">You own everything in the shop. Wow!</div>'}</div>
+          <h3>⭐ Supers <span class="small">your big move (X / right-click). Without one picked, your build decides it. Some need certain parts</span></h3><div class="shop-grid lo-grid">${E.SHOP.supers.map((it) => this.loCard('supers', it)).join('')}</div>
+          <h3>🧰 Gadgets <span class="small">3 uses a match (G). Some only work with wheels, water or air parts</span></h3><div class="shop-grid lo-grid">${E.SHOP.gadgets.map((it) => this.loCard('gadgets', it)).join('')}</div>
+          <h3>🎒 Perks <span class="small">always on: equip up to ${CW.PERK_SLOTS}. Every mech can use them</span></h3><div class="shop-grid lo-grid">${E.SHOP.perks.map((it) => this.loCard('perks', it)).join('')}</div>
           <h3>🌟 Mech finishes <span class="small">change how your mech's paint looks: chrome, gold, glowing neon…</span></h3><div class="shop-grid">${sale('finishes').map((it) => item('finishes', it)).join('')}</div>
           <h3>💥 Wreck effects <span class="small">what you see when you wreck an enemy</span></h3><div class="shop-grid">${sale('wrecks').map((it) => item('wrecks', it)).join('')}</div>
           <h3>🎨 Paints <span class="small">for your mechs, in the Workshop's Paint section</span></h3><div class="shop-grid">${sale('paints').map((it) => item('paints', it)).join('')}</div>
@@ -362,6 +414,7 @@
           const it = CW.SHOP[b.dataset.kind].find((x) => x.id === b.dataset.id);
           const go = () => {
             if (b.dataset.act === 'buy') return this.confirmBuy(b.dataset.kind, it, !!b.dataset.deal);
+            if (LO_KINDS.includes(b.dataset.kind)) { this.equipLo(b.dataset.kind, it.id); return this.renderPanel(); }
             if (b.dataset.kind === 'trails') { p.trail = it.id; this.save(); }
             if (b.dataset.kind === 'finishes') { p.finish = p.finish === it.id ? '' : it.id; this.save(); this.game.refreshShowcase && this.game.refreshShowcase(); this.game.toast(p.finish ? `🌟 ${it.name} on your mech` : 'Finish taken off'); }
             if (b.dataset.kind === 'wrecks') { p.wreckFx = p.wreckFx === it.id ? '' : it.id; this.save(); this.game.toast(p.wreckFx ? `💥 Your wrecks: ${it.name}` : 'Wreck effect taken off'); }
@@ -667,6 +720,14 @@
     // What's new (Settings › Change logs, and the 📰 News button on phones)
     newsHtml() {
       return `<ul class="news">
+          <li><b>v1.10.0</b>: 🎮 <b>The gameplay update!</b>
+            ⭐🧰🎒 The Shop sells <b>supers</b> (Orbital Strike, Overdrive, Gravity Well, Ground Pound, Inferno Nova, Drone Swarm, Rail Lance, Tidal Wave), <b>gadgets</b> (Grapple Hook, Bubble Shield, Hologram Decoy, Sonar Ping, EMP Grenade, Nitro, Torpedo, Afterburner) and <b>perks</b> (always on, 2 at a time: Thick Plating, Overclock, Head Start, Gadget Belt…). Some work on any mech, some need certain parts. Pick them in the PLAY panel's <b>Loadout</b>.
+            🕹 4 new modes: <b>Core Heist</b> (steal their core), <b>Mech Ball</b> (push a giant ball into their goal), <b>Demolition Derby</b> (no guns, every crash hurts) and <b>Scrap Wars</b> (collect scrap to upgrade your mech mid-match).
+            🔫 4 new weapons: <b>Mortar</b> (lobs over walls), <b>Harpoon</b> (yanks mechs to you), <b>Tesla Coil</b> (the zap jumps between mechs) and <b>Magnet</b> (drags them in).
+            🧰 Chests are bigger: hold <b>O</b> next to one (🎁 on phones) and real loot bursts out: coins, power-ups, super cells and gadget refills. Anyone can grab it!
+            🌋 Arenas come alive: boost pads, jump pads and arena events (meteor showers, eruptions, lightning storms, sandstorms, blackouts).
+            📍 Pings: tap <b>Z</b> to mark an enemy, loot or a spot for your team; hold Z for the ping wheel (Attack, Defend, Help me, Careful).
+            💥 Feel: the core is a weak spot (+40%, yellow numbers), wreck streaks and SHUTDOWN bonuses, a killcam showing who wrecked you, a comeback boost for a team far behind, and <b>part combos</b> (build a Grinder, Fortress, Gunship, Monster Truck… for a bonus, shown in the Workshop).</li>
           <li><b>v1.9.10</b>: 🎚 The background slider, done right: in the normal look 0% is fully see-through (no box, line or shadow) and 100% is solid. With the Glass Look on it's called <b>Glass look strength</b>: lower means less blur and clearer glass, never gray.</li>
           <li><b>v1.9.9</b>: 🎚 <b>Background opacity</b> (Settings › Display) now sets the background of the menu buttons and the boxes in matches, in the normal and the Glass Look (0% = no background at all). 💬 Messages you read on one device (the website, the app, a phone) aren't shown as new on another. 🎮 A setting to hide Cogwild from your Discord activity (Settings › Online). Lighter Controls and Touch screen icons, and a shorter graphics menu.</li>
           <li><b>v1.9.8</b>: 🪟 A <b>glass look</b> (Settings › Display): see-through, blurred buttons and boxes. 🎞 A frame rate limit (VSync, 30–240 FPS or unlimited; above your screen's rate in the desktop app). The box behind your health bar is 50% by default and has a Reset button. 🎬 In the desktop app clips and replays are saved straight into Documents › Cogwild, with buttons that open those folders. ${CW.ICON.phone} Listen to every ringtone before you pick it, and drag the call card anywhere. ⚙ Settings in a new order, every button and menu there lights up the same gray-blue when you point at it, blue icons, and your email is shown hidden (t*****r@gmail.com).</li>
@@ -766,13 +827,13 @@
           <div><h3>🧍 On foot</h3><p><b>WASD</b> move · <b>Space</b> jump · <b>Click</b> shoot · <b>E</b> board · hold <b>R</b> repair</p></div>
           <div><h3>🔧 Building</h3><p>Every mech needs a <b>Core</b> and a <b>Camera</b> (your view). Nothing may sit in front of the camera's lens. Forget it and it's placed on top automatically.</p></div>
           <div><h3>⛰🌊☁ Movement types</h3><p>Wheels/Legs = land, Floats/Propellers = water, Wings/Rotors/Jets = air. Your rank decides how many types one mech may mix: Mono 1, Hybrid 2, Omni 3.</p></div>
-          <div><h3>🕹 Modes</h3><p><b>Rush Build</b>: build from nothing in 75 s. <b>Workshop Clash</b>: bring your design. <b>King of the Hill</b>: hold the moving zone. <b>Gold Rush</b>: grab the most gold. <b>Combat Race</b>: 2 laps through checkpoints. <b>Survival</b>: endless waves. <b>Boss Battle</b>: take down the Titan.</p></div>
+          <div><h3>🕹 Modes</h3><p><b>Rush Build</b>: build from nothing in 75 s. <b>Workshop Clash</b>: bring your design. <b>King of the Hill</b>: hold the moving zone. <b>Gold Rush</b>: grab the most gold. <b>Combat Race</b>: 2 laps through checkpoints. <b>Survival</b>: endless waves. <b>Boss Battle</b>: take down the Titan. <b>Core Heist</b>: steal their core and bring it home. <b>Mech Ball</b>: push the giant ball into their goal. <b>Demolition Derby</b>: no guns, ram everything. <b>Scrap Wars</b>: collect scrap to upgrade your mech.</p></div>
           <div><h3>🛟 Fair play</h3><p>You spawn on safe ground with a 3.5 s shield (shooting ends it). Stuck in a ditch or liquid? Press <b>F</b> to hop to safe ground (12 s cooldown).</p></div>
-          <div><h3>🧰 Chests & lava</h3><p>Drive into a <b>chest</b> to open it (coins, XP, power-ups). Gold beams = supply drops. On Volcano Rift, <b>lava burns</b> whatever touches it, so use the bridges or fly.</p></div>
+          <div><h3>🧰 Chests & lava</h3><p>Next to a <b>chest</b>, hold <b>O</b> (🎁 on phones) for a second: loot bursts out (coins, power-ups, super cells, gadget refills), grab it before others do. Gold beams = supply drops. Boost pads (arrows) and jump pads (rings) launch you; red circles on the ground = something is about to hit there! On Volcano Rift, <b>lava burns</b> whatever touches it, so use the bridges or fly.</p></div>
           <div><h3>🛡 Survival</h3><p>Endless waves of bots. Your mech is rebuilt between waves. Beat your best wave!</p></div>
-          <div><h3>🧰 Supers & gadgets</h3><p>Deal damage to fill your <b>super</b> (X / right-click / ⭐). Your <b>gadget</b> (G / 🧰) has 3 uses a match with a short cooldown: pick it in the PLAY panel.</p></div>
+          <div><h3>🧰 Supers & gadgets</h3><p>Deal damage to fill your <b>super</b> (X / right-click / ⭐). Your <b>gadget</b> (G / 🧰) has 3 uses a match with a short cooldown. Pick your super, gadget and 2 <b>perks</b> in the PLAY panel's Loadout; more are in the Shop. Tap <b>Z</b> to ping, hold it for the ping wheel. Hitting an enemy's <b>core</b> does 40% more.</p></div>
           <div><h3>🎟 Cog Pass, clubs, Ranked</h3><p>Every match earns <b>Cog Pass</b> points for free rewards. Join a <b>club</b> to team up. At ${E.RANKED.unlockAt} trophies <b>Ranked</b> opens: 3v3 for ranked points that reset each season.</p></div>
-          <div><h3>💰 Progress</h3><p>Matches give XP and coins. Daily challenges and the daily reward give more. Spend coins in the Shop on paints and dash trails.</p></div>
+          <div><h3>💰 Progress</h3><p>Matches give XP and coins. Daily challenges and the daily reward give more. Spend coins in the Shop on supers, gadgets, perks, paints and dash trails.</p></div>
           <div><h3>⚡ Sudden death</h3><p>After 4 minutes all cores overheat, so no match lasts forever.</p></div>
           </div>`;
     }
@@ -788,7 +849,8 @@
       const curA = g.arenaChoice(), curM = g.modeChoice();
       const modes = Object.keys(CW.MM_FORMAT).map((id) => {
         const m = CW.MODES[id], f = CW.FORMATS[CW.MM_FORMAT[id]];
-        return `<button class="mode-opt ${id === curM ? 'on' : ''}" data-mode="${id}" style="--mc:${m.color}"><span>${m.icon}</span><b>${m.name}</b><small>${f.label}</small></button>`;
+        const fresh = ['heist', 'ball', 'derby', 'scrap'].includes(id) ? '<i class="new-tag">NEW</i>' : ''; // v1.10
+        return `<button class="mode-opt ${id === curM ? 'on' : ''}" data-mode="${id}" style="--mc:${m.color}"><span>${m.icon}</span><b>${m.name}${fresh}</b><small>${f.label}</small></button>`;
       }).join('');
       const rotNow = CW.FEATURED.rotation().arenas;
       const arenas = ['random'].concat(Object.keys(CW.ARENAS)).map((id) => {
@@ -799,11 +861,12 @@
       const kind = this.settings.mmEvent, w = E.week(), wm = CW.MODES[w.mode];
       const cu = E.cup(), cm = CW.MODES[cu.mode], my = g.account.cupInfo && g.account.cupInfo.me;
       const canRanked = g.account.canRanked(), rk = g.account.me && g.account.me.rp != null ? E.RANKED.rank(g.account.me.rp) : null;
-      const lv = g.level();
-      const gad = Object.entries(CW.GADGETS).map(([id, gd]) => {
-        const locked = gd.level > lv;
-        return `<button class="mode-opt gad-opt ${(this.settings.gadget || 'repair') === id ? 'on' : ''} ${locked ? 'locked' : ''}" data-gadget="${id}" ${locked ? 'disabled' : ''} aria-label="${gd.desc}"><span>${gd.icon}</span><b>${gd.name}</b><small>${locked ? `🔒 Level ${gd.level}` : gd.desc}</small></button>`;
-      }).join('');
+      // v1.10 loadout: only what you own (the Shop has the rest)
+      const mine = (kind) => E.SHOP[kind].filter((it) => CW.ownsLo(g, kind, it.id));
+      const auto = CW.SUPERS[CW.superFor(g.currentBp ? g.currentBp.parts : [])];
+      const loSup = `<button class="lo-chip ${!this.settings.loSuper ? 'on' : ''}" data-lo="supers" data-id="" aria-label="Your build decides"><span>🎲</span><b>Auto</b><small>${auto.icon} ${auto.name}</small></button>` + mine('supers').map((it) => this.loCard('supers', it, true)).join('');
+      const loGad = mine('gadgets').map((it) => this.loCard('gadgets', it, true)).join('');
+      const loPerk = mine('perks').map((it) => this.loCard('perks', it, true)).join('') || '<span class="small">No perks yet: get them in the Shop</span>';
       // v1.9.4: one calm list: special matches, mode, arena, gadget, then the other ways to play
       const pickTag = (on) => (on ? '<em class="p2-on">✔</em>' : '<em class="p2-go">›</em>');
       const featOn = !kind && f.mode === curM && f.arena === curA;
@@ -819,19 +882,23 @@
         <div class="p2-desc" id="modeDesc">${CW.MODES[curM].desc}</div>
         <h3>Arena</h3><div class="arena-grid">${arenas}</div>
         <div class="p2-desc rot-line">🔄 <span>Any arena plays</span> ${rot.arenas.map((a) => `${CW.ARENAS[a].icon} ${CW.ARENAS[a].name}`).join(' · ')} <span class="muted">· changes in ${CW.timeLeft(rot.endsAt - Date.now())}</span></div>
-        <h3>Gadget <span class="small">3 uses a match · G / 🧰</span></h3><div class="mode-row gad-row">${gad}</div>
+        <h3>Loadout <span class="small">your super, gadget and up to ${CW.PERK_SLOTS} perks</span> <button class="pill line lo-shop" id="loShop">🛒 Get more</button></h3>
+        <div class="lo-label">⭐ Super</div><div class="mode-row lo-row">${loSup}</div>
+        <div class="lo-label">🧰 Gadget <span class="small">3 uses a match · G</span></div><div class="mode-row lo-row">${loGad}</div>
+        <div class="lo-label">🎒 Perks <span class="small">always on</span></div><div class="mode-row lo-row">${loPerk}</div>
         <h3>More ways to play</h3>
         <div class="p2-more">
           <button class="p2-alt" id="opRoom"><span class="p2-ico">🤝</span><span class="p2-txt"><b>Private room</b><small>Play with friends: share a code or an invite link. The host picks the mode.</small></span><em class="p2-go">›</em></button>
           <button class="p2-alt" id="opTutorial"><span class="p2-ico">🎓</span><span class="p2-txt"><b>Tutorial</b><small>Learn to drive, aim, build and use supers in a few minutes.</small></span><em class="p2-go">›</em></button>
         </div>
       </div>`;
-      body.querySelectorAll('[data-gadget]').forEach((b) => (b.onclick = () => {
-        this.settings.gadget = b.dataset.gadget;
-        this.save();
-        body.querySelectorAll('[data-gadget]').forEach((x) => x.classList.toggle('on', x === b));
+      body.querySelectorAll('[data-lo]').forEach((b) => (b.onclick = () => {
+        const kind = b.dataset.lo, id = b.dataset.id;
+        if (kind === 'supers' && !id) { this.settings.loSuper = ''; this.save(); } else this.equipLo(kind, id);
+        body.querySelectorAll(`[data-lo="${kind}"]`).forEach((x) => x.classList.toggle('on', kind === 'supers' && !x.dataset.id ? !this.settings.loSuper : this.loEquipped(kind, x.dataset.id)));
         g.audio.click(1.2);
       }));
+      $('loShop').onclick = () => this.openPanel('shop');
       $('weekPick').onclick = () => { this.settings.mmEvent = 'weekly'; this.save(); g.renderArenaCard(); this.closePanel(); g.audio.click(1.3); };
       $('cupPick').onclick = () => {
         if (!cu.live) return this.openPanel('cup');

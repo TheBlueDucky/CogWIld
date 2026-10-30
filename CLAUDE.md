@@ -5,7 +5,7 @@ You build a mech from parts in the Workshop, then fight online (bots fill empty 
 It runs in the browser (three.js r128, no build step), as a Windows app (Electron) and an Android app (Capacitor),
 and on game portals (itch.io, CrazyGames, Poki). The online server is zero-dependency Node.js.
 
-**Live:** https://cogwild.duckdns.org (download page `/download`) · **Code:** https://github.com/TheBlueDucky/CogWIld (public; commits as theblueduckymc@gmail.com) · **Current version:** v1.9.10 · **Online protocol:** `cogwild-net-10`
+**Live:** https://cogwild.duckdns.org (download page `/download`) · **Code:** https://github.com/TheBlueDucky/CogWIld (public; commits as theblueduckymc@gmail.com) · **Current version:** v1.10.0 · **Online protocol:** `cogwild-net-11`
 The user is not a programmer: explain things in plain words, test everything yourself, and show screenshots as proof.
 
 ## How the user wants things done
@@ -166,6 +166,36 @@ The user is not a programmer: explain things in plain words, test everything you
 - **Modes/content:** 8 modes (Rush Build, Workshop Clash, KOTH, Gold Rush, Bounty Hunt, Combat Race, Survival, Boss),
   8 arenas, supers, gadgets, daily featured event, weekly events with modifiers, Ranked (100+ best trophies),
   Cog Pass (30 tiers per 4-week season), Trophy Road, 6 daily challenges, achievements.
+
+## v1.10 gameplay update (30 Oct 2026, NET_VERSION cogwild-net-11)
+- **Loadout** (`js/loadout.js`): `SHOP.supers / gadgets / perks` in economy.js (price 0 = free; `need`: part list or 'land'/'water'/'air',
+  `E.fits`). Wallet `owned.supers/gadgets/perks`; `E.cleanLoadout` + `accounts.loadout(c, lo)` strip unowned ones on `ready` and `begin`.
+  `bp.lo = { sp, gd, pk }` travels in blueprints (`CW.cloneBp` keeps it, `CW.cleanLo`); each combatant has `c.lo` (player: `CW.myLoadout`
+  from `settings.loSuper` / `gadget` / `loPerks`, bots: `CW.botLoadout`). `mech.mods` (`CW.mechMods`) = perks + part combos (`CW.COMBOS`):
+  hpK, dmgK, speedK, airK, waterK, rateK, ramK, dashK, splashK, absorb, repairK, regen, ramAll. Referee allows HP up to ×1.45.
+  Shop sections + `meta.loCard/equipLo/loEquipped`; the PLAY panel's Loadout (`.lo-chip`); Workshop shows combos.
+- **Supers** (supers.js, 12): new orbital, overdrive, gravity, slam (+'slamhit' event), inferno, swarm, lance, tidal; `fields` = lasting ones;
+  `aimSpot(m, max)`; events carry `at`. **Gadgets** (12): grapple, bubble, decoy, sonar (`game.sonarUntil` → red tags through walls),
+  empnade (projectile 'grenade'), nitro (`m.nitroT`), torpedo, afterburner (`m.burnerT`); `botWants`. Gadget Belt = 4 uses.
+- **Weapons** (new part types): mortar (high lob), harpoon (projectile 'hook' + chain, pulls), tesla (`fx.tesla`, chains), magnet (`fx.magnet`).
+  Pushes/pulls/jams: `game.kick(m, v, who, jam)` → net event 'kick' (referee: shooter must be owned, |v| ≤ 60).
+- **Core weak spot**: hits on the core ×1.4 (decided by the hitting game, `game.critT` → yellow ✸ numbers). `hit(part, dmg, who, kind)`:
+  kind 'ram' (Shock Absorbers). Streaks without dying (`c.lifeStreak`, `game.streaks`: SHUTDOWN bonus), killcam (`startKillcam`, respawn
+  modes and pilot eliminations), comeback (`game.behind(team)`: 30% behind → supers ×1.35).
+- **Chests** (extras.js): hold O (`CW.CHEST_HOLD` 1 s; Treasure Hunter ÷3) next to one, `#chestHint`; bots wait next to it; online clients
+  send 'openReq' (host checks distance). They're ×1.35 bigger and throw `CW.Loot` items (coin piles, power-up orbs, 'charge' super +35%,
+  'gadget' +1 use): host events 'loot' / 'lget'. Scavenger perk drops a repair orb. Keys: KEY_ACTIONS 'open' (KeyO), 'ping' (KeyZ);
+  gamepad d-pad down = O, right stick = Z; touch 🎁 (only near a chest) and 📍.
+- **Hazards** (`js/hazards.js`): boost / jump pads (seeded by arena id, each game launches its own mechs), arena events every 80-110 s
+  (host 'hz' event with strikes [x, z, delay]; each game hurts only its own mechs; sandstorm = `fogNear/fogFar`, blackout dims lights).
+- **Pings** (`js/pings.js`): tap Z = smart ping, hold = wheel (Attack/Defend/Help/Careful), event 'ping', team only; allied bots follow
+  (`ai.pingGoal/pingT`, `ai.target` for enemy pings).
+- **Modes** (modes.js): `heist` CoreHeist (bases = `game.teamBases`, carrier `c.carrying` ×0.8 speed), `ball` MechBall (host physics,
+  `ballHit(p)` from projectiles), `derby` (no objective, `noGuns`, everyone rams: `game.ram`), `scrap` ScrapWars (extends GoldRush,
+  `onPart`, `c.scrapLv` = damage/armor/speed). Objectives may have `urgent(c)` (bots go even with enemies near) and `takeOver()`.
+  Server `MM_FORMAT` / `cleanSettings` list them; derby counts as last-standing in `resultProblem`.
+- New challenges: super, heist, goal, pad (rollChallenges re-rolls when an update changes today's list, keeping matching progress).
+- Test: `tests/v110-test.js` (all of the above, offline + one online Core Heist).
 
 ## v1.9 systems (Oct 2026)
 - **Seasonal events** (`ECON.EVENTS`, `event(now)`): Halloween 20 Oct–3 Nov, Winter 10 Dec–6 Jan, Valentine's 7–16 Feb, Spring 20 Mar–20 Apr,
