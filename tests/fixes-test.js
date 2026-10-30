@@ -23,7 +23,7 @@ app.whenReady().then(async () => {
   await win.loadURL('http://localhost:8781/');
   await js(`localStorage.clear(); localStorage.setItem('cogwild.profile', JSON.stringify({ xp: 99999999, settings: { tutorialDone: true, music: 0, sfx: 0, volume: 0, camMode: 'third' } })); location.reload();`);
   await wait(4500);
-  const start = (arena, mech) => js(`(async () => { const g = ${G}; g.showMenu(); g.setCurrentBp(CW.PRESETS.find((p) => p.id === '${mech}')); g.playOffline('clash', '${arena}', null);
+  const start = (arena, mech) => js(`(async () => { const g = ${G}; g.showMenu(); g.settings.mouseSteer = false; g.setCurrentBp(CW.PRESETS.find((p) => p.id === '${mech}')); g.playOffline('clash', '${arena}', null);
     for (let i = 0; i < 400 && (g.state !== 'match' || g.countdown > 0); i++) { g.tick(1 / 60); if (i % 30 === 0) await new Promise((r) => setTimeout(r, 0)); }
     for (const e of g.mechs) if (e !== g.player.mech) e.place({ x: e.pos.x + 500, z: e.pos.z }, 0); return true; })()`);
   const key = async (k) => { win.webContents.sendInputEvent({ type: 'keyDown', keyCode: k }); win.webContents.sendInputEvent({ type: 'keyUp', keyCode: k }); await wait(250); };

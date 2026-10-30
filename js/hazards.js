@@ -55,7 +55,7 @@
         if (spots.some((s) => Math.hypot(s.x - x, s.z - z) < 38) || w.landSpawns.some((s) => Math.hypot(s.x - x, s.z - z) < 14)) continue;
         spots.push(new V3(x, h, z));
       }
-      spots.forEach((p, i) => this.addPad(p, i % 5 < 3 ? 'boost' : 'jump', rnd() * Math.PI * 2));
+      if (g.modeId !== 'ball') spots.forEach((p, i) => this.addPad(p, i % 5 < 3 ? 'boost' : 'jump', rnd() * Math.PI * 2)); // the pitch stays clear
     }
     addPad(pos, kind, yaw) {
       const g = this.game;

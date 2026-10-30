@@ -230,7 +230,7 @@ class Accounts {
     if (this.talk && this.talk.handle(c, m)) return true; // chat and voice (server/talk.js)
     if (this.pics && this.pics.handle(c, m)) return true; // profile and club pictures (server/pics.js)
     if (this.gallery && this.gallery.handle(c, m)) return true; // the mech gallery (server/gallery.js)
-    if (!/^(acct|friend|party|invite|top|profile|save|status|earn|gift|buy|roadClaim|passClaim|eventClaim|cup|club|guest|email|google)/.test(t)) return false;
+    if (!/^(acct|friend|party|invite|top|profile|save|status|earn|gift|buy|roadClaim|passClaim|eventClaim|cup|club|guest|email|google|cellOpen)/.test(t)) return false;
     const fn = {
       acctRegister: () => this.register(c, m), acctSignup: () => this.signup(c, m), acctLogin: () => this.login(c, m), acctAuth: () => this.auth(c, m),
       acctLogout: () => this.logout(c), acctPass: () => this.changePass(c, m), acctDelete: () => this.remove(c, m), acctRename: () => this.rename(c, m),
@@ -240,7 +240,7 @@ class Accounts {
       clubCreate: () => this.clubCreate(c, m), clubJoin: () => this.clubJoin(c, m), clubLeave: () => this.clubLeave(c), clubKick: () => this.clubKick(c, m),
       clubList: () => this.clubList(c, m), clubInfo: () => this.clubInfo(c, m), clubChat: () => this.clubChat(c, m), clubEdit: () => this.clubEdit(c, m),
       guest: () => this.guestHello(c, m), earn: () => this.earn(c, m),
-      emailStart: () => this.emailStart(c, m), emailCode: () => this.emailCode(c, m), emailName: () => this.emailName(c, m), googleLogin: () => this.googleLogin(c, m), googleStart: () => this.googleStart(c, m), acctResetPass: () => this.resetPass(c, m), gift: () => this.gift(c), buy: () => this.buy(c, m), roadClaim: () => this.roadClaim(c, m), passClaim: () => this.passClaim(c, m), eventClaim: () => this.eventClaim(c, m), cupInfo: () => this.cupInfo(c), cupClaim: () => this.cupClaim(c, m),
+      cellOpen: () => this.cellOpen(c, m), emailStart: () => this.emailStart(c, m), emailCode: () => this.emailCode(c, m), emailName: () => this.emailName(c, m), googleLogin: () => this.googleLogin(c, m), googleStart: () => this.googleStart(c, m), acctResetPass: () => this.resetPass(c, m), gift: () => this.gift(c), buy: () => this.buy(c, m), roadClaim: () => this.roadClaim(c, m), passClaim: () => this.passClaim(c, m), eventClaim: () => this.eventClaim(c, m), cupInfo: () => this.cupInfo(c), cupClaim: () => this.cupClaim(c, m),
       invite: () => this.inviteRoom(c, m), top: () => this.top(c, m), status: () => { c.busy = !!m.busy; if (c.user) this.friendsChanged(c.user); },
     }[t];
     if (!fn) return true;
@@ -1061,7 +1061,7 @@ class Accounts {
   grant(w, r) {
     let coins = r.coins | 0;
     const got = [];
-    for (const [one, kind] of [['paint', 'paints'], ['trail', 'trails'], ['avatar', 'avatars'], ['wreck', 'wrecks'], ['finish', 'finishes']]) {
+    for (const [one, kind] of [['paint', 'paints'], ['trail', 'trails'], ['avatar', 'avatars'], ['wreck', 'wrecks'], ['finish', 'finishes'], ['super', 'supers'], ['gadget', 'gadgets'], ['perk', 'perks']]) {
       const id = r[one] || r[kind];
       if (!id) continue;
       const it = E.item(kind, id);
@@ -1071,6 +1071,21 @@ class Accounts {
     }
     w.coins += coins;
     return { coins, got };
+  }
+  // v1.10.1 the Power Cell after a match (one per match reward, like the old results chest): the server rolls how far it
+  // charges and what it gives (js/economy.js cellReward), then sends { cell: { lv, reward } } with the wallet
+  cellOpen(c) {
+    const u = this.owner(c);
+    if (!u) return;
+    const w = this.wallet(u);
+    if (!w.earn.crate) return this.sendWallet(c, u, { cell: null });
+    w.earn.crate = false;
+    const lv = E.cellLevel(Math.random);
+    const r = E.cellReward(lv, (k, id) => (w.owned[k] || []).includes(id), Math.random);
+    const reward = this.grant(w, r);
+    if (r.xp) { w.xp = (w.xp || 0) + r.xp; reward.xp = r.xp; }
+    if (r.pts) { w.pass.pts += r.pts; reward.pts = r.pts; }
+    this.sendWallet(c, u, { cell: { lv, reward } });
   }
   // the game reports what it paid out; the server decides how much of it counts
   earn(c, m) {
@@ -1085,7 +1100,7 @@ class Accounts {
       // one match at a time: a match reward can't be bigger than what that much playing time can earn
       const gap = (now - (w.earn.last || 0)) / 1000;
       if (gap >= (+process.env.MATCH_GAP_SECS || E.MATCH_GAP)) { // MATCH_GAP_SECS: only for tests
-        n = Math.min(ask, E.EARN.match, 60 + gap * 8);
+        n = Math.min(ask, E.EARN.match, 25 + gap * 2.5); // v1.10.1: about half of what it was
         xp = Math.min(Math.max(0, Math.floor(+m.xp || 0)), 1500, 60 + gap * 10);
         pts = Math.max(0, Math.min(E.PASS.match, m.pp | 0));
         w.earn.last = now;

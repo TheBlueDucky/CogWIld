@@ -42,7 +42,7 @@
     // chat and voice chat (js/talk.js, js/voice.js); voice: undefined until the game has asked
     chatNotes: true, vcHear: 'game', vcMode: 'open', vcVol: 1, vcMic: '', vcOut: '',
     discord: true, // v1.9.9: the desktop app shows what you're playing on your Discord profile
-    loSuper: '', loPerks: [], // v1.10 loadout (js/loadout.js): '' = your build's own super
+    loSuper: '', loPerks: [], mouseSteer: true, // v1.10.1: the mech turns with the mouse // v1.10 loadout (js/loadout.js): '' = your build's own super
   };
   // keys you can change in Settings (Esc always pauses); def is the key the game reads internally
   CW.KEY_ACTIONS = [
@@ -181,8 +181,7 @@
     }
     giftToast(amount) {
       const p = this.game.profile;
-      this.game.toast(`🎁 +${amount} coins! Daily streak: ${p.dailyStreak} day${p.dailyStreak > 1 ? 's' : ''}`);
-      this.game.audio.click(1.5);
+      this.game.reveal.show('🎁 Daily gift', this.game.reveal.items({ coins: amount }), `Daily streak: ${p.dailyStreak} day${p.dailyStreak > 1 ? 's' : ''}`);
       this.renderMenu();
     }
 
@@ -260,8 +259,7 @@
       if (LO_KINDS.includes(kind)) this.equipLo(kind, id, true); // a new super / gadget / perk goes straight into your loadout
       if (kind === 'avatars' && this.game.account.loggedIn) this.game.account.net.send({ t: 'profileSet', av: it.idx });
       this.save();
-      this.game.toast(`Unlocked ${it.name}!`);
-      this.game.audio.click(1.5);
+      this.game.reveal.show('🛒 Unlocked!', this.game.reveal.items({ got: [{ kind, id }] })); // v1.10.1: a big moment for a new thing
       this.game.workshop.buildPaint();
       if (this.panel === 'shop' && !$('panel').classList.contains('hidden')) this.renderPanel();
       this.renderMenu();
@@ -318,7 +316,7 @@
       $('panelBody').parentElement.scrollTop = 0;
       const titles = {
         challenges: '🎯 Daily challenges', shop: '🛒 Shop', stats: '📊 Stats', settings: '⚙ Settings', howto: '❓ How to play', ach: '🎖 Achievements', news: '📰 What\'s new',
-        event: '🎉 Seasonal event', replays: '🎬 Replays', gallery: '🌍 Mech gallery', cup: '🏆 Weekend Cup', profile: '👤 Profile', friends: '👥 Friends', road: '🛤 Trophy road', pass: '🎟 Cog Pass', clubs: '🛡 Clubs', top: '📈 Leaderboard', player: '👤 Player', ranks: '⭐ Level and ranks', arenas: '🎮 Pick a mode and arena',
+        event: '🎉 Seasonal event', replays: '🎬 Replays', gallery: '🌍 Mech gallery', cup: '🏆 Weekend Cup', profile: '👤 Profile', friends: '👥 Friends', road: '🛤 Trophy road', pass: '🎟 Cog Pass', clubs: '🛡 Clubs', top: '📈 Leaderboard', player: '👤 Player', ranks: '⭐ Level and ranks', arenas: '🎮 Pick a mode',
       };
       $('panelTitle').textContent = titles[kind];
       this.renderPanel();
@@ -373,8 +371,7 @@
             c.claimed = true;
             this.addCoins(c.reward, 'challenge', p.challenges.list.indexOf(c));
             this.save();
-            this.game.toast(`+${c.reward} coins!`);
-            this.game.audio.click(1.5);
+            this.game.reveal.show('🎯 Challenge complete!', this.game.reveal.items({ coins: c.reward }), c.text);
             this.renderPanel();
           };
         });
@@ -475,6 +472,7 @@
           </section><section class="set-sec" data-sec="controls"><h3>${I.pad} Controls</h3>
           <label class="set-row"><span>Look sensitivity (mouse, stick, touch) <b id="setSensV"></b></span><input type="range" id="setSens" min="0.3" max="2.5" step="0.05"></label>
           <label class="set-row chk"><input type="checkbox" id="setInvert"><span>Invert look up/down</span></label>
+          <label class="set-row chk"><input type="checkbox" id="setMouseSteer"><span>Mouse steering: your mech turns to where you look (off = look around freely, steer with A/D)</span></label>
           <label class="set-row chk"><input type="checkbox" id="setSteer"><span>Auto-steer: W drives toward where you look (off = steer with A/D like a car)</span></label>
           <label class="set-row"><span>Bot difficulty</span><select id="setDiff"><option value="easy">🙂 Easy</option><option value="normal">😐 Normal</option><option value="hard">😈 Hard</option></select></label>
           </section><section class="set-sec" data-sec="keys"><h3>⌨ Keybinds <button class="ws-btn" id="setKeysReset">Reset keys</button></h3>
@@ -651,7 +649,7 @@
         if ($('setClipsDir')) $('setClipsDir').onclick = () => CW.openFolder('clips');
         $('setDiff').value = s.difficulty;
         $('setDiff').onchange = (e) => { s.difficulty = e.target.value; this.apply(); };
-        bindChk('setSteer', 'autoSteer'); bindChk('setInvert', 'invertY'); bindChk('setShake', 'shake'); bindChk('setDmg', 'dmgNumbers');
+        bindChk('setSteer', 'autoSteer'); bindChk('setMouseSteer', 'mouseSteer'); bindChk('setInvert', 'invertY'); bindChk('setShake', 'shake'); bindChk('setDmg', 'dmgNumbers');
         $('setCam').value = s.camMode;
         $('setCam').onchange = (e) => { s.camMode = e.target.value; this.apply(); };
         $('setReset').onclick = () => this.ask('Reset all progress?', 'Level, coins, stats and unlocks go back to the start. Your saved blueprints are kept.', 'Reset', () => {
@@ -720,6 +718,14 @@
     // What's new (Settings › Change logs, and the 📰 News button on phones)
     newsHtml() {
       return `<ul class="news">
+          <li><b>v1.10.1</b>: 🎲 <b>Random arenas</b>: every match picks an arena that fits its mode, with an arena roulette before the countdown (no more picking).
+            🏟 <b>Mech Ball Stadium</b>: Mech Ball now has its own flat pitch with real goals (posts, crossbar, net) and walls. The ball bounces, rolls and gets knocked around much better.
+            🖱 <b>Mouse steering</b>: your mech turns to where you look (Settings › Controls to switch it off).
+            🔋 <b>Power Cell</b> after every match: tap it and it charges up in jumps (20%, 40%… OVERLOAD!), the higher the better the reward: coins, XP, Cog Pass points, paints, trails, even supers and perks.
+            ✨ Rewards you claim in the menus (daily gift, challenges, Trophy Road, Cog Pass, events, the Cup, new things you buy) get a big reveal.
+            🤖 Bots build their own mechs (cars, monster trucks, rammers, walkers, helicopters, planes, boats), dodge some of your shots and use their supers and gadgets better.
+            💥 Bumping into mechs: heavier mechs push lighter ones. 🪙 Coins come slower and things cost more, so unlocks mean more.
+            🐞 Fixes: supers, gadgets and perks you bought online could disappear from your loadout; the results chest paid nothing; the guest card covered the minimap in matches.</li>
           <li><b>v1.10.0</b>: 🎮 <b>The gameplay update!</b>
             ⭐🧰🎒 The Shop sells <b>supers</b> (Orbital Strike, Overdrive, Gravity Well, Ground Pound, Inferno Nova, Drone Swarm, Rail Lance, Tidal Wave), <b>gadgets</b> (Grapple Hook, Bubble Shield, Hologram Decoy, Sonar Ping, EMP Grenade, Nitro, Torpedo, Afterburner) and <b>perks</b> (always on, 2 at a time: Thick Plating, Overclock, Head Start, Gadget Belt…). Some work on any mech, some need certain parts. Pick them in the PLAY panel's <b>Loadout</b>.
             🕹 4 new modes: <b>Core Heist</b> (steal their core), <b>Mech Ball</b> (push a giant ball into their goal), <b>Demolition Derby</b> (no guns, every crash hurts) and <b>Scrap Wars</b> (collect scrap to upgrade your mech mid-match).
@@ -843,7 +849,7 @@
       this.game.applySettings();
     }
 
-    // what PLAY plays: a mode and an arena (any arena = the fastest match)
+    // what PLAY plays: a mode (v1.10.1: the arena is random, picked by the arena roulette)
     arenaPanel(body) {
       const g = this.game;
       const curA = g.arenaChoice(), curM = g.modeChoice();
@@ -851,11 +857,6 @@
         const m = CW.MODES[id], f = CW.FORMATS[CW.MM_FORMAT[id]];
         const fresh = ['heist', 'ball', 'derby', 'scrap'].includes(id) ? '<i class="new-tag">NEW</i>' : ''; // v1.10
         return `<button class="mode-opt ${id === curM ? 'on' : ''}" data-mode="${id}" style="--mc:${m.color}"><span>${m.icon}</span><b>${m.name}${fresh}</b><small>${f.label}</small></button>`;
-      }).join('');
-      const rotNow = CW.FEATURED.rotation().arenas;
-      const arenas = ['random'].concat(Object.keys(CW.ARENAS)).map((id) => {
-        const a = g.arenaInfo(id), fresh = ['speedway', 'bay', 'moon'].includes(id) ? '<i class="new-tag">NEW</i>' : '';
-        return `<button class="arena-opt ${id === curA ? 'on' : ''} ${rotNow.includes(id) ? 'in-rot' : ''}" data-arena="${id}"><span>${a.icon}</span><b>${a.name}${fresh}</b><small>${a.desc}</small>${rotNow.includes(id) ? '<i class="rot-dot" aria-label="In rotation now">🔄</i>' : ''}</button>`;
       }).join('');
       const f = CW.FEATURED.today(), fm = CW.MODES[f.mode], fa = CW.ARENAS[f.arena];
       const kind = this.settings.mmEvent, w = E.week(), wm = CW.MODES[w.mode];
@@ -869,19 +870,17 @@
       const loPerk = mine('perks').map((it) => this.loCard('perks', it, true)).join('') || '<span class="small">No perks yet: get them in the Shop</span>';
       // v1.9.4: one calm list: special matches, mode, arena, gadget, then the other ways to play
       const pickTag = (on) => (on ? '<em class="p2-on">✔</em>' : '<em class="p2-go">›</em>');
-      const featOn = !kind && f.mode === curM && f.arena === curA;
-      const rot = CW.FEATURED.rotation();
+      const featOn = !kind && f.mode === curM;
       body.innerHTML = `<div class="pick2">
         <div class="p2-specials">
           <button class="p2-special ${kind === 'weekly' ? 'on' : ''}" id="weekPick" aria-label="${wm.name}: ${w.desc} · +50% coins"><span class="p2-ico">${w.icon}</span><span class="p2-txt"><b>${w.name}</b><small>${wm.icon} ${wm.name} · ends in ${CW.timeLeft(w.endsAt - Date.now())}</small></span>${pickTag(kind === 'weekly')}</button>
           <button class="p2-special ${kind === 'ranked' ? 'on' : ''} ${canRanked ? '' : 'locked'}" id="rankedPick"><span class="p2-ico">🏅</span><span class="p2-txt"><b>Ranked${rk ? ` · ${rk.icon} ${rk.name}` : ''}</b><small>${canRanked ? '3v3 for ranked points' : `🔒 At 🏆 ${E.RANKED.unlockAt} trophies`}</small></span>${pickTag(kind === 'ranked')}</button>
           <button class="p2-special ${kind === 'cup' ? 'on' : ''} ${cu.live ? '' : 'locked'}" id="cupPick"><span class="p2-ico">🏆</span><span class="p2-txt"><b>Weekend Cup</b><small>${cu.live ? `${cm.icon} ${cm.name} · ends in ${CW.timeLeft(cu.end - Date.now())}${my ? ` · #${my.rank}` : ''}` : `Next in ${CW.timeLeft(cu.next - Date.now())}`}</small></span>${pickTag(kind === 'cup')}</button>
-          <button class="p2-special ${featOn ? 'on' : ''}" id="featPick"><span class="p2-ico">⭐</span><span class="p2-txt"><b>Featured today</b><small>${fm.icon} ${fm.name} · ${fa.icon} ${fa.name} · ${CW.FEATURED.COIN_MULT}× coins</small></span>${pickTag(featOn)}</button>
+          <button class="p2-special ${featOn ? 'on' : ''}" id="featPick"><span class="p2-ico">⭐</span><span class="p2-txt"><b>Featured today</b><small>${fm.icon} ${fm.name} · ${CW.FEATURED.COIN_MULT}× coins</small></span>${pickTag(featOn)}</button>
         </div>
         <h3>Mode</h3><div class="mode-row">${modes}</div>
         <div class="p2-desc" id="modeDesc">${CW.MODES[curM].desc}</div>
-        <h3>Arena</h3><div class="arena-grid">${arenas}</div>
-        <div class="p2-desc rot-line">🔄 <span>Any arena plays</span> ${rot.arenas.map((a) => `${CW.ARENAS[a].icon} ${CW.ARENAS[a].name}`).join(' · ')} <span class="muted">· changes in ${CW.timeLeft(rot.endsAt - Date.now())}</span></div>
+        <div class="p2-desc">🎲 <span>Every match is on a random arena that fits the mode, picked by the arena roulette.</span></div>
         <h3>Loadout <span class="small">your super, gadget and up to ${CW.PERK_SLOTS} perks</span> <button class="pill line lo-shop" id="loShop">🛒 Get more</button></h3>
         <div class="lo-label">⭐ Super</div><div class="mode-row lo-row">${loSup}</div>
         <div class="lo-label">🧰 Gadget <span class="small">3 uses a match · G</span></div><div class="mode-row lo-row">${loGad}</div>
@@ -918,15 +917,7 @@
         $('modeDesc').textContent = CW.MODES[b.dataset.mode].desc;
         g.audio.click(1.2);
       }));
-      body.querySelectorAll('[data-arena]').forEach((b) => (b.onclick = () => {
-        this.settings.mmEvent = null;
-        this.settings.mmArena = b.dataset.arena;
-        this.save();
-        g.renderArenaCard();
-        this.closePanel();
-        g.audio.click(1.2);
-      }));
-      $('featPick').onclick = () => { this.settings.mmEvent = null; this.settings.mmMode = f.mode; this.settings.mmArena = f.arena; this.save(); g.renderArenaCard(); this.closePanel(); g.audio.click(1.3); };
+      $('featPick').onclick = () => { this.settings.mmEvent = null; this.settings.mmMode = f.mode; this.save(); g.renderArenaCard(); this.closePanel(); g.audio.click(1.3); };
       $('opRoom').onclick = () => { this.closePanel(); g.net.openOnline(); };
       $('opTutorial').onclick = () => { this.closePanel(); g.startTutorial(); };
     }

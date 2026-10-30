@@ -32,7 +32,7 @@ app.whenReady().then(async () => {
 
   const real = await js(`CW.ECON.__realEvent = CW.ECON.event; true`);
   const DATES = { halloween: [2026, 10, 26], winter: [2026, 12, 20], love: [2027, 2, 10], spring: [2027, 4, 1], summer: [2027, 7, 15] };
-  const ARENAS = await js(`Object.keys(CW.ARENAS)`);
+  const ARENAS = await js(`Object.keys(CW.ARENAS).filter((a) => a !== 'stadium')`); // the stadium keeps its pitch clear (no event decor)
   for (const [id, [y, mo, d]] of Object.entries(DATES)) {
     // pretend it's that day, then build every arena once (no errors, decorations present)
     await js(`(() => { const t = Date.UTC(${y}, ${mo - 1}, ${d}, 12); CW.ECON.event = (now) => CW.ECON.__realEvent(now || t); return true; })()`);

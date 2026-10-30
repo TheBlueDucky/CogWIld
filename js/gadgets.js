@@ -207,7 +207,11 @@
         if (c.gadgetCd > 0) c.gadgetCd = Math.max(0, c.gadgetCd - dt);
         if (!live || c.isPlayer || c.human || !c.alive || !c.mech || !c.mech.alive || (g.net.active && !g.net.owns(c))) continue;
         if (this.left(c) <= 0 || c.gadgetCd > 0 || Math.random() > dt * 2) continue;
-        if (this.botWants(c, this.type(c), dt)) this.use(c);
+        // (v1.10.1: and in a long fight it uses it anyway now and then)
+        const ai = c.ai || {};
+        ai.gadWait = (ai.gadWait || 0) + 0.5;
+        const fighting = ai.target && ai.target.pos && ai.target.pos.distanceTo(c.mech.pos) < 40;
+        if (this.botWants(c, this.type(c), dt) || (fighting && ai.gadWait > 25 && !['jump', 'nitro', 'afterburner', 'torpedo'].includes(this.type(c)))) { if (this.use(c)) ai.gadWait = 0; }
       }
       for (let i = this.decoys.length - 1; i >= 0; i--) {
         const d = this.decoys[i];

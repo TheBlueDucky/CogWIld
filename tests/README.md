@@ -77,3 +77,4 @@ And `desktop/node_modules/.bin/electron tests/live-voice.js`: two hidden, muted 
 | `lang-test.js` | every language: lobby, PLAY panel, Settings, Workshop and a match translated, right to left for Arabic/Hebrew, back to English (`LANGS=es,hi`) |
 | `i18n-extract.js` | not a test: lists every text the game shows (for the translations in `tools/i18n`) |
 - `v110-test.js`: v1.10 gameplay: the 4 new modes, loadout + perks, every super and gadget, hold-O chests with loot, the new weapons, core crits, combos, pings, arena events and pads, Shop + PLAY loadout, and an online Core Heist (server strips unowned supers).
+- `v1101-test.js`: v1.10.1: random arenas that fit the mode + the arena roulette, the Mech Ball Stadium and ball physics, mouse steering, bots' own mechs / dodging, mass-based bumps, prices, the reward reveal, the Power Cell, the wallet keeping loadout kinds.

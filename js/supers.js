@@ -379,7 +379,7 @@
           c.superCharge = Math.min(1, before + dt * PASSIVE * this.rate(c));
           if (c.isPlayer && before < 1 && c.superCharge >= 1) this.readyPing();
           // bots use theirs at a good moment
-          if (!c.isPlayer && !c.human && c.superCharge >= 1 && c.ai && c.ai.target && this.botWants(c, dt)) this.activate(c);
+          if (!c.isPlayer && !c.human && c.superCharge >= 1 && c.ai && c.ai.target && (this.botWants(c, dt) || (c.ai.superWait > 14 && c.ai.target.pos.distanceTo(c.mech.pos) < 45))) this.activate(c); // v1.10.1: never sits on a full super for long
         }
       }
       if (g.state === 'match') this.updateFields(dt);

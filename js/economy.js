@@ -14,30 +14,30 @@
 
   const SHOP = {
     paints: [
-      { id: 'gold', name: 'Gold Rush', color: 0xffd23f, price: 300 },
-      { id: 'neon', name: 'Neon Pink', color: 0xff4fd8, price: 200 },
-      { id: 'lime', name: 'Toxic Lime', color: 0xa7ff3c, price: 200 },
-      { id: 'night', name: 'Midnight', color: 0x2b2f5c, price: 250 },
-      { id: 'lava', name: 'Lava', color: 0xff4500, price: 250 },
-      { id: 'ice', name: 'Ice', color: 0x9be7ff, price: 200 },
-      { id: 'mint', name: 'Mint', color: 0x7dffc4, price: 150 },
-      { id: 'coal', name: 'Coal', color: 0x222222, price: 150 },
-      { id: 'chrome', name: 'Chrome', color: 0xc0c6cc, price: 350 },
-      { id: 'royal', name: 'Royal Purple', color: 0x5a189a, price: 250 },
-      { id: 'camo', name: 'Camo Green', color: 0x556b2f, price: 200 },
-      { id: 'sakura', name: 'Sakura', color: 0xffb7c5, price: 250 },
-      { id: 'ruby', name: 'Ruby', color: 0xc1121f, price: 250 },
-      { id: 'ocean', name: 'Ocean', color: 0x0077b6, price: 200 },
-      { id: 'sunset', name: 'Sunset', color: 0xff7b54, price: 200 },
-      { id: 'grape', name: 'Grape', color: 0x7b2cbf, price: 200 },
-      { id: 'sand', name: 'Desert Sand', color: 0xe9c46a, price: 150 },
-      { id: 'forest', name: 'Forest', color: 0x2d6a4f, price: 150 },
-      { id: 'snow', name: 'Snow White', color: 0xf1f5ff, price: 200 },
-      { id: 'cyber', name: 'Cyber Teal', color: 0x00f5d4, price: 300 },
-      { id: 'bronze', name: 'Bronze', color: 0xb5651d, price: 300 },
-      { id: 'magenta', name: 'Hot Magenta', color: 0xff006e, price: 250 },
-      { id: 'steel', name: 'Gunmetal', color: 0x4a4e69, price: 250 },
-      { id: 'banana', name: 'Banana', color: 0xffe74c, price: 150 },
+      { id: 'gold', name: 'Gold Rush', color: 0xffd23f, price: 450 },
+      { id: 'neon', name: 'Neon Pink', color: 0xff4fd8, price: 300 },
+      { id: 'lime', name: 'Toxic Lime', color: 0xa7ff3c, price: 300 },
+      { id: 'night', name: 'Midnight', color: 0x2b2f5c, price: 400 },
+      { id: 'lava', name: 'Lava', color: 0xff4500, price: 400 },
+      { id: 'ice', name: 'Ice', color: 0x9be7ff, price: 300 },
+      { id: 'mint', name: 'Mint', color: 0x7dffc4, price: 200 },
+      { id: 'coal', name: 'Coal', color: 0x222222, price: 200 },
+      { id: 'chrome', name: 'Chrome', color: 0xc0c6cc, price: 500 },
+      { id: 'royal', name: 'Royal Purple', color: 0x5a189a, price: 400 },
+      { id: 'camo', name: 'Camo Green', color: 0x556b2f, price: 300 },
+      { id: 'sakura', name: 'Sakura', color: 0xffb7c5, price: 400 },
+      { id: 'ruby', name: 'Ruby', color: 0xc1121f, price: 400 },
+      { id: 'ocean', name: 'Ocean', color: 0x0077b6, price: 300 },
+      { id: 'sunset', name: 'Sunset', color: 0xff7b54, price: 300 },
+      { id: 'grape', name: 'Grape', color: 0x7b2cbf, price: 300 },
+      { id: 'sand', name: 'Desert Sand', color: 0xe9c46a, price: 200 },
+      { id: 'forest', name: 'Forest', color: 0x2d6a4f, price: 200 },
+      { id: 'snow', name: 'Snow White', color: 0xf1f5ff, price: 300 },
+      { id: 'cyber', name: 'Cyber Teal', color: 0x00f5d4, price: 450 },
+      { id: 'bronze', name: 'Bronze', color: 0xb5651d, price: 450 },
+      { id: 'magenta', name: 'Hot Magenta', color: 0xff006e, price: 400 },
+      { id: 'steel', name: 'Gunmetal', color: 0x4a4e69, price: 400 },
+      { id: 'banana', name: 'Banana', color: 0xffe74c, price: 200 },
       // Cog Pass only (never sold): `pass: true`
       { id: 'p_aurora', name: 'Aurora', color: 0x5ef2c6, price: 400, pass: true },
       { id: 'p_obsidian', name: 'Obsidian', color: 0x1b1033, price: 400, pass: true },
@@ -56,19 +56,19 @@
     ],
     trails: [
       { id: 'spark', name: 'Sparks', colors: [0xffe066], price: 0 },
-      { id: 'fire', name: 'Fire', colors: [0xff6b1a, 0xffb700, 0xff3d00], price: 250 },
-      { id: 'ice', name: 'Frost', colors: [0x9be7ff, 0xffffff, 0x5cc8ff], price: 250 },
-      { id: 'toxic', name: 'Toxic', colors: [0x7cff4f, 0xb6ff00, 0x2ee86a], price: 250 },
-      { id: 'void', name: 'Void', colors: [0x7b2cff, 0x2b0a5c, 0xc77dff], price: 350 },
-      { id: 'rainbow', name: 'Rainbow', colors: [0xff595e, 0xffca3a, 0x8ac926, 0x1982c4, 0x6a4c93], price: 500 },
-      { id: 'gold', name: 'Gold Dust', colors: [0xffd23f, 0xfff3b0, 0xc9a227], price: 400 },
-      { id: 'neon', name: 'Neon', colors: [0xff4fd8, 0x4cc9f0], price: 350 },
-      { id: 'ocean', name: 'Ocean Spray', colors: [0x48cae4, 0x0096c7, 0xcaf0f8], price: 300 },
-      { id: 'candy', name: 'Candy', colors: [0xff8fab, 0xffffff, 0xff4d6d], price: 300 },
-      { id: 'ember', name: 'Embers', colors: [0xff5400, 0x2b2d42, 0xffbd00], price: 350 },
-      { id: 'galaxy', name: 'Galaxy', colors: [0x3a0ca3, 0x7209b7, 0xf72585, 0x4cc9f0], price: 450 },
-      { id: 'lime', name: 'Electric Lime', colors: [0xccff33, 0x70e000], price: 300 },
-      { id: 'shadow', name: 'Shadow', colors: [0x111111, 0x3d3d3d, 0x6c757d], price: 400 },
+      { id: 'fire', name: 'Fire', colors: [0xff6b1a, 0xffb700, 0xff3d00], price: 400 },
+      { id: 'ice', name: 'Frost', colors: [0x9be7ff, 0xffffff, 0x5cc8ff], price: 400 },
+      { id: 'toxic', name: 'Toxic', colors: [0x7cff4f, 0xb6ff00, 0x2ee86a], price: 400 },
+      { id: 'void', name: 'Void', colors: [0x7b2cff, 0x2b0a5c, 0xc77dff], price: 500 },
+      { id: 'rainbow', name: 'Rainbow', colors: [0xff595e, 0xffca3a, 0x8ac926, 0x1982c4, 0x6a4c93], price: 750 },
+      { id: 'gold', name: 'Gold Dust', colors: [0xffd23f, 0xfff3b0, 0xc9a227], price: 600 },
+      { id: 'neon', name: 'Neon', colors: [0xff4fd8, 0x4cc9f0], price: 500 },
+      { id: 'ocean', name: 'Ocean Spray', colors: [0x48cae4, 0x0096c7, 0xcaf0f8], price: 450 },
+      { id: 'candy', name: 'Candy', colors: [0xff8fab, 0xffffff, 0xff4d6d], price: 450 },
+      { id: 'ember', name: 'Embers', colors: [0xff5400, 0x2b2d42, 0xffbd00], price: 500 },
+      { id: 'galaxy', name: 'Galaxy', colors: [0x3a0ca3, 0x7209b7, 0xf72585, 0x4cc9f0], price: 700 },
+      { id: 'lime', name: 'Electric Lime', colors: [0xccff33, 0x70e000], price: 450 },
+      { id: 'shadow', name: 'Shadow', colors: [0x111111, 0x3d3d3d, 0x6c757d], price: 600 },
       { id: 'p_plasma', name: 'Plasma', colors: [0x00f0ff, 0xb5179e, 0xffffff], price: 500, pass: true },
       { id: 'p_lightning', name: 'Lightning', colors: [0xfff200, 0xffffff, 0x4cc9f0], price: 500, pass: true },
       { id: 'p_sakura', name: 'Petals', colors: [0xffb7c5, 0xffe5ec, 0xff8fab], price: 500, pass: true },
@@ -84,20 +84,20 @@
     ],
     // finishes: how your whole mech's paint looks in matches, the Workshop and the lobby (js/parts.js CW.finishMat)
     finishes: [
-      { id: 'carbon', name: 'Carbon Fiber', icon: '🏁', desc: 'Woven racing carbon in your paint color', price: 500 },
-      { id: 'stealth', name: 'Stealth Matte', icon: '🥷', desc: 'Flat dark armor that swallows the light', price: 500 },
-      { id: 'chrome', name: 'Mirror Chrome', icon: '🪞', desc: 'Polished chrome that reflects the arena', price: 700 },
-      { id: 'neon', name: 'Neon Glow', icon: '💡', desc: 'Your paint glows, even at night', price: 800 },
-      { id: 'gold', name: 'Gold Plated', icon: '👑', desc: 'Solid shining gold, whatever your paint', price: 1000 },
-      { id: 'rainbow', name: 'Rainbow Shift', icon: '🌈', desc: 'Colors that flow through the whole rainbow', price: 1400 },
+      { id: 'carbon', name: 'Carbon Fiber', icon: '🏁', desc: 'Woven racing carbon in your paint color', price: 750 },
+      { id: 'stealth', name: 'Stealth Matte', icon: '🥷', desc: 'Flat dark armor that swallows the light', price: 750 },
+      { id: 'chrome', name: 'Mirror Chrome', icon: '🪞', desc: 'Polished chrome that reflects the arena', price: 1050 },
+      { id: 'neon', name: 'Neon Glow', icon: '💡', desc: 'Your paint glows, even at night', price: 1200 },
+      { id: 'gold', name: 'Gold Plated', icon: '👑', desc: 'Solid shining gold, whatever your paint', price: 1500 },
+      { id: 'rainbow', name: 'Rainbow Shift', icon: '🌈', desc: 'Colors that flow through the whole rainbow', price: 2100 },
     ],
     // wreck effects: what you see when you wreck an enemy mech (js/entities.js Fx.wreckFx)
     wrecks: [
-      { id: 'confetti', name: 'Confetti Pop', icon: '🎊', desc: 'Wrecks burst into confetti', price: 400 },
-      { id: 'pixel', name: 'Pixel Burst', icon: '👾', desc: 'Wrecks shatter into glowing pixels', price: 500 },
-      { id: 'fireworks', name: 'Fireworks', icon: '🎆', desc: 'A fireworks show over every wreck', price: 700 },
-      { id: 'lightning', name: 'Thunderstrike', icon: '⚡', desc: 'Lightning strikes the wreck from the sky', price: 800 },
-      { id: 'blackhole', name: 'Black Hole', icon: '🕳', desc: 'The wreck is sucked into a black hole', price: 1100 },
+      { id: 'confetti', name: 'Confetti Pop', icon: '🎊', desc: 'Wrecks burst into confetti', price: 600 },
+      { id: 'pixel', name: 'Pixel Burst', icon: '👾', desc: 'Wrecks shatter into glowing pixels', price: 750 },
+      { id: 'fireworks', name: 'Fireworks', icon: '🎆', desc: 'A fireworks show over every wreck', price: 1050 },
+      { id: 'lightning', name: 'Thunderstrike', icon: '⚡', desc: 'Lightning strikes the wreck from the sky', price: 1200 },
+      { id: 'blackhole', name: 'Black Hole', icon: '🕳', desc: 'The wreck is sucked into a black hole', price: 1650 },
       // seasonal events only (never sold): `event: <event id>`
       { id: 'ev_bats', name: 'Bat Swarm', icon: '🦇', desc: 'Wrecks burst into a swarm of bats', price: 600, event: 'halloween' },
       { id: 'ev_snow', name: 'Snow Globe', icon: '❄', desc: 'Wrecks burst into a snowstorm', price: 600, event: 'winter' },
@@ -115,45 +115,61 @@
       { id: 'ram', name: 'Turbo Ram', icon: '💥', desc: 'A huge lunge, then 4 s of turbo and 1.5× damage', price: 0, need: ['spikes', 'saw', 'booster'] },
       { id: 'barrage', name: 'Missile Barrage', icon: '🚀', desc: '8 rockets at the nearest enemies', price: 0, need: 'air' },
       { id: 'emp', name: 'EMP Shockwave', icon: '⚡', desc: 'Blast around you: enemies take damage and jam for 2.5 s', price: 0 },
-      { id: 'orbital', name: 'Orbital Strike', icon: '☄', desc: 'A beam from the sky hits where you aim a second later: a huge blast', price: 900 },
-      { id: 'overdrive', name: 'Overdrive', icon: '🔥', desc: '6 s of double fire rate, turbo and 30% less damage taken', price: 700 },
-      { id: 'gravity', name: 'Gravity Well', icon: '🌀', desc: 'A black hole where you aim pulls enemies in for 3 s, then bursts', price: 1000 },
-      { id: 'slam', name: 'Ground Pound', icon: '🦶', desc: 'Leap high and slam down: a shockwave that throws enemies away', price: 700, need: 'land' },
-      { id: 'inferno', name: 'Inferno Nova', icon: '🌋', desc: 'A ring of fire around you burns every enemy close by for 4 s', price: 600, need: ['flamer'] },
-      { id: 'swarm', name: 'Drone Swarm', icon: '🐝', desc: '4 attack drones circle you and shoot enemies for 8 s', price: 800, need: ['drone'] },
-      { id: 'lance', name: 'Rail Lance', icon: '🔱', desc: 'A giant beam straight ahead that goes through everything in its way', price: 800, need: ['railgun'] },
-      { id: 'tidal', name: 'Tidal Wave', icon: '🌊', desc: 'A wave that throws every enemy around you away and hurts them', price: 600, need: 'water' },
+      { id: 'orbital', name: 'Orbital Strike', icon: '☄', desc: 'A beam from the sky hits where you aim a second later: a huge blast', price: 2500 },
+      { id: 'overdrive', name: 'Overdrive', icon: '🔥', desc: '6 s of double fire rate, turbo and 30% less damage taken', price: 2000 },
+      { id: 'gravity', name: 'Gravity Well', icon: '🌀', desc: 'A black hole where you aim pulls enemies in for 3 s, then bursts', price: 3000 },
+      { id: 'slam', name: 'Ground Pound', icon: '🦶', desc: 'Leap high and slam down: a shockwave that throws enemies away', price: 2000, need: 'land' },
+      { id: 'inferno', name: 'Inferno Nova', icon: '🌋', desc: 'A ring of fire around you burns every enemy close by for 4 s', price: 1800, need: ['flamer'] },
+      { id: 'swarm', name: 'Drone Swarm', icon: '🐝', desc: '4 attack drones circle you and shoot enemies for 8 s', price: 2400, need: ['drone'] },
+      { id: 'lance', name: 'Rail Lance', icon: '🔱', desc: 'A giant beam straight ahead that goes through everything in its way', price: 2400, need: ['railgun'] },
+      { id: 'tidal', name: 'Tidal Wave', icon: '🌊', desc: 'A wave that throws every enemy around you away and hurts them', price: 1800, need: 'water' },
     ],
     gadgets: [
       { id: 'repair', name: 'Repair Kit', icon: '🔧', desc: 'Fix about 30% of your mech at once', price: 0, level: 1 },
       { id: 'mine', name: 'Proximity Mine', icon: '💣', desc: 'A mine behind you blows up under the first enemy close by', price: 0, level: 3 },
       { id: 'jump', name: 'Jump Jets', icon: '🦘', desc: 'A big leap up and forward', price: 0, level: 5 },
       { id: 'smoke', name: 'Smoke Screen', icon: '💨', desc: 'Bots lose you for 4 s and you get 4 s of turbo', price: 0, level: 8 },
-      { id: 'grapple', name: 'Grapple Hook', icon: '🪝', desc: 'Pull yourself to where you aim (up to 60 m)', price: 500 },
-      { id: 'bubble', name: 'Bubble Shield', icon: '🫧', desc: 'An instant 150-point shield', price: 550 },
-      { id: 'decoy', name: 'Hologram Decoy', icon: '👥', desc: 'A copy of your mech fools bots for 6 s while you slip away', price: 450 },
-      { id: 'sonar', name: 'Sonar Ping', icon: '📡', desc: 'Shows every enemy to you and your team for 6 s, even through walls', price: 400 },
-      { id: 'empnade', name: 'EMP Grenade', icon: '🧨', desc: 'Throw it: enemies where it lands jam for 2 s', price: 600 },
-      { id: 'nitro', name: 'Nitro', icon: '🏎', desc: '3 s of huge speed on the ground', price: 400, need: 'land' },
-      { id: 'torpedo', name: 'Torpedo', icon: '🐟', desc: 'A fast torpedo that hits hard (water mechs)', price: 450, need: 'water' },
-      { id: 'afterburner', name: 'Afterburner', icon: '✈', desc: '3 s of top speed in the air and a moment of protection', price: 450, need: 'air' },
+      { id: 'grapple', name: 'Grapple Hook', icon: '🪝', desc: 'Pull yourself to where you aim (up to 60 m)', price: 1500 },
+      { id: 'bubble', name: 'Bubble Shield', icon: '🫧', desc: 'An instant 150-point shield', price: 1600 },
+      { id: 'decoy', name: 'Hologram Decoy', icon: '👥', desc: 'A copy of your mech fools bots for 6 s while you slip away', price: 1300 },
+      { id: 'sonar', name: 'Sonar Ping', icon: '📡', desc: 'Shows every enemy to you and your team for 6 s, even through walls', price: 1200 },
+      { id: 'empnade', name: 'EMP Grenade', icon: '🧨', desc: 'Throw it: enemies where it lands jam for 2 s', price: 1800 },
+      { id: 'nitro', name: 'Nitro', icon: '🏎', desc: '3 s of huge speed on the ground', price: 1200, need: 'land' },
+      { id: 'torpedo', name: 'Torpedo', icon: '🐟', desc: 'A fast torpedo that hits hard (water mechs)', price: 1300, need: 'water' },
+      { id: 'afterburner', name: 'Afterburner', icon: '✈', desc: '3 s of top speed in the air and a moment of protection', price: 1300, need: 'air' },
     ],
     // perks: small bonuses that are always on; you equip up to 2 (CW.PERK_SLOTS)
     perks: [
-      { id: 'plating', name: 'Thick Plating', icon: '🧱', desc: 'Every part of your mech has 12% more HP', price: 600 },
-      { id: 'overclock', name: 'Overclock', icon: '⚙', desc: 'Your weapons deal 7% more damage', price: 800 },
-      { id: 'headstart', name: 'Head Start', icon: '⭐', desc: 'Start every life with your super 35% full', price: 650 },
-      { id: 'belt', name: 'Gadget Belt', icon: '🎒', desc: 'One more gadget use per match (4)', price: 550 },
-      { id: 'quickfix', name: 'Quick Fix', icon: '🔩', desc: 'Repairing (hold R) is 40% faster', price: 400 },
-      { id: 'regen', name: 'Self-Repair', icon: '💚', desc: 'Slowly fixes your mech when you haven\'t been hit for 5 s', price: 700 },
-      { id: 'dashpro', name: 'Dash Pro', icon: '💨', desc: 'Your dash recharges 25% faster', price: 450 },
-      { id: 'absorbers', name: 'Shock Absorbers', icon: '🪶', desc: '45% less damage from rams, lava and the arena', price: 450 },
-      { id: 'magnet', name: 'Loot Magnet', icon: '🧲', desc: 'Grab power-ups, loot, gold and scrap from twice as far', price: 350 },
-      { id: 'scavenger', name: 'Scavenger', icon: '🦝', desc: 'Enemies you wreck drop a repair orb', price: 500 },
-      { id: 'treasure', name: 'Treasure Hunter', icon: '🗝', desc: 'Open chests 3× faster and get 50% more coins from them', price: 400 },
+      { id: 'plating', name: 'Thick Plating', icon: '🧱', desc: 'Every part of your mech has 12% more HP', price: 2000 },
+      { id: 'overclock', name: 'Overclock', icon: '⚙', desc: 'Your weapons deal 7% more damage', price: 2800 },
+      { id: 'headstart', name: 'Head Start', icon: '⭐', desc: 'Start every life with your super 35% full', price: 2200 },
+      { id: 'belt', name: 'Gadget Belt', icon: '🎒', desc: 'One more gadget use per match (4)', price: 1800 },
+      { id: 'quickfix', name: 'Quick Fix', icon: '🔩', desc: 'Repairing (hold R) is 40% faster', price: 1300 },
+      { id: 'regen', name: 'Self-Repair', icon: '💚', desc: 'Slowly fixes your mech when you haven\'t been hit for 5 s', price: 2400 },
+      { id: 'dashpro', name: 'Dash Pro', icon: '💨', desc: 'Your dash recharges 25% faster', price: 1500 },
+      { id: 'absorbers', name: 'Shock Absorbers', icon: '🪶', desc: '45% less damage from rams, lava and the arena', price: 1500 },
+      { id: 'magnet', name: 'Loot Magnet', icon: '🧲', desc: 'Grab power-ups, loot, gold and scrap from twice as far', price: 1100 },
+      { id: 'scavenger', name: 'Scavenger', icon: '🦝', desc: 'Enemies you wreck drop a repair orb', price: 1600 },
+      { id: 'treasure', name: 'Treasure Hunter', icon: '🗝', desc: 'Open chests 3× faster and get 50% more coins from them', price: 1300 },
     ],
   };
   const PERK_SLOTS = 2;
+  // v1.10.1 the Power Cell (one after each match): it charges up in jumps, 1 (20%) to 5 (OVERLOAD); each jump has
+  // these chances. The server rolls it (server/accounts.js cellOpen) and pays what cellReward says.
+  const CELL_UP = [0.5, 0.4, 0.3, 0.2];
+  function cellLevel(rnd) { let lv = 1; for (const p of CELL_UP) { if (rnd() < p) lv++; else break; } return lv; }
+  function cellReward(lv, owns, rnd) {
+    const coins = (a, b) => ({ coins: Math.round((a + rnd() * (b - a)) / 5) * 5 });
+    const unowned = (kinds) => { const out = []; for (const k of kinds) for (const it of SHOP[k] || []) if (it.price > 0 && !it.pass && !it.event && !owns(k, it.id)) out.push([k, it]); return out; };
+    const one = (kinds) => { const l = unowned(kinds); return l.length ? l[Math.floor(rnd() * l.length)] : null; };
+    const key = { paints: 'paint', trails: 'trail', finishes: 'finish', wrecks: 'wreck', supers: 'super', gadgets: 'gadget', perks: 'perk' };
+    if (lv <= 1) return rnd() < 0.55 ? coins(20, 40) : { pts: 25 };
+    if (lv === 2) return rnd() < 0.6 ? coins(50, 90) : { xp: 150 };
+    if (lv === 3) { const it = rnd() < 0.4 && one(['paints']); return it ? { [key[it[0]]]: it[1].id } : coins(110, 170); }
+    if (lv === 4) { const it = rnd() < 0.45 && one(['trails', 'finishes', 'wrecks']); return it ? { [key[it[0]]]: it[1].id } : coins(220, 320); }
+    const it = rnd() < 0.6 && one(['supers', 'gadgets', 'perks']);
+    return it ? { [key[it[0]]]: it[1].id } : coins(500, 650);
+  }
   // can this mech use that super / gadget? (parts: [{ t }], need from the Shop list)
   const LAND = ['wheel', 'bigwheel', 'leg'], WATER = ['float', 'prop'], AIR = ['wing', 'rotor', 'jet'];
   function fits(need, parts) {
@@ -229,8 +245,8 @@
 
   const giftAmount = (streak) => 50 + Math.min(6, Math.max(1, streak) - 1) * 25;
   // coins the game may report per claim (logged-in players), and per day in total
-  const EARN = { match: 1000, ad: 1000, chest: 200, challenge: 250, ach: 800 };
-  const EARN_PER_DAY = 12000;
+  const EARN = { match: 400, ad: 400, chest: 200, challenge: 250, ach: 800 }; // v1.10.1: coins come slower
+  const EARN_PER_DAY = 4000;
   const MATCH_GAP = 20; // seconds between two match rewards
 
   // ---------------- Cog Pass: a 4-week season of 30 free tiers ----------------
@@ -459,7 +475,7 @@
     return Object.assign({}, CUP.rewards.find((r) => rank <= r.upTo));
   }
 
-  const api = { PERK_SLOTS, fits, cleanLoadout, CUP, cup, cupPoints, cupScore, cupReward, EVENTS, EVENT_PTS, event, nextEvent, eventRewards, TALK_QUICK, xpFor, levelOf, domainsAt, PARTS, partLook, mechPower, BUDGET, RUSH_BUDGET, MAX_PARTS, GRID, mechProblem, CHALLENGES, DAILY_CHALLENGES, dailyChallenges, ACH, SHOP, OLD_AVATARS, AVATAR_COUNT, FREE_AVATARS, item, dealPrice, dailyDeals, ROAD, giftAmount, EARN, EARN_PER_DAY, MATCH_GAP, day, nextMidnight, seeded, hash, season, PASS, passRewards, WEEKLY, week, RANKED };
+  const api = { PERK_SLOTS, CELL_UP, cellLevel, cellReward, fits, cleanLoadout, CUP, cup, cupPoints, cupScore, cupReward, EVENTS, EVENT_PTS, event, nextEvent, eventRewards, TALK_QUICK, xpFor, levelOf, domainsAt, PARTS, partLook, mechPower, BUDGET, RUSH_BUDGET, MAX_PARTS, GRID, mechProblem, CHALLENGES, DAILY_CHALLENGES, dailyChallenges, ACH, SHOP, OLD_AVATARS, AVATAR_COUNT, FREE_AVATARS, item, dealPrice, dailyDeals, ROAD, giftAmount, EARN, EARN_PER_DAY, MATCH_GAP, day, nextMidnight, seeded, hash, season, PASS, passRewards, WEEKLY, week, RANKED };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.CW = root.CW || {}; root.CW.ECON = api; root.CW.SHOP = SHOP; root.CW.ROAD = ROAD; }
 })(this);

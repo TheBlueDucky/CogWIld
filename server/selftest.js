@@ -273,14 +273,15 @@ async function main() {
   const r1 = await m1.next('room');
   m2.send({ t: 'quick', arena: 'isles' });
   const r2 = await m2.next('room');
-  check(r1.room.settings.arena === 'canyon' && r2.room.code !== r1.room.code, 'each arena has its own queue');
+  check(r1.room.settings.arena === 'random' && r2.room.code === r1.room.code, 'PLAY ignores an asked-for arena: one queue per mode, the arena is random (v1.10.1)');
   m3.send({ t: 'quick', arena: 'random' });
   const r3 = await m3.next('room');
   check(r3.room.players.length >= 2, '"any arena" joins a search that is already running');
-  const lone = r3.room.code === r1.room.code ? m2 : m1;
+  const lone = m1; // (v1.10.1: one queue, so all three are in it)
   const filled = await lone.next('room', (m) => m.room.bots.length > 0, 6000);
   check(filled.room.bots.length === 8 - filled.room.players.length, `after the search, bots fill every empty seat (${filled.room.bots.length} bots)`);
-  check(!!(await lone.next('autostart', null, 3000)), 'the host is told to start right away');
+  const host = [m1, m2, m3].find((p) => p.id === filled.room.hostId) || m1; // the server picks a random host
+  check(!!(await host.next('autostart', null, 3000).catch(() => null)), 'the host is told to start right away');
 
   console.log('new arenas and older games');
   const ALLA = require('../js/featured.js').ARENAS;
@@ -288,10 +289,10 @@ async function main() {
   for (const p of [n1, n2]) p.send({ t: 'hello', name: 'Newer', ver: VER, arenas: ALLA });
   n1.send({ t: 'quick', mode: 'koth', arena: 'moon' });
   const rn = await n1.next('room');
-  check(rn.room.settings.arena === 'moon' && rn.room.arenas.includes('moon'), 'a new game can search on a new arena');
+  check(rn.room.settings.arena === 'random' && rn.room.arenas.includes('moon'), 'a new game can use the new arenas in its search');
   o1.send({ t: 'quick', mode: 'koth', arena: 'random' });
   const ro = await o1.next('room');
-  check(ro.room.code !== rn.room.code && !ro.room.arenas.includes('moon'), 'an older game never joins a search on an arena it does not have');
+  check(ro.room.code === rn.room.code && !ro.room.arenas.includes('moon'), 'an older game in the search keeps the arenas to ones it has');
   o2.send({ t: 'quick', mode: 'gold', arena: 'random' });
   await o2.next('room');
   n2.send({ t: 'quick', mode: 'gold', arena: 'random' });
@@ -351,21 +352,21 @@ async function main() {
   check(started.room.settings.difficulty === 'normal' && started.room.settings.format === 'squads', `bots match the room's trophies (${started.room.settings.difficulty}) in a 3v3`);
 
   console.log('economy (server keeps coins and unlocks)');
+  const E0 = require('../js/economy.js');
   const ec = await player();
   ec.send({ t: 'acctRegister', name: 'Spender', pass: 'spend1234' });
   check((await ec.next('acctOk')).wallet.fresh === true, 'a new account starts with a fresh wallet');
   ec.send({ t: 'save', data: { profile: { xp: 5, coins: 99999, owned: { paints: ['gold', 'p_aurora', 'bogus'], trails: ['fire'], avatars: [] } } } });
   const w0 = (await ec.next('wallet')).w;
-  check(w0.coins === 3000 - 550 && w0.owned.paints.join() === 'gold' && w0.owned.trails.includes('fire'), `device progress comes along once, worth 3000 coins at most (${w0.coins} coins, ${w0.owned.paints})`);
+  check(w0.coins === 3000 - E0.item('paints', 'gold').price - E0.item('trails', 'fire').price && w0.owned.paints.join() === 'gold' && w0.owned.trails.includes('fire'), `device progress comes along once, worth 3000 coins at most (${w0.coins} coins, ${w0.owned.paints})`);
   ec.send({ t: 'earn', src: 'match', n: 500, pp: 40, xp: 300 });
   const w1 = await ec.next('wallet');
-  check(w1.w.coins === 2950 && w1.w.pass.pts === 40 && w1.w.xp === 305, 'a match pays coins, XP and pass points');
+  check(w1.w.coins === w0.coins + E0.EARN.match && w1.w.pass.pts === 40 && w1.w.xp === 305, `a match pays coins (at most ${E0.EARN.match}), XP and pass points`);
   check(w1.evPts === 40 && w1.w.ev && w1.w.ev.k === 'halloween2026' && w1.w.ev.pts === 40, `a match during Halloween gives 40 event points (${JSON.stringify(w1.w.ev)})`);
   ec.send({ t: 'earn', src: 'match', n: 500, pp: 40 });
   const w1b = await ec.next('wallet');
   check(w1b.earned === 0 && w1b.w.ev.pts === 40, 'two match rewards in a row are refused (no event points either)');
   ec.send({ t: 'earn', src: 'match', n: 999999 });
-  const E0 = require('../js/economy.js');
   for (let i = 0; i < 3; i++) ec.send({ t: 'earn', src: 'challenge', n: 9999, key: 0 });
   ec.send({ t: 'earn', src: 'challenge', key: 1 });
   ec.send({ t: 'earn', src: 'ach', key: 'first', n: 9999 });
@@ -374,11 +375,16 @@ async function main() {
   let wc;
   for (let i = 0; i < 8; i++) wc = await ec.next('wallet');
   const dc = E0.dailyChallenges(E0.day());
-  check(wc.w.coins === 2950 + dc[0].reward + dc[1].reward + E0.ACH.first, `challenges and achievements pay their listed reward once (${wc.w.coins})`);
+  check(wc.w.coins === w1.w.coins + dc[0].reward + dc[1].reward + E0.ACH.first, `challenges and achievements pay their listed reward once (${wc.w.coins})`);
+  // v1.10.1 the Power Cell: one per match reward (it uses the old results crate's turn), rolled by the server
+  ec.send({ t: 'cellOpen' });
+  const pc = await ec.next('wallet');
+  const pcGot = pc.cell && (pc.cell.reward.coins || pc.cell.reward.got.length || pc.cell.reward.xp || pc.cell.reward.pts);
+  check(pc.cell && pc.cell.lv >= 1 && pc.cell.lv <= 5 && pcGot, `a Power Cell charges to a level and pays a reward (${JSON.stringify(pc.cell)})`);
   ec.send({ t: 'earn', src: 'chest', n: 150 });
-  ec.send({ t: 'earn', src: 'chest', n: 150 });
+  ec.send({ t: 'cellOpen' });
   const cr1 = await ec.next('wallet'), cr2 = await ec.next('wallet');
-  check(cr1.earned === 150 && cr2.earned === 0, 'one results crate per match');
+  check(cr1.earned === 0 && cr2.cell === null, 'one Power Cell per match (and no old crate on top of it)');
   wc = cr2;
   ec.send({ t: 'buy', kind: 'paints', id: 'p_aurora' });
   check(/for sale/.test((await ec.next('acctErr')).msg), 'Cog Pass items cannot be bought');

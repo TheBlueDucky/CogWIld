@@ -199,6 +199,7 @@
       this.chests = new CW.Chests(this);
       this.loot = new CW.Loot(this);
       this.hazards = new CW.Hazards(this);
+      this.reveal = new CW.Reveal(this);
       this.pings = new CW.Pings(this);
       this.tutorial = new CW.Tutorial(this);
       this.clips = new CW.Clips(this);
@@ -515,7 +516,7 @@
     // this week's event (js/economy.js WEEKLY): set when the match was started from its card
     inWeekly() { return !!this.weeklyId && !this.isPractice(); }
     featuredLeft() { const m = Math.max(1, Math.ceil((CW.FEATURED.today().endsAt - Date.now()) / 60000)); return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; }
-    arenaChoice() { const a = this.settings.mmArena; return CW.ARENAS[a] ? a : 'random'; }
+    arenaChoice() { return 'random'; } // v1.10.1: every match picks a random arena that fits its mode (arenaRoll)
     modeChoice() { const m = this.settings.mmMode; return CW.MM_FORMAT[m] ? m : 'clash'; }
     arenaInfo(id) { return CW.ARENAS[id] ? CW.ARENAS[id] : { id: 'random', icon: '🎲', name: 'Any arena', desc: 'The fastest match: one of the 5 arenas in rotation right now.' }; }
     renderArenaCard() {
@@ -526,7 +527,8 @@
       if (kind === 'cup' && !cu.live) { this.settings.mmEvent = null; this.saveProfile(); return this.renderArenaCard(); } // the cup ended
       $('acIcon').textContent = kind === 'weekly' ? w.icon : kind === 'ranked' ? '🏅' : kind === 'cup' ? '🏆' : m.icon;
       $('acMode').textContent = kind === 'weekly' ? w.name : kind === 'ranked' ? 'Ranked' : kind === 'cup' ? 'Weekend Cup' : m.name;
-      $('acName').textContent = kind === 'weekly' ? `${MODES[w.mode].icon} ${MODES[w.mode].name} · ${w.desc}` : kind === 'ranked' ? '3v3 · random mode and arena' : kind === 'cup' ? `${cm.icon} ${cm.name} · best 10 matches count` : `${a.icon} ${a.name}`;
+      const pool = CW.FEATURED.arenasFor(this.modeChoice(), Object.keys(CW.ARENAS));
+      $('acName').textContent = kind === 'weekly' ? `${MODES[w.mode].icon} ${MODES[w.mode].name} · ${w.desc}` : kind === 'ranked' ? '3v3 · random mode and arena' : kind === 'cup' ? `${cm.icon} ${cm.name} · best 10 matches count` : pool.length === 1 ? `${CW.ARENAS[pool[0]].icon} ${CW.ARENAS[pool[0]].name}` : `🎲 Random arena (${pool.length})`;
       $('arenaCard').classList.toggle('weekly', kind === 'weekly');
       $('arenaCard').classList.toggle('ranked', kind === 'ranked');
       $('arenaCard').classList.toggle('cup', kind === 'cup');
@@ -537,10 +539,59 @@
       $('cupChip').innerHTML = claims.length ? '<b>🏆 Weekend Cup</b><span>🎁 Your reward is ready!</span>' : `<b>🏆 Weekend Cup</b><span>${cm.icon} ${cm.name}</span><small>best 10 matches · ends in ${CW.timeLeft(cu.end - Date.now())}</small>`;
       // the featured chip above PLAY, and a badge when your pick is today's featured event
       const f = CW.FEATURED.today(), fm = MODES[f.mode], fa = CW.ARENAS[f.arena];
-      $('featChip').innerHTML = `<b>⭐ Featured today</b><span>${fm.icon} ${fm.name} · ${fa.icon} ${fa.name}</span><small>${CW.FEATURED.COIN_MULT}× coins · +50% trophies · ends in ${this.featuredLeft()}</small>`;
-      const on = !kind && f.mode === this.modeChoice() && f.arena === this.arenaChoice();
+      $('featChip').innerHTML = `<b>⭐ Featured today</b><span>${fm.icon} ${fm.name}</span><small>${CW.FEATURED.COIN_MULT}× coins · +50% trophies · ends in ${this.featuredLeft()}</small>`;
+      const on = !kind && f.mode === this.modeChoice();
       $('arenaCard').classList.toggle('featured', on);
       $('featChip').classList.toggle('on', on);
+    }
+    // v1.10.1: the arena roulette, like a slot machine: arena cards fly by, slow down and stop on this match's arena.
+    // Returns how long it takes (the match countdown starts after it)
+    arenaRoll() {
+      if (this.isPractice() || this.headless) return 0;
+      const id = this.world.arena.id, A = CW.ARENAS;
+      const pool = CW.FEATURED.arenasFor(this.modeId, Object.keys(A));
+      const many = pool.length > 1, dur = many ? 3.4 : 1.8;
+      const strip = [];
+      if (many) { for (let k = 0; k < 4; k++) strip.push(...pool.slice().sort(() => Math.random() - 0.5)); }
+      strip.push(id);
+      const m = MODES[this.modeId] || {};
+      let el = $('arenaRoll');
+      if (el) el.remove();
+      el = document.createElement('div');
+      el.id = 'arenaRoll';
+      const card = (a, i) => `<div class="ar-card" data-i="${i}" style="--ac:${CW.ARENA_COLORS[a] || '#3a86ff'}"><i>${A[a].icon}</i><b>${esc(A[a].name)}</b></div>`;
+      el.innerHTML = `<div class="ar-top"><span>${m.icon || ''} ${esc(m.name || '')}</span><b>${many ? 'Picking the arena…' : 'The arena'}</b></div>
+        <div class="ar-view"><div class="ar-strip">${strip.map(card).join('')}</div><i class="ar-pin"></i></div><div class="ar-name"></div>`;
+      $('app').appendChild(el);
+      const W = 176; // card width + gap (css)
+      const st = el.querySelector('.ar-strip');
+      const spin = many ? dur - 1.1 : 0.01;
+      const end = -(strip.length - 1) * W;
+      st.style.transform = `translateX(${many ? 0 : end}px)`;
+      requestAnimationFrame(() => requestAnimationFrame(() => { st.style.transition = `transform ${spin}s cubic-bezier(.12,.75,.14,1)`; st.style.transform = `translateX(${end}px)`; }));
+      // a tick for every card that passes the pin, slower and slower
+      if (many) {
+        const t0 = performance.now();
+        let last = -1;
+        const tick = () => {
+          if (!el.isConnected) return;
+          const tr = getComputedStyle(st).transform, x = tr && tr !== 'none' ? +tr.split(',')[4] : 0;
+          const i = Math.round(-x / W);
+          if (i !== last) { last = i; this.audio.tone(900 + (i % 2) * 180, 0.03, 'square', 0.05); }
+          if (performance.now() - t0 < spin * 1000) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }
+      setTimeout(() => {
+        if (!el.isConnected) return;
+        const win = el.querySelector(`.ar-card[data-i="${strip.length - 1}"]`);
+        if (win) win.classList.add('win');
+        el.querySelector('.ar-name').innerHTML = `<b>${A[id].icon} ${esc(A[id].name)}</b><small>${esc(A[id].desc)}</small>`;
+        el.classList.add('done');
+        this.audio.fanfare();
+      }, spin * 1000 + 80);
+      setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 450); }, dur * 1000);
+      return dur;
     }
     play() {
       this.audio.ensure();
@@ -594,7 +645,7 @@
       $('btnPlay').onclick = () => this.play();
       $('arenaCard').onclick = () => this.meta.openPanel('arenas');
       // one tap on the featured chip picks today's event
-      $('featChip').onclick = () => { const f = CW.FEATURED.today(); this.settings.mmMode = f.mode; this.settings.mmArena = f.arena; this.saveProfile(); this.renderArenaCard(); this.audio.click(1.3); };
+      $('featChip').onclick = () => { const f = CW.FEATURED.today(); this.settings.mmMode = f.mode; this.saveProfile(); this.renderArenaCard(); this.audio.click(1.3); };
       setInterval(() => { if (this.state === 'menu') this.renderArenaCard(); }, 30000);
       this.renderArenaCard();
       $('firstYes').onclick = () => { $('firstRun').classList.add('hidden'); this.startTutorial(); };
@@ -914,8 +965,9 @@
       const no = this.net.active ? this.netOpts : null;
       const ar = no ? no.arena : this.forceArena || this.settings.arena || 'random';
       this.forceArena = null; // PLAY offline: used once
-      const ids = Object.keys(CW.ARENAS);
-      this.setArena(this.isPractice() ? 'canyon' : ar === 'random' || !CW.ARENAS[ar] ? ids[Math.floor(Math.random() * ids.length)] : ar);
+      // v1.10.1: a random arena that fits the mode (an asked-for one only when it fits)
+      const fit = CW.FEATURED.arenasFor(this.modeId, Object.keys(CW.ARENAS));
+      this.setArena(this.isPractice() ? 'canyon' : no && CW.ARENAS[ar] ? ar : fit.includes(ar) ? ar : fit[Math.floor(Math.random() * fit.length)]);
       this.state = 'match';
       const tod = no ? no.tod : this.settings.timeOfDay || 'random';
       const spooky = (CW.ECON.event() || {}).id === 'halloween'; // Halloween: mostly sunsets and nights
@@ -943,6 +995,8 @@
       this.cam.shake = 0; this.cam.fovKick = 0;
       this.lastMechYaw = undefined;
       $('hud').classList.remove('hidden');
+      // the "Playing as a guest" card belongs to the menu: it never stays up over a match (it covered the minimap)
+      for (const n of [...$('notes').children]) if (/Playing as a guest/.test(n.textContent)) n.remove();
       CW.Platform.gameplayStart();
       this.clips.start();
       $('recDot').classList.toggle('hidden', !this.clips.running);
@@ -955,7 +1009,7 @@
       let wipe = $('cwWipe');
       if (!wipe) { wipe = document.createElement('div'); wipe.id = 'cwWipe'; $('app').appendChild(wipe); }
       wipe.classList.remove('on'); void wipe.offsetWidth; wipe.classList.add('on');
-      this.countdown = 3.5;
+      this.countdown = 3.5 + this.arenaRoll(); // the arena roulette first, then 3, 2, 1
       const fmt = FORMATS[this.formatId];
       const coop = COOP.includes(this.formatId);
       // online co-op (Survival / Boss): every player joins team 0
@@ -1000,9 +1054,13 @@
             if (me) this.player = c;
           } else {
             const preset = shuffled[botIdx % shuffled.length];
-            const bp = CW.mutateBp(preset, budget, tier);
+            // v1.10.1: most bots build a mech of their own (js/botmechs.js); the mode decides what kinds make sense
+            const ar = this.world.arena, noBoats = !!(ar.liquid || ar.noBoats || this.world.waterSpawns.length < 3 || MODES[this.modeId].objective);
+            const kinds = MODES[this.modeId].noGuns ? ['car', 'truck', 'rammer', 'rammer'] : this.modeId === 'ball' ? ['car', 'truck', 'rammer', 'walker'] : null;
+            const gm = Math.random() < 0.75 ? CW.botMech(budget, tier, { noBoats, kind: kinds ? kinds[Math.floor(Math.random() * kinds.length)] : undefined }) : null;
+            const bp = gm ? { name: gm.name, parts: gm.parts } : CW.mutateBp(preset, budget, tier);
             const lobbyNames = (this.net.active && this.netOpts && this.netOpts.botNames) || [];
-            const bot = this.addCombatant({ name: lobbyNames[botIdx] || BOT_NAMES[botIdx % BOT_NAMES.length], isPlayer: false, color, bp, ai: preset.ai, team });
+            const bot = this.addCombatant({ name: lobbyNames[botIdx] || BOT_NAMES[botIdx % BOT_NAMES.length], isPlayer: false, color, bp, ai: gm ? gm.ai : preset.ai, team });
             const diff = { easy: { aim: 2.4, dmg: 0.65 }, normal: { aim: 1, dmg: 1 }, hard: { aim: 0.6, dmg: 1.2 } }[diffId] || { aim: 1, dmg: 1 };
             bot.ai.jitter *= diff.aim;
             bot.ai.smarts = { easy: 0.35, normal: 0.7, hard: 1 }[diffId] || 0.7; // dodging and tricks
@@ -1368,10 +1426,16 @@
         const manualTurn = (k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0);
         m.input.throttle = locked ? 0 : (k.KeyW ? 1 : 0) - (k.KeyS ? 0.7 : 0);
         let turn = manualTurn;
-        // auto-steer: while driving without A/D, the mech turns toward where you look
-        if (!manualTurn && this.settings.autoSteer && m.input.throttle !== 0) {
+        // v1.10.1 mouse steering (on by default on PCs): the mech always turns to where you look, and the view stays
+        // in front of it (no looking around your mech). Touch screens: auto-steer (W drives toward where you look)
+        const mouseSteer = this.settings.mouseSteer !== false && !this.touch.on;
+        if (!manualTurn && (mouseSteer || (this.settings.autoSteer && m.input.throttle !== 0))) {
           const err = wrap(this.cam.yaw - m.yaw);
-          turn = clamp(-err * 2.5, -1, 1);
+          turn = clamp(-err * (mouseSteer ? 3 : 2.5), -1, 1);
+        }
+        if (mouseSteer && !locked) {
+          const d = wrap(this.cam.yaw - m.yaw), lim = 0.9;
+          if (Math.abs(d) > lim) this.cam.yaw = m.yaw + Math.sign(d) * lim;
         }
         m.input.turn = locked ? 0 : turn;
         m.input.manual = !locked && !!manualTurn; // A/D: car steering (js/entities.js)
@@ -1695,6 +1759,35 @@
           ai.hitT = 0;
         }
         if (ai.fleeing && m.dashCd <= 0 && Math.abs(err) < 0.4) inp.dash = 1; // getting away
+        // v1.10.1: see shots coming and dodge some of them (each shot is judged once; hard bots dodge more)
+        if ((ai.seeT = (ai.seeT || 0) - dt) <= 0) {
+          ai.seeT = 0.1;
+          for (const p of this.fx.projectiles) {
+            if (!p.who || p.who === c || CW.sameTeam(p.who, c) || p.kind === 'flame' || (p.seen && p.seen.has(c))) continue;
+            const sp2 = p.vel.lengthSq();
+            if (sp2 < 4) continue;
+            const t = (m.pos.x - p.pos.x) * p.vel.x + (m.pos.y - p.pos.y) * p.vel.y + (m.pos.z - p.pos.z) * p.vel.z;
+            const tt = t / sp2;
+            if (tt < 0.05 || tt > 0.9) continue;
+            const mx = p.pos.x + p.vel.x * tt - m.pos.x, my = p.pos.y + p.vel.y * tt - m.pos.y, mz = p.pos.z + p.vel.z * tt - m.pos.z;
+            if (mx * mx + my * my + mz * mz > (m.radius + 2) * (m.radius + 2)) continue;
+            (p.seen = p.seen || new Set()).add(c);
+            if (Math.random() > 0.15 + 0.45 * sm) continue;
+            // sideways from the shot's path
+            const side = Math.sign(-Math.cos(m.yaw) * p.vel.x + Math.sin(m.yaw) * p.vel.z) || 1;
+            ai.dodgeT = 0.45; ai.dodgeDir = side;
+            if (m.legs > 0 && m.dashCd <= 0) inp.dash = 2 * side;
+            else if (m.dashCd <= 0 && Math.random() < 0.6) inp.dash = 1;
+            if (ai.style === 'heli' || ai.style === 'plane') ai.dodgeUp = Math.random() < 0.5 ? 1 : -1;
+            break;
+          }
+        }
+        if (ai.dodgeT > 0) {
+          ai.dodgeT -= dt;
+          inp.turn = ai.dodgeDir; inp.throttle = Math.max(inp.throttle, 0.8);
+          if (ai.dodgeUp > 0) inp.up = true; else if (ai.dodgeUp < 0) inp.down = true;
+          if (ai.dodgeT <= 0) ai.dodgeUp = 0;
+        }
         // a wall ahead with no way around: walkers jump it (Jump Jets bots use their gadget, see gadgets.js)
         if (ai.blocked && m.legs > 0 && m.medium === 'land') inp.upPressed = true;
         // tricks: a victory donut after a wreck when nobody's close, and walkers hop around now and then
@@ -1865,7 +1958,7 @@
       const name = (x) => (x.isPlayer ? 'You' : esc(x.name));
       if (was >= 3) {
         this.feed(`💀 SHUTDOWN! ${name(who)} ended ${c.isPlayer ? 'your' : esc(c.name) + "'s"} ${was}-wreck streak`, who.isPlayer ? 'good' : c.isPlayer ? 'bad' : '');
-        if (who.isPlayer) { this.bonusCoins += 10 * was; this.toast(`💀 SHUTDOWN! +${10 * was} 🪙`); }
+        if (who.isPlayer) { this.bonusCoins += 6 * was; this.toast(`💀 SHUTDOWN! +${6 * was} 🪙`); }
       }
       const n = who.lifeStreak = (who.lifeStreak || 0) + 1;
       const said = { 3: 'is on a rampage', 5: 'is unstoppable', 8: 'is LEGENDARY' }[n];
@@ -2021,8 +2114,8 @@
       this.lastWreckT = now;
       this.matchStreak = Math.max(this.matchStreak || 0, this.streak);
       const names = { 2: 'DOUBLE WRECK!', 3: 'TRIPLE WRECK!', 4: 'RAMPAGE!', 5: 'UNSTOPPABLE!' };
-      if (!this.firstBlood) { this.firstBlood = true; this.announce('FIRST BLOOD', '+25 🪙'); this.bonusCoins += 25; }
-      else if (this.streak >= 2) { this.announce(names[Math.min(5, this.streak)], `+${this.streak * 15} 🪙`); this.bonusCoins += this.streak * 15; }
+      if (!this.firstBlood) { this.firstBlood = true; this.announce('FIRST BLOOD', '+15 🪙'); this.bonusCoins += 15; }
+      else if (this.streak >= 2) { this.announce(names[Math.min(5, this.streak)], `+${this.streak * 8} 🪙`); this.bonusCoins += this.streak * 8; }
       this.meta.track('wreck');
     }
     announce(title, sub) {
@@ -2154,10 +2247,10 @@
       const lvUp = this.level() > beforeLv;
       const rankUp = this.rankIndex() > beforeRank;
       // coins, stats, challenges
-      const levelBonus = lvUp ? (this.level() - beforeLv) * 100 : 0;
+      const levelBonus = lvUp ? (this.level() - beforeLv) * 50 : 0;
       const featured = this.inFeatured();
       const weekly = this.inWeekly();
-      const coins = Math.round((Math.round(xp / 2) + this.bonusCoins) * (featured ? CW.FEATURED.COIN_MULT : 1) * (weekly ? 1.5 : 1)) + levelBonus;
+      const coins = Math.round((Math.round(xp / 5) + Math.round(this.bonusCoins / 2)) * (featured ? CW.FEATURED.COIN_MULT : 1) * (weekly ? 1.5 : 1)) + levelBonus; // v1.10.1: coins come slower
       // Cog Pass points: more for doing well, a bonus in featured and weekly events
       const passPts = Math.min(CW.ECON.PASS.match, 15 + (this.won ? 15 : 0) + Math.max(0, 10 - (p.place - 1) * 3) + (featured ? 5 : 0) + (weekly ? 10 : 0));
       this.lastPassPts = passPts;
@@ -2243,45 +2336,29 @@
       $('resAgain').textContent = this.net.room ? 'Back to room' : 'Play again';
     }
 
-    // Free reward chest after every match (better place = better chest). Earned, never bought.
+    // v1.10.1: the Power Cell after every match (js/reveal.js): tap it, it charges up and gives a reward. The server decides
+    // (one per match reward); offline / without the server it's a small coin bonus from this device
     setupMatchChest(place, nTeams) {
       const box = $('resChest');
-      const tier = place === 1 ? 'epic' : place <= Math.ceil(nTeams / 2) ? 'rare' : 'common';
-      const T = CW.CHEST_TYPES[tier];
-      box.className = 'res-chest ' + tier;
-      box.innerHTML = `<div class="rc-icon">🧰</div><div class="rc-text">${T.name}<br><small>Click to open!</small></div>`;
+      box.className = 'res-chest cellbox';
+      box.innerHTML = '<div class="rc-icon">🔋</div><div class="rc-text">Power Cell<br><small>Tap to charge it!</small></div>';
       box.onclick = () => {
-        if (box.classList.contains('opening') || box.classList.contains('open')) return;
-        box.classList.add('opening');
-        this.audio.click(1.2);
-        setTimeout(() => {
-          const p = this.profile;
-          const coins = T.coins + Math.floor(Math.random() * T.coins);
-          this.meta.addCoins(coins, 'chest');
-          let extra = '';
-          const chance = { common: 0.06, rare: 0.15, epic: 0.35 }[tier];
-          if (Math.random() < chance) {
-            // a free cosmetic the player doesn't own yet
-            const pool = CW.SHOP.paints.filter((x) => !p.owned.paints.includes(x.id)).map((x) => ['paints', x])
-              .concat(CW.SHOP.trails.filter((x) => !p.owned.trails.includes(x.id)).map((x) => ['trails', x]));
-            if (pool.length) {
-              const [kind, item] = pool[Math.floor(Math.random() * pool.length)];
-              p.owned[kind].push(item.id);
-              extra = `<br>✨ Unlocked ${kind === 'paints' ? 'paint' : 'trail'}: <b>${item.name}</b>!`;
-              this.workshop.buildPaint();
-            }
-          }
-          this.meta.track('chest');
-          this.saveProfile();
-          box.classList.remove('opening');
-          box.classList.add('open');
-          box.innerHTML = `<div class="rc-icon">✨</div><div class="rc-text">+${coins} 🪙${extra}</div>`;
-          this.audio.fanfare();
-          this.confetti();
-        }, 900);
+        if (box.classList.contains('open')) return;
+        box.classList.add('open');
+        box.innerHTML = '<div class="rc-icon">⚡</div><div class="rc-text">Charging…</div>';
+        this.audio.click(1.3);
+        const done = () => { box.innerHTML = '<div class="rc-icon">✨</div><div class="rc-text">Power Cell opened</div>'; };
+        if (this.account.walletLive && !this.isPractice()) {
+          this.account.net.send({ t: 'cellOpen' });
+          this.cellWait = setTimeout(() => { if (!this.reveal.open) { done(); this.toast('⚡ The Power Cell needs a connection'); } }, 6000);
+          this.reveal.afterCell = () => { clearTimeout(this.cellWait); done(); };
+          return;
+        }
+        const lv = CW.ECON.cellLevel(Math.random), coins = [25, 60, 120, 220, 450][lv - 1];
+        this.meta.addCoins(coins, 'chest');
+        this.reveal.powerCell({ lv, reward: { coins, got: [] } }, done);
       };
     }
-
     renderScoreboard() {
       const rows = this.combatants.slice().sort((a, b) => a.team - b.team || b.wrecks + b.kills - (a.wrecks + a.kills));
       const name = (c) => esc(c.isPlayer ? this.profile.name || 'You' : c.name);
@@ -2497,7 +2574,7 @@
       const cdText = String(this.countdown > 0.5 ? Math.ceil(this.countdown - 0.5) : this.countdown > -0.6 ? 'GO!' : '');
       const cd = $('countdown');
       if (cd.textContent !== cdText) { cd.textContent = cdText; cd.classList.remove('pop'); if (cdText) { void cd.offsetWidth; cd.classList.add('pop'); } }
-      $('countdown').style.display = this.countdown > -0.6 && !this.isPractice() ? 'block' : 'none';
+      $('countdown').style.display = this.countdown > -0.6 && this.countdown < 3.6 && !this.isPractice() ? 'block' : 'none';
       this.hitMarker = Math.max(0, (this.hitMarker || 0) - 1 / 60);
       $('crosshair').classList.toggle('hit', this.hitMarker > 0);
       this.killMarker = Math.max(0, (this.killMarker || 0) - 1 / 60);
@@ -3024,9 +3101,16 @@
               if (a.spikes > 0 || derby || a.mods.ramAll) this.ram(a, b, closing);
               if (b.spikes > 0 || derby || b.mods.ramAll) this.ram(b, a, closing);
             }
-            a.pos.x -= nx * push; a.pos.z -= nz * push;
-            b.pos.x += nx * push; b.pos.z += nz * push;
-            a.vel.multiplyScalar(0.8); b.vel.multiplyScalar(0.8);
+            // v1.10.1: heavier mechs push lighter ones (the overlap and the bump are shared by mass), with a little bounce
+            const ma = Math.max(1, a.mass), mb = Math.max(1, b.mass), wa = mb / (ma + mb), wb = ma / (ma + mb);
+            a.pos.x -= nx * push * 2 * wa; a.pos.z -= nz * push * 2 * wa;
+            b.pos.x += nx * push * 2 * wb; b.pos.z += nz * push * 2 * wb;
+            if (closing > 0) {
+              const j = (1.25 * closing) / (1 / ma + 1 / mb);
+              a.vel.x -= (j / ma) * nx; a.vel.z -= (j / ma) * nz;
+              b.vel.x += (j / mb) * nx; b.vel.z += (j / mb) * nz;
+            }
+            a.vel.multiplyScalar(0.95); b.vel.multiplyScalar(0.95);
           }
         }
       for (const p of this.pilots) {

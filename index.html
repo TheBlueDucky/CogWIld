@@ -1967,6 +1967,67 @@
   .lo-shop { float: right; font-size: 12px; padding: 3px 10px; }
   .ws-combo { display: inline-block; padding: 0 6px; margin: 1px 0; border-radius: 6px; border: 1px solid rgba(124, 255, 79, .45); color: #b9ffa0; font-size: 12px; }
   .ws-combo-desc { font-size: 12px; color: var(--muted2); padding: 1px 0; }
+  /* v1.10.1: the arena roulette before every match */
+  #arenaRoll { position: absolute; inset: 0; z-index: 30; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+    background: radial-gradient(ellipse at 50% 45%, rgba(26, 35, 66, .96), rgba(10, 14, 30, .98)); pointer-events: none; transition: opacity .4s; }
+  #arenaRoll.out { opacity: 0; }
+  .ar-top { display: flex; flex-direction: column; align-items: center; gap: 2px; color: var(--muted2); font-weight: 700; }
+  .ar-top b { font-family: 'Lilita One'; font-weight: 400; font-size: 30px; color: #fff; letter-spacing: .5px; }
+  .ar-view { position: relative; width: min(900px, 96vw); height: 200px; overflow: hidden;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent); mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent); }
+  .ar-strip { position: absolute; left: calc(50% - 80px); top: 20px; display: flex; gap: 16px; will-change: transform; }
+  .ar-card { flex: 0 0 160px; height: 160px; border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+    background: linear-gradient(160deg, color-mix(in srgb, var(--ac) 55%, #1a2342), color-mix(in srgb, var(--ac) 18%, #10162b)); border: 2px solid color-mix(in srgb, var(--ac) 60%, #fff 0%);
+    color: #fff; text-align: center; transition: transform .35s cubic-bezier(.3, 1.6, .5, 1), box-shadow .35s; }
+  .ar-card i { font-style: normal; font-size: 58px; filter: drop-shadow(0 3px 4px rgba(0, 0, 0, .5)); }
+  .ar-card b { font-size: 15px; padding: 0 8px; text-shadow: 0 1px 3px #000; }
+  .ar-card.win { transform: scale(1.14); box-shadow: 0 0 0 3px #fff, 0 0 40px color-mix(in srgb, var(--ac) 80%, transparent); }
+  .ar-pin { position: absolute; left: 50%; top: 0; bottom: 0; width: 3px; margin-left: -1.5px; background: linear-gradient(#ffd23f, transparent 25%, transparent 75%, #ffd23f); }
+  #arenaRoll.done .ar-pin { opacity: 0; }
+  .ar-name { min-height: 54px; text-align: center; color: #fff; }
+  .ar-name b { display: block; font-family: 'Lilita One'; font-weight: 400; font-size: 28px; animation: arPop .45s cubic-bezier(.3, 1.6, .5, 1); }
+  .ar-name small { color: var(--muted2); font-size: 14px; }
+  @keyframes arPop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .compact .ar-view { height: 150px; } .compact .ar-card { flex-basis: 160px; height: 120px; } .compact .ar-card i { font-size: 40px; } .compact .ar-top b { font-size: 22px; }
+  /* v1.10.1: the reward reveal and the Power Cell (js/reveal.js) */
+  #reveal { position: absolute; inset: 0; z-index: 60; display: none; align-items: center; justify-content: center; overflow: hidden; cursor: pointer;
+    background: radial-gradient(circle at 50% 46%, color-mix(in srgb, var(--rc, #5ce1ff) 22%, #10162b) 0%, rgba(8, 11, 24, .96) 62%); touch-action: none; user-select: none; }
+  #reveal.show { display: flex; animation: rvIn .25s ease-out; }
+  @keyframes rvIn { from { opacity: 0; } to { opacity: 1; } }
+  .rv-rays { position: absolute; left: 50%; top: 46%; width: 170vmax; height: 170vmax; margin: -85vmax 0 0 -85vmax; opacity: .22; animation: rvSpin 14s linear infinite;
+    background: repeating-conic-gradient(from 0deg, var(--rc, #5ce1ff) 0deg 7deg, transparent 7deg 22deg); -webkit-mask-image: radial-gradient(circle, #000 0, transparent 60%); mask-image: radial-gradient(circle, #000 0, transparent 60%); }
+  @keyframes rvSpin { to { transform: rotate(360deg); } }
+  .rv-stage { position: relative; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; color: #fff; }
+  .rv-title { font-family: 'Lilita One'; font-size: 26px; color: var(--muted2); letter-spacing: 1px; }
+  .rv-item { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .rv-item.pop { animation: rvPop .6s cubic-bezier(.25, 1.7, .45, 1); }
+  @keyframes rvPop { 0% { transform: scale(.2) rotate(-12deg); opacity: 0; } 60% { opacity: 1; } 100% { transform: scale(1) rotate(0); } }
+  .rv-ico { font-style: normal; font-size: 110px; line-height: 1.1; filter: drop-shadow(0 0 28px var(--rc, #5ce1ff)); }
+  .rv-swatch { display: inline-block; width: 120px; height: 120px; border-radius: 50%; border: 4px solid #fff; box-shadow: 0 0 40px var(--rc); }
+  .rv-label { font-family: 'Lilita One'; font-weight: 400; font-size: 40px; text-shadow: 0 3px 0 rgba(0, 0, 0, .4), 0 0 18px var(--rc, #5ce1ff); }
+  .rv-sub { font-size: 16px; color: #dfe6ff; font-weight: 700; min-height: 20px; }
+  .rv-dots { display: flex; gap: 6px; } .rv-dots i { width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, .25); } .rv-dots i.on { background: var(--rc); }
+  .rv-fx { position: absolute; left: 50%; top: 42%; width: 0; height: 0; pointer-events: none; }
+  .rv-fx i { position: absolute; width: 8px; height: 8px; border-radius: 2px; animation: rvSpark var(--d) cubic-bezier(.15, .7, .3, 1) forwards; }
+  @keyframes rvSpark { from { transform: translate(0, 0) rotate(0); opacity: 1; } to { transform: translate(var(--dx), var(--dy)) rotate(400deg); opacity: 0; } }
+  .rv-tap { position: absolute; bottom: 7%; left: 0; right: 0; text-align: center; color: var(--muted2); font-weight: 700; animation: rvBlink 1.4s ease-in-out infinite; }
+  @keyframes rvBlink { 50% { opacity: .35; } }
+  /* the Power Cell: a battery that charges up in jumps */
+  .pc { position: relative; display: inline-flex; flex-direction: column; align-items: center; }
+  .pc-cap { width: 44px; height: 16px; border-radius: 6px 6px 0 0; background: #8d99ae; }
+  .pc-body { position: relative; width: 110px; height: 170px; border-radius: 18px; border: 6px solid #c9d2e3; background: #0d1226; overflow: hidden; box-shadow: 0 0 30px var(--rc); }
+  .pc-fill { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: linear-gradient(0deg, var(--rc), color-mix(in srgb, var(--rc) 50%, #fff)); transition: height .3s cubic-bezier(.3, 1.6, .5, 1), background .2s; }
+  .pc-bolt { position: absolute; inset: 0; display: grid; place-items: center; font-size: 64px; filter: drop-shadow(0 0 10px #000); }
+  #reveal.cell .rv-tap { display: none; }
+  .rv-item.zap { animation: rvZap .35s ease-out; }
+  @keyframes rvZap { 0% { transform: scale(1.15) rotate(3deg); } 30% { transform: scale(.95) rotate(-3deg); } 100% { transform: scale(1); } }
+  #reveal.overload .pc-body { animation: rvFlicker .12s steps(2) infinite; }
+  @keyframes rvFlicker { 50% { box-shadow: 0 0 60px #fff, 0 0 120px var(--rc); border-color: #fff; } }
+  #reveal.burst .rv-item { animation: rvBurst .38s ease-in forwards; }
+  @keyframes rvBurst { to { transform: scale(2.4); opacity: 0; filter: brightness(3); } }
+  .compact .rv-ico { font-size: 70px; } .compact .rv-label { font-size: 28px; } .compact .pc-body { width: 80px; height: 120px; } .compact .rv-swatch { width: 80px; height: 80px; }
+  /* the Power Cell card on the results screen */
+  .res-chest.cellbox .rc-icon { filter: drop-shadow(0 0 10px #5ce1ff); }
 </style>
 </head>
 <body>
@@ -2434,38 +2495,40 @@
 </div>
 
 <!-- three.js: from the CDN, or the local copy in js/vendor/ when offline (desktop build / no internet) -->
-<script src="js/vendor/three.min.js?v=43"></script>
-<script src="js/economy.js?v=43"></script>
-<script src="js/parts.js?v=43"></script>
-<script src="js/loadout.js?v=43"></script>
-<script src="js/bugs.js?v=43"></script>
-<script src="js/i18n.js?v=43"></script>
-<script src="js/platform.js?v=43"></script>
-<script src="js/featured.js?v=43"></script>
-<script src="js/world.js?v=43"></script>
-<script src="js/entities.js?v=43"></script>
-<script src="js/meta.js?v=43"></script>
-<script src="js/extras.js?v=43"></script>
-<script src="js/modes.js?v=43"></script>
-<script src="js/tutorial.js?v=43"></script>
-<script src="js/clips.js?v=43"></script>
-<script src="js/gamepad.js?v=43"></script>
-<script src="js/workshop.js?v=43"></script>
-<script src="js/config.js?v=43"></script>
-<script src="js/net.js?v=43"></script>
-<script src="js/account.js?v=43"></script>
-<script src="js/touch.js?v=43"></script>
-<script src="js/supers.js?v=43"></script>
-<script src="js/gadgets.js?v=43"></script>
-<script src="js/hazards.js?v=43"></script>
-<script src="js/pings.js?v=43"></script>
-<script src="js/replay.js?v=43"></script>
-<script src="js/gallery.js?v=43"></script>
-<script src="js/pics.js?v=43"></script>
-<script src="js/talk.js?v=43"></script>
-<script src="js/voice.js?v=43"></script>
-<script src="js/calls.js?v=43"></script>
-<script src="js/game.js?v=43"></script>
-<script src="js/desktop.js?v=43"></script>
+<script src="js/vendor/three.min.js?v=44"></script>
+<script src="js/economy.js?v=44"></script>
+<script src="js/parts.js?v=44"></script>
+<script src="js/loadout.js?v=44"></script>
+<script src="js/botmechs.js?v=44"></script>
+<script src="js/bugs.js?v=44"></script>
+<script src="js/i18n.js?v=44"></script>
+<script src="js/platform.js?v=44"></script>
+<script src="js/featured.js?v=44"></script>
+<script src="js/world.js?v=44"></script>
+<script src="js/entities.js?v=44"></script>
+<script src="js/meta.js?v=44"></script>
+<script src="js/extras.js?v=44"></script>
+<script src="js/modes.js?v=44"></script>
+<script src="js/tutorial.js?v=44"></script>
+<script src="js/clips.js?v=44"></script>
+<script src="js/gamepad.js?v=44"></script>
+<script src="js/workshop.js?v=44"></script>
+<script src="js/config.js?v=44"></script>
+<script src="js/net.js?v=44"></script>
+<script src="js/account.js?v=44"></script>
+<script src="js/touch.js?v=44"></script>
+<script src="js/supers.js?v=44"></script>
+<script src="js/gadgets.js?v=44"></script>
+<script src="js/hazards.js?v=44"></script>
+<script src="js/pings.js?v=44"></script>
+<script src="js/reveal.js?v=44"></script>
+<script src="js/replay.js?v=44"></script>
+<script src="js/gallery.js?v=44"></script>
+<script src="js/pics.js?v=44"></script>
+<script src="js/talk.js?v=44"></script>
+<script src="js/voice.js?v=44"></script>
+<script src="js/calls.js?v=44"></script>
+<script src="js/game.js?v=44"></script>
+<script src="js/desktop.js?v=44"></script>
 </body>
 </html>

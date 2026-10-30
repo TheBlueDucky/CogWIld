@@ -5,7 +5,7 @@ You build a mech from parts in the Workshop, then fight online (bots fill empty 
 It runs in the browser (three.js r128, no build step), as a Windows app (Electron) and an Android app (Capacitor),
 and on game portals (itch.io, CrazyGames, Poki). The online server is zero-dependency Node.js.
 
-**Live:** https://cogwild.duckdns.org (download page `/download`) · **Code:** https://github.com/TheBlueDucky/CogWIld (public; commits as theblueduckymc@gmail.com) · **Current version:** v1.10.0 · **Online protocol:** `cogwild-net-11`
+**Live:** https://cogwild.duckdns.org (download page `/download`) · **Code:** https://github.com/TheBlueDucky/CogWIld (public; commits as theblueduckymc@gmail.com) · **Current version:** v1.10.1 · **Online protocol:** `cogwild-net-11`
 The user is not a programmer: explain things in plain words, test everything yourself, and show screenshots as proof.
 
 ## How the user wants things done
@@ -166,6 +166,32 @@ The user is not a programmer: explain things in plain words, test everything you
 - **Modes/content:** 8 modes (Rush Build, Workshop Clash, KOTH, Gold Rush, Bounty Hunt, Combat Race, Survival, Boss),
   8 arenas, supers, gadgets, daily featured event, weekly events with modifiers, Ranked (100+ best trophies),
   Cog Pass (30 tiers per 4-week season), Trophy Road, 6 daily challenges, achievements.
+
+## v1.10.1 (30 Oct 2026, same NET_VERSION)
+- **Arenas**: no picking any more (PLAY panel, arena card): `CW.FEATURED.arenasFor(mode, have)` / `MODE_ARENAS` (featured.js, shared) =
+  the arenas a mode fits; offline `beginMatchState` and online `net.resolveSettings` pick one at random; the server's `quick` always
+  uses 'random' (one queue per mode). Featured today = a mode. `game.arenaRoll()` = the roulette overlay (#arenaRoll) before the
+  countdown (countdown = 3.5 + its length; the number shows only under 3.6). `CW.ARENA_COLORS` for its cards.
+- **Mech Ball Stadium** (`stadium`, world.js `CW.STADIUM` {L 104, W 66, goalW 13, goalD 12, y 4}): flat pitch, walls, goal pockets,
+  floodlights; only for ball (and derby). MechBall (modes.js): real goals (posts/crossbar/net), sub-stepped ball physics with wall
+  bounces off the terrain's slope, mech hits by relative speed (`touch`), shots push it (`ballHit`), clients run the same physics and
+  follow the host (`target`, `netRate` 0.1 → net objT), teams line up in their halves (`spawn`). No chests or pads in ball.
+- **Mouse steering** (`settings.mouseSteer`, default on, not on touch): the mech turns to `cam.yaw`; the view is clamped to 0.9 rad of
+  the mech's nose (updatePlayer).
+- **Bots**: `js/botmechs.js` `CW.botMech(budget, domains, { noBoats, kind })` builds car/truck/rammer/walker/heli/plane/boat mechs
+  (validated, must move); 75% of bots use one. Dodging: `updateBot` judges each incoming shot once (`p.seen`), dodges with chance
+  0.15 + 0.45 × smarts (`ai.dodgeT`). Supers/gadgets: fallbacks after waiting (`superWait`, `gadWait`).
+- **Collisions**: `game.collide` shares overlap and a bounce impulse by mass.
+- **Economy**: loadout prices ×~3, cosmetics ×1.5, match coins = xp/5 + bonus/2, `EARN.match` 400, server cap 25 + gap × 2.5,
+  `EARN_PER_DAY` 4000, smaller in-match bonuses and chest coin piles.
+- **Power Cell** (`js/reveal.js`, server `cellOpen`, economy `cellLevel/cellReward`): the results screen's reward (uses the old
+  results crate's once-per-match flag). Levels 1-5 (20% … OVERLOAD), chances `CELL_UP`; rewards coins / XP / pass points / an unowned
+  paint, trail/finish/wreck, or super/gadget/perk. `grant` handles supers/gadgets/perks keys.
+- **Reveal** (`game.reveal.show(title, items, sub)`, `items(reward)`): daily gift, challenges, Trophy Road, Cog Pass (Claim all = one),
+  event track, Weekend Cup, Shop purchases. Tap/Space/Enter = next, Esc = close.
+- Fixes: `account.applyWallet` keeps owned supers/gadgets/perks; the guest card is removed when a match starts; stadium keeps event
+  decor off the pitch.
+- Test: `tests/v1101-test.js`, shots `tests/v1101-shots.js`.
 
 ## v1.10 gameplay update (30 Oct 2026, NET_VERSION cogwild-net-11)
 - **Loadout** (`js/loadout.js`): `SHOP.supers / gadgets / perks` in economy.js (price 0 = free; `need`: part list or 'land'/'water'/'air',

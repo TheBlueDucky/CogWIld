@@ -284,6 +284,31 @@
     return out.copy(C(0xc9c9cf)).lerp(C(0x77777f), mare * 0.7 + ss(12, 4, h) * 0.3);
   }
 
+  // ---------- Arena 12: Mech Ball Stadium (v1.10.1: a flat pitch, walls, a goal pocket at each end, stands) ----------
+  // The pitch is x -104..104, z -66..66 at height 4. The goals are pockets 26 m wide and 12 m deep behind each end line.
+  const ST = CW.STADIUM = { L: 104, W: 66, goalW: 13, goalD: 12, y: 4 };
+  function stadiumHeight(x, z) {
+    const ax = Math.abs(x), az = Math.abs(z);
+    if (ax <= ST.L + ST.goalD && az <= ST.goalW) return ST.y; // the goal pockets
+    const out = Math.max(ax - ST.L, az - ST.W);
+    if (out <= 0) return ST.y;
+    // a wall (steeper than any mech can climb), then the stands going up
+    return ST.y + Math.min(1, out / 1.2) * 10 + Math.max(0, out - 1.2) * 1.1 + edgeRise(x, z) * 0.3;
+  }
+  function stadiumColor(h, slope, n, out, x, z) {
+    if (x === undefined) return out.setHex(0x3f9e44);
+    const ax = Math.abs(x), az = Math.abs(z);
+    if (h > ST.y + 0.5) {
+      if (slope > 1.2 && h < ST.y + 11) return out.setHex(0x2b2d42); // the wall
+      return out.setHex(Math.floor(h * 1.2) % 2 ? 0x3a86ff : 0x8d99ae); // seats
+    }
+    if (ax > ST.L) return out.copy(C(0x2f6b35)).lerp(C(0x245a2b), n); // inside the goals
+    const line = (d) => Math.abs(d) < 0.55;
+    const r = Math.hypot(x, z);
+    if (line(ax - ST.L + 0.6) || line(az - ST.W + 0.6) || line(x) || line(r - 18) || (line(ax - (ST.L - 22)) && az < 30) || (line(az - 30) && ax > ST.L - 22)) return out.setHex(0xf1faee);
+    return out.copy(C(Math.floor((x + 200) / 13) % 2 ? 0x4caf50 : 0x3d9a42)).lerp(C(0x358f3a), n * 0.3); // mowed stripes
+  }
+
   CW.ARENAS = {
     canyon: {
       id: 'canyon', name: 'Canyon Lake', icon: '🏞', desc: 'Meadows, a lake, a canyon river and a mountain.',
@@ -358,6 +383,12 @@
       crystalColors: [[0x5cf2ff, 0x177f8a], [0xffd23f, 0xa06000]],
       trees: { shape: 'palm', leaf: 0x2f9e44, leaf2: 0x8b5a2b, trunk: 0x9c6b3c, rock: 0x8d8273, density: 0.4, count: 220 },
     },
+    stadium: {
+      id: 'stadium', noBoats: true, name: 'Mech Ball Stadium', icon: '🏟', desc: 'A flat pitch with a goal at each end, walls all round and full stands.',
+      height: stadiumHeight, color: stadiumColor, bridges: [], stadium: true,
+      waterCenter: { x: 0, z: 0 }, crystals: { x: 0, z: 150 }, grass: false,
+      trees: { shape: 'pine', leaf: 0x2d9c55, leaf2: 0x3fbf6a, trunk: 0x8b5a2b, rock: 0x6c757d, count: 0 },
+    },
     moon: {
       id: 'moon', noBoats: true, name: 'Moon Base', icon: '🌙', desc: 'Craters and low gravity: jump higher and fly further. The Earth hangs in a black sky.',
       height: moonHeight, color: moonColor, bridges: [],
@@ -366,6 +397,9 @@
       trees: { shape: 'pine', leaf: 0x888888, leaf2: 0x999999, trunk: 0x777777, rock: 0x9a9aa2, count: 0 },
     },
   };
+  // each arena's color on the arena roulette (js/game.js arenaRoll)
+  CW.ARENA_COLORS = { canyon: '#3fae5f', isles: '#7fc8ff', volcano: '#ff6a3a', desert: '#e9b45a', swamp: '#8ccf3a', city: '#c06cff', jungle: '#2f9e44',
+    scrap: '#b08968', speedway: '#e63946', bay: '#00b4d8', moon: '#8d99ae', stadium: '#3a86ff' };
   // harmful liquids: damage per second to mech parts touching them and to pilots in them
   CW.LIQUID_HARM = {
     lava: { mech: 6, pilot: 30, msg: '🔥 LAVA!', fx: 'fire' },
@@ -991,7 +1025,7 @@
         this.rocks.push({ x, y, z, r: sc * 1.3, mat: m.clone(), im: rockIms[k], idx: rockN[k], hidden: false });
         rockN[k]++;
       };
-      for (let tries = 0; tries < 2000 && this.rocks.length < 150; tries++) {
+      for (let tries = 0; tries < (this.arena.stadium ? 0 : 2000) && this.rocks.length < 150; tries++) {
         const x = (rnd() - 0.5) * 340, z = (rnd() - 0.5) * 340;
         const h = CW.terrainHeight(x, z);
         if (h < -6 || h > 40) continue;
@@ -1020,7 +1054,8 @@
       if (this.arena.speedway) this.buildSpeedway(rnd);
       if (this.arena.shipwreck) this.buildShipwreck(rnd);
       if (this.arena.moonbase) this.buildMoonBase(rnd);
-      for (let i = 0; i < (this.arena.neon ? 0 : 26); i++) {
+      if (this.arena.stadium) this.buildStadium();
+      for (let i = 0; i < (this.arena.neon || this.arena.stadium ? 0 : 26); i++) {
         const a = rnd() * Math.PI * 2, d = 10 + rnd() * 40;
         const x = this.arena.crystals.x + Math.cos(a) * d, z = this.arena.crystals.z + Math.sin(a) * d;
         const h = CW.terrainHeight(x, z);
@@ -1059,6 +1094,7 @@
         for (let t = 0; t < 60; t++) {
           const x = (rnd() - 0.5) * 320, z = (rnd() - 0.5) * 320, h = CW.terrainHeight(x, z);
           if (h < lo || h > hi || this.onBridge(x, z, 4)) continue;
+          if (this.arena.stadium && Math.abs(x) < CW.STADIUM.L + 16 && Math.abs(z) < CW.STADIUM.W + 4) continue; // keep the pitch clear
           const slope = Math.abs(CW.terrainHeight(x + 1.5, z) - CW.terrainHeight(x - 1.5, z)) + Math.abs(CW.terrainHeight(x, z + 1.5) - CW.terrainHeight(x, z - 1.5));
           if (slope < 1.2) return { x, z, h };
         }
@@ -1545,6 +1581,25 @@
 
     // A spot is safe to spawn on when it's dry, fairly flat, not on a bridge, away from the walls,
     // and there is no liquid (water / lava / toxic) anywhere close by.
+    // the stadium's floodlight towers in the corners
+    buildStadium() {
+      const ST = CW.STADIUM;
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+        const x = sx * (ST.L + 14), z = sz * (ST.W + 14), y = CW.terrainHeight(x, z);
+        const g = new THREE.Group();
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 1, 34, 8), CW.mat(0x8d99ae, { metalness: 0.7 }));
+        pole.position.y = 17;
+        const head = new THREE.Mesh(new THREE.BoxGeometry(8, 3, 1.2), CW.mat(0x2b2d42, { metalness: 0.5 }));
+        head.position.y = 35;
+        const lamps = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 2.2), new THREE.MeshBasicMaterial({ color: 0xfffbe0 }));
+        lamps.position.set(0, 35, 0.62);
+        g.add(pole, head, lamps);
+        g.position.set(x, y, z);
+        g.lookAt(0, y, 0);
+        this.scene.add(g);
+      }
+    }
+
     isSafeSpot(x, z) {
       if (Math.max(Math.abs(x), Math.abs(z)) > CW.ARENA_HALF - 18) return false;
       const h = CW.terrainHeight(x, z);

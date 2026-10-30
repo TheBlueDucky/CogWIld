@@ -581,9 +581,34 @@
   class CoreHeist extends Objective {
     start() {
       this.score = {};
-      this.bases = baseSpots(this.game);
+      this.bases = this.game.net.client ? baseSpots(this.game) : this.farBases();
       this.cores = [0, 1].map((t) => this.makeCore(t));
       this.synced = false;
+    }
+    // v1.10.1: the two bases about 190 m apart on every arena (they used to be 75-250 m apart, so some matches were over in
+    // seconds), chosen from the arena's safe spots
+    farBases() {
+      const g = this.game, sp = g.world.landSpawns;
+      const pairs = [];
+      for (let i = 0; i < sp.length; i++) for (let j = i + 1; j < sp.length; j++) pairs.push([sp[i], sp[j], Math.abs(sp[i].distanceTo(sp[j]) - 190)]);
+      if (!pairs.length) return baseSpots(g);
+      pairs.sort((a, b) => a[2] - b[2]);
+      const ok = pairs.filter((p) => p[2] <= pairs[0][2] + 15);
+      const [a, b] = ok[Math.floor(Math.random() * ok.length)];
+      return [a, b].map((p) => new V3(p.x, g.world.groundAt(p.x, p.z), p.z));
+    }
+    // each team starts at its own base
+    spawn() {
+      const g = this.game, used = [], n = {};
+      for (const c of g.combatants) {
+        if (!c.mech || !this.bases[c.team]) continue;
+        const k = (n[c.team] = (n[c.team] || 0) + 1) - 1;
+        const p = g.safeNear(this.bases[c.team], k + 1, used);
+        used.push(p);
+        const o = this.bases[1 - c.team];
+        c.mech.place(p, Math.atan2(p.x - o.x, p.z - o.z));
+        c.mech.protect = 3.5;
+      }
     }
     makeCore(t) {
       const col = CW.TEAMS[t].color;
@@ -656,7 +681,7 @@
           this.home(k);
           g.announce(`🔋 ${this.teamName(c.team).toUpperCase()} CAPTURES!`, `${c.isPlayer ? 'You' : c.name} brought the core home · ${this.teamScore(0)} - ${this.teamScore(1)}`);
           g.feed(`🔋 ${c.isPlayer ? 'You' : CW.esc(c.name)} captured the core!`, c.team === g.player.team ? 'good' : 'bad');
-          if (c.isPlayer) { g.bonusCoins += 40; if (!g.isPractice()) g.meta.track('heist'); }
+          if (c.isPlayer) { g.bonusCoins += 20; if (!g.isPractice()) g.meta.track('heist'); }
         }
       }
     }
@@ -723,15 +748,22 @@
   }
 
   // ======================= MECH BALL =======================
-  // A giant ball and a goal at each base: push it, ram it, dash into it or shoot it into the other team's goal.
-  // The host's game runs the ball; the others follow it. First to 5 goals.
+  // A giant ball on the Mech Ball Stadium's pitch (v1.10.1) and a real goal at each end (posts, crossbar, net).
+  // Push it, ram it, dash into it or shoot it into the other team's goal. The host's game runs the ball (the others
+  // run the same physics too, so it moves smoothly, and follow the host's ball). First to 5 goals.
   const BALL_R = 3.2;
   class MechBall extends Objective {
     start() {
-      const g = this.game;
+      const g = this.game, ST = CW.STADIUM;
       this.score = {};
-      this.goals = baseSpots(g);
-      this.center = this.midSpot();
+      this.stadium = !!g.world.arena.stadium;
+      if (this.stadium) {
+        this.goals = [new V3(-(ST.L + ST.goalD / 2), ST.y, 0), new V3(ST.L + ST.goalD / 2, ST.y, 0)];
+        this.center = new V3(0, ST.y, 0);
+      } else {
+        this.goals = baseSpots(g);
+        this.center = this.midSpot();
+      }
       const mat = CW.mat(0xf1f3f5, { metalness: 0.3, roughness: 0.35 }, 'panel');
       this.ball = new THREE.Mesh(new THREE.SphereGeometry(BALL_R, 24, 18), mat);
       this.ball.castShadow = true;
@@ -741,11 +773,13 @@
         this.ball.add(band);
       }
       this.add(this.ball);
-      this.pos = this.center.clone().setY(this.center.y + BALL_R + 6);
+      // a shadow-like ring on the ground under the ball, so you can see where it will land
+      this.mark = this.add(new THREE.Mesh(new THREE.RingGeometry(BALL_R * 0.7, BALL_R, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25, depthWrite: false })));
+      this.pos = this.center.clone().setY(this.center.y + BALL_R + 8);
       this.vel = new V3();
       this.freeze = 0;
       this.goalMeshes = [0, 1].map((t) => this.makeGoal(t));
-      this.synced = false;
+      this.netRate = 0.1; // the ball's position goes out 10 times a second
     }
     midSpot() {
       const g = this.game, w = g.world;
@@ -756,105 +790,175 @@
     makeGoal(t) {
       const col = CW.TEAMS[t].color;
       const grp = new THREE.Group();
+      const ST = CW.STADIUM;
+      if (this.stadium) {
+        const sx = t === 0 ? -1 : 1, H = 9;
+        const white = CW.mat(0xf1faee, { metalness: 0.3 });
+        for (const sz of [-1, 1]) { const post = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, H, 12), white); post.position.set(sx * ST.L, ST.y + H / 2, sz * ST.goalW); grp.add(post); }
+        const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, ST.goalW * 2, 12), white);
+        bar.rotation.x = Math.PI / 2; bar.position.set(sx * ST.L, ST.y + H, 0); grp.add(bar);
+        // the net: see-through panels in the team's color at the back, sides and top of the goal
+        const net = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false });
+        const back = new THREE.Mesh(new THREE.PlaneGeometry(ST.goalW * 2, H), net); back.rotation.y = Math.PI / 2; back.position.set(sx * (ST.L + ST.goalD), ST.y + H / 2, 0);
+        const top = new THREE.Mesh(new THREE.PlaneGeometry(ST.goalD, ST.goalW * 2), net); top.rotation.x = Math.PI / 2; top.position.set(sx * (ST.L + ST.goalD / 2), ST.y + H, 0);
+        grp.add(back, top);
+        for (const sz of [-1, 1]) { const side = new THREE.Mesh(new THREE.PlaneGeometry(ST.goalD, H), net); side.position.set(sx * (ST.L + ST.goalD / 2), ST.y + H / 2, sz * ST.goalW); grp.add(side); }
+        const fill = new THREE.Mesh(new THREE.PlaneGeometry(ST.goalD, ST.goalW * 2).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.2, depthWrite: false }));
+        fill.position.set(sx * (ST.L + ST.goalD / 2), ST.y + 0.08, 0);
+        grp.add(fill);
+        this.add(grp);
+        return { grp, fill };
+      }
       const ring = new THREE.Mesh(new THREE.RingGeometry(8, 9, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.85, side: THREE.DoubleSide }));
       ring.position.y = 0.25;
       const fill = new THREE.Mesh(new THREE.CircleGeometry(8, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.18, depthWrite: false }));
       fill.position.y = 0.2;
       grp.add(ring, fill);
-      // posts and a crossbar facing the middle of the field
-      const toMid = Math.atan2(this.center.x - this.goals[t].x, this.center.z - this.goals[t].z);
-      const frame = new THREE.Group();
-      for (const s of [-1, 1]) { const post = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 9, 10), CW.mat(0xf1f3f5, null, 'hazard')); post.position.set(s * 8, 4.5, 0); frame.add(post); }
-      const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 16, 10), CW.mat(col)); bar.rotation.z = Math.PI / 2; bar.position.y = 9; frame.add(bar);
-      frame.rotation.y = toMid;
-      grp.add(frame);
       grp.position.copy(this.goals[t]);
       this.add(grp);
       return { grp, fill };
     }
     teamScore(t) { return this.score[t] | 0; }
+    // the ball is in team t's goal
+    goalIn(t) {
+      const ST = CW.STADIUM, p = this.pos;
+      if (this.stadium) return (t === 0 ? p.x < -(ST.L + 1) : p.x > ST.L + 1) && Math.abs(p.z) < ST.goalW && p.y < ST.y + 9;
+      return flatDist(p, this.goals[t]) < 8 && p.y - this.goals[t].y < 12;
+    }
     // a shot that touches the ball pushes it (and stops there)
     ballHit(p) {
       if (!this.ball || p.kind === 'flame') return false;
       const a = p.prev, b = p.pos, ab = b.clone().sub(a), L2 = ab.lengthSq() || 1e-6;
       const t = Math.max(0, Math.min(1, this.pos.clone().sub(a).dot(ab) / L2));
       if (a.clone().addScaledVector(ab, t).distanceTo(this.pos) > BALL_R + 0.3) return false;
-      if (!this.game.net.client && this.freeze <= 0) this.vel.addScaledVector(p.vel.clone().normalize(), Math.max(3, Math.min(26, p.dmg * 0.7)));
+      if (this.freeze <= 0) {
+        this.vel.addScaledVector(p.vel.clone().normalize(), Math.max(2, Math.min(16, (p.dmg || 4) * 0.5)));
+        this.vel.y += 1.5;
+      }
       this.game.fx.burst(a.clone().addScaledVector(ab, t), { n: 5, color: 'spark', speed: 6, life: 0.25, size: 0.15 });
       return true;
     }
+    // bounce off something with this outward normal (n points away from it)
+    bounce(n, e) {
+      const vn = this.vel.dot(n);
+      if (vn < 0) this.vel.addScaledVector(n, -(1 + e) * vn);
+    }
     physics(dt) {
-      const g = this.game, w = g.world;
-      const grav = CW.GRAV * ((g.mods && g.mods.grav) || 1) * (CW.arena.grav || 1);
-      this.vel.y -= grav * dt;
-      this.pos.addScaledVector(this.vel, dt);
-      const gy = w.groundAt(this.pos.x, this.pos.z, this.pos.y);
-      if (this.pos.y - BALL_R < gy) {
-        this.pos.y = gy + BALL_R;
-        // bounce off the ground, and roll down slopes
-        const nx = w.groundAt(this.pos.x - 1, this.pos.z) - w.groundAt(this.pos.x + 1, this.pos.z), nz = w.groundAt(this.pos.x, this.pos.z - 1) - w.groundAt(this.pos.x, this.pos.z + 1);
-        this.vel.x += nx * 6 * dt; this.vel.z += nz * 6 * dt;
-        if (this.vel.y < 0) this.vel.y = -this.vel.y * (this.vel.y < -6 ? 0.45 : 0);
-        const f = Math.exp(-0.7 * dt);
-        this.vel.x *= f; this.vel.z *= f;
+      const g = this.game, w = g.world, ST = CW.STADIUM;
+      const grav = CW.GRAV * 0.8 * ((g.mods && g.mods.grav) || 1) * (CW.arena.grav || 1);
+      const hAt = (x, z, y) => w.groundAt(x, z, y);
+      const steps = Math.min(6, Math.max(1, Math.ceil((this.vel.length() * dt) / 0.8)));
+      const h = dt / steps;
+      for (let s = 0; s < steps; s++) {
+        this.vel.y -= grav * h;
+        const nx = this.pos.x + this.vel.x * h, nz = this.pos.z + this.vel.z * h;
+        const here = hAt(this.pos.x, this.pos.z, this.pos.y), there = hAt(nx, nz, this.pos.y);
+        if (there > here + 1.2 && there > this.pos.y - BALL_R * 0.5) {
+          // a wall: bounce back off it (its normal from the slope of the ground there)
+          const gx = hAt(nx - 1, nz, this.pos.y) - hAt(nx + 1, nz, this.pos.y), gz = hAt(nx, nz - 1, this.pos.y) - hAt(nx, nz + 1, this.pos.y);
+          const n = new V3(gx, 0, gz);
+          if (n.lengthSq() < 1e-6) n.set(-this.vel.x, 0, -this.vel.z);
+          this.bounce(n.normalize(), 0.7);
+        } else { this.pos.x = nx; this.pos.z = nz; }
+        this.pos.y += this.vel.y * h;
+        const gy = hAt(this.pos.x, this.pos.z, this.pos.y);
+        if (this.pos.y - BALL_R < gy) {
+          this.pos.y = gy + BALL_R;
+          this.vel.y = this.vel.y < -3 ? -this.vel.y * 0.5 : Math.max(0, this.vel.y);
+          // rolling: a little friction, and it rolls down slopes
+          const f = Math.exp(-0.45 * h);
+          this.vel.x *= f; this.vel.z *= f;
+          this.vel.x += (hAt(this.pos.x - 1, this.pos.z) - hAt(this.pos.x + 1, this.pos.z)) * grav * 0.25 * h;
+          this.vel.z += (hAt(this.pos.x, this.pos.z - 1) - hAt(this.pos.x, this.pos.z + 1)) * grav * 0.25 * h;
+        }
+        // the goal frames: posts and crossbar
+        if (this.stadium) {
+          for (const sx of [-1, 1]) {
+            for (const sz of [-1, 1]) {
+              const d = new V3(this.pos.x - sx * ST.L, 0, this.pos.z - sz * ST.goalW), l = d.length();
+              if (l < BALL_R + 0.5 && this.pos.y < ST.y + 9.5 && l > 1e-3) { d.divideScalar(l); this.pos.addScaledVector(d, BALL_R + 0.5 - l); this.bounce(d, 0.6); }
+            }
+            const bar = new V3(this.pos.x - sx * ST.L, this.pos.y - (ST.y + 9), 0), bl = bar.length();
+            if (Math.abs(this.pos.z) < ST.goalW && bl < BALL_R + 0.5 && bl > 1e-3) { bar.divideScalar(bl); this.pos.addScaledVector(bar, BALL_R + 0.5 - bl); this.bounce(bar, 0.6); }
+          }
+        }
       }
       if (this.pos.y < CW.WATER_Y + BALL_R * 0.4) { this.vel.y += 40 * dt; this.vel.multiplyScalar(Math.exp(-1.5 * dt)); } // it floats
+      this.vel.multiplyScalar(Math.exp(-0.06 * dt)); // air
       const H = CW.ARENA_HALF - BALL_R;
       for (const ax of ['x', 'z']) if (Math.abs(this.pos[ax]) > H) { this.pos[ax] = Math.sign(this.pos[ax]) * H; this.vel[ax] *= -0.6; }
-      if (this.vel.length() > 70) this.vel.setLength(70);
+      if (this.vel.length() > 65) this.vel.setLength(65);
+    }
+    // mechs push it: a bounce off the mech (its speed counts), so a dash or a ram sends it flying
+    touch() {
+      const g = this.game;
+      for (const m of g.mechs) {
+        if (!m.alive) continue;
+        const r = m.radius * 0.72, d = this.pos.clone().sub(m.pos), dist = d.length();
+        if (dist > BALL_R + r || dist < 1e-3) continue;
+        const n = d.divideScalar(dist);
+        if (n.y < -0.2) n.y = -0.2; // under a mech: it squeezes out sideways, not into the ground
+        n.normalize();
+        this.pos.copy(m.pos).addScaledVector(n, BALL_R + r);
+        const vrel = this.vel.clone().sub(m.vel), vn = vrel.dot(n);
+        if (vn < 0) this.vel.addScaledVector(n, -1.55 * vn);
+        this.vel.addScaledVector(n, 2.5);
+        const sp = Math.hypot(m.vel.x, m.vel.z);
+        this.vel.y = Math.max(this.vel.y, Math.min(9, sp * 0.18));
+        if (g.net.owns(m.combatant)) m.vel.addScaledVector(n, Math.min(0, vn) * 0.06); // a hard hit slows the mech a little
+        this.lastTouch = m.combatant;
+      }
     }
     update(dt) {
       const g = this.game;
-      const client = g.net.client;
       if (this.freeze > 0) this.freeze -= dt;
-      if (!client) {
-        if (g.countdown <= 0 && !g.ended && this.freeze <= 0) {
-          this.physics(dt);
-          // mechs push it (a dash or a ram sends it flying)
-          for (const m of g.mechs) {
-            if (!m.alive) continue;
-            const d = this.pos.distanceTo(m.pos), min = BALL_R + m.radius * 0.7;
-            if (d > min || d < 0.01) continue;
-            const n = this.pos.clone().sub(m.pos).normalize();
-            this.pos.copy(m.pos).addScaledVector(n, min);
-            const push = Math.max(0, m.vel.dot(n)) * 1.35 + 4;
-            this.vel.addScaledVector(n, push);
-            this.vel.y = Math.max(this.vel.y, 3 + push * 0.15);
-            this.lastTouch = m.combatant;
-          }
-          // goal!
-          for (const t of [0, 1]) {
-            if (flatDist(this.pos, this.goals[t]) > 8 || this.pos.y - this.goals[t].y > 12) continue;
-            const by = 1 - t;
-            this.score[by] = this.teamScore(by) + 1;
-            this.goalFx(by, this.lastTouch);
-            this.freeze = 2.5;
-            this.pos.copy(this.center).setY(this.center.y + BALL_R + 10);
-            this.vel.set(0, 0, 0);
-          }
-        }
-      } else if (this.target) {
-        // follow the host's ball smoothly (and keep it moving between updates)
+      const live = g.countdown <= 0 && !g.ended && this.freeze <= 0;
+      if (live) { this.physics(dt); this.touch(); }
+      if (g.net.client && this.target) {
+        // follow the host's ball: it keeps moving between updates, and small differences fade out
         this.target.p.addScaledVector(this.target.v, dt);
-        this.pos.lerp(this.target.p, Math.min(1, dt * 10));
+        if (this.target.p.distanceTo(this.pos) > 12) this.pos.copy(this.target.p);
+        else this.pos.lerp(this.target.p, Math.min(1, dt * 5));
+        this.vel.lerp(this.target.v, Math.min(1, dt * 3));
+      }
+      if (!g.net.client && live) {
+        for (const t of [0, 1]) {
+          if (!this.goalIn(t)) continue;
+          const by = 1 - t;
+          this.score[by] = this.teamScore(by) + 1;
+          this.goalFx(by, this.lastTouch);
+          this.kickoff();
+          break;
+        }
       }
       this.ball.position.copy(this.pos);
       if (this.vel.lengthSq() > 0.1) { const ax = new V3(this.vel.z, 0, -this.vel.x).normalize(); this.ball.rotateOnWorldAxis(ax, (Math.hypot(this.vel.x, this.vel.z) / BALL_R) * dt); }
+      const gy = g.world.groundAt(this.pos.x, this.pos.z, this.pos.y);
+      this.mark.position.set(this.pos.x, gy + 0.12, this.pos.z);
+      this.mark.material.opacity = Math.max(0.05, 0.35 - (this.pos.y - gy - BALL_R) * 0.02);
       for (const [t, gm] of this.goalMeshes.entries()) gm.fill.material.opacity = 0.14 + Math.sin(g.time * 3 + t) * 0.06;
+    }
+    // after a goal the ball drops back in the middle
+    kickoff() {
+      this.freeze = 2.5;
+      this.pos.copy(this.center).setY(this.center.y + BALL_R + 10);
+      this.vel.set(0, 0, 0);
+      this.lastTouch = null;
     }
     goalFx(team, who) {
       const g = this.game;
       g.announce(`⚽ GOAL! ${this.teamName(team).toUpperCase()}`, `${who ? (who.isPlayer ? 'You' : who.name) + ' · ' : ''}${this.teamScore(0)} - ${this.teamScore(1)}`);
-      g.fx.burst(this.ball.position, { n: 50, color: g.fx.colorKey(CW.TEAMS[team].color), speed: 16, up: 8, life: 1.2, size: 0.4 });
-      g.confetti && team === g.player.team && g.confetti();
-      if (who && who.isPlayer && who.team === team) { g.bonusCoins += 30; if (!g.isPractice()) g.meta.track('goal'); }
+      g.fx.burst(this.ball.position, { n: 60, color: g.fx.colorKey(CW.TEAMS[team].color), speed: 18, up: 9, life: 1.3, size: 0.45 });
+      g.fx.shockwave(this.ball.position);
+      g.cam.shake = Math.min(1.5, g.cam.shake + 0.6);
+      if (who && who.isPlayer && who.team === team) { g.bonusCoins += 15; if (!g.isPractice()) g.meta.track('goal'); }
     }
     netState() {
       return { b: [r1(this.pos.x), r1(this.pos.y), r1(this.pos.z), r1(this.vel.x), r1(this.vel.y), r1(this.vel.z)], s: this.score, f: r1(this.freeze), g: this.goals.map((p) => [r1(p.x), r1(p.z)]), l: this.lastTouch ? this.lastTouch.netId : -1 };
     }
     netApply(s, first) {
       const g = this.game;
-      if (s.g && !this.synced) {
+      if (s.g && !this.stadium && !this.synced) {
         this.synced = true;
         s.g.forEach(([x, z], t) => { this.goals[t] = new V3(x, g.world.groundAt(x, z), z); this.goalMeshes[t].grp.position.copy(this.goals[t]); });
         this.center = this.midSpot();
@@ -863,28 +967,46 @@
       this.score = s.s || {};
       if (Array.isArray(s.b)) {
         const p = new V3(s.b[0], s.b[1], s.b[2]), v = new V3(s.b[3], s.b[4], s.b[5]);
-        if (first || !this.target || p.distanceTo(this.pos) > 25) this.pos.copy(p);
+        if (first || !this.target) { this.pos.copy(p); this.vel.copy(v); }
         this.target = { p, v };
-        this.vel.copy(v);
       }
       this.freeze = s.f || 0;
-      for (const t of [0, 1]) if (!first && this.teamScore(t) > before[t]) this.goalFx(t, g.net.byId.get(s.l));
+      for (const t of [0, 1]) if (!first && this.teamScore(t) > before[t]) { this.goalFx(t, g.net.byId.get(s.l)); this.pos.copy(this.target.p); }
     }
     hud() { return `<b>⚽ Mech Ball</b> · ${this.scoreBars((v) => v)} · first to ${this.mode.scoreToWin} · ${this.clock()}`; }
     urgent() { return true; }
+    // teams line up in their own half, facing the ball
+    spawn() {
+      const g = this.game, used = [];
+      const n = {};
+      for (const c of g.combatants) {
+        if (!c.mech) continue;
+        const k = (n[c.team] = (n[c.team] || 0) + 1) - 1;
+        const sx = this.goals[c.team].x < this.center.x ? -1 : 1;
+        const want = this.stadium ? new V3(sx * (35 + Math.floor(k / 3) * 14), 0, ((k % 3) - 1) * 18) : this.goals[c.team].clone().lerp(this.center, 0.35);
+        const p = this.stadium ? want.setY(CW.STADIUM.y) : g.safeNear(want, k, used);
+        used.push(p);
+        c.mech.place(p, Math.atan2(p.x - this.center.x, p.z - this.center.z));
+        c.mech.protect = 3;
+      }
+    }
     // bots: get behind the ball (seen from the goal they attack), then drive through it; one per team guards the goal
     botGoal(c) {
       const b = this.body(c);
       if (!b) return null;
       const their = this.goals[1 - c.team], mine = this.goals[c.team];
       const mates = this.game.combatants.filter((o) => o.team === c.team && o.alive && !o.human).sort((x, y) => x.netId - y.netId);
-      if (mates.length > 1 && mates[0] === c && flatDist(this.pos, mine) > 45) return mine.clone().lerp(this.pos, 0.25);
+      if (mates.length > 1 && mates[0] === c && flatDist(this.pos, mine) > 55) return mine.clone().lerp(this.pos, 0.3);
       const dir = this.pos.clone().sub(their).setY(0).normalize();
-      const behind = this.pos.clone().addScaledVector(dir, BALL_R + 5);
-      const lined = b.pos.clone().sub(this.pos).setY(0).normalize().dot(dir) > 0.6;
-      return lined || flatDist(b.pos, this.pos) < 7 ? this.pos : behind;
+      const behind = this.pos.clone().addScaledVector(dir, BALL_R + 7);
+      const lined = b.pos.clone().sub(this.pos).setY(0).normalize().dot(dir) > 0.55;
+      return lined || flatDist(b.pos, this.pos) < 8 ? this.pos.clone().addScaledVector(dir, -4) : behind;
     }
-    respawnSpot(c) { return this.game.safeNear(this.goals[c.team] || this.game.world.landSpawns[0], Math.floor(Math.random() * 5), []); }
+    respawnSpot(c) {
+      const sx = this.goals[c.team].x < this.center.x ? -1 : 1;
+      if (this.stadium) return new V3(sx * (CW.STADIUM.L - 22), CW.STADIUM.y, (Math.random() - 0.5) * 50);
+      return this.game.safeNear(this.goals[c.team] || this.game.world.landSpawns[0], Math.floor(Math.random() * 5), []);
+    }
     check() {
       for (const t of this.teams()) if (this.teamScore(t) >= this.mode.scoreToWin) return { winner: t };
       if (this.timeLeft() <= 0) return this.byScore();
@@ -894,7 +1016,7 @@
       for (const t of [0, 1]) {
         const [x, y] = toMap(this.goals[t].x, this.goals[t].z);
         ctx.strokeStyle = hex(CW.TEAMS[t].color); ctx.lineWidth = 3;
-        ctx.strokeRect(x - 6, y - 6, 12, 12);
+        ctx.strokeRect(x - 4, y - 7, 8, 14);
       }
       const [x, y] = toMap(this.pos.x, this.pos.z);
       ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;

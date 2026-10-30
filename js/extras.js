@@ -147,9 +147,9 @@
   // controller) for about a second; it bursts open and throws real loot around it: coin piles, power-up orbs,
   // super charge and gadget refills. Anyone can grab the loot, so be quick!
   CW.CHEST_TYPES = {
-    common: { name: 'Common Chest', color: 0x9c6b3c, band: 0x6c757d, beam: 0xffffff, xp: 5, loot: { coin: [3, 5], orb: 1 } },
-    rare: { name: 'Rare Chest', color: 0x3a86ff, band: 0xdee2e6, beam: 0x4cc9f0, xp: 15, loot: { coin: [4, 7], orb: 2, charge: 1 } },
-    epic: { name: 'EPIC CHEST', color: 0xffc43d, band: 0x7209b7, beam: 0xffd23f, xp: 35, loot: { coin: [6, 10], orb: 3, charge: 1, gadget: 1 } },
+    common: { name: 'Common Chest', color: 0x9c6b3c, band: 0x6c757d, beam: 0xffffff, xp: 5, loot: { coin: [3, 3], orb: 1 } },
+    rare: { name: 'Rare Chest', color: 0x3a86ff, band: 0xdee2e6, beam: 0x4cc9f0, xp: 15, loot: { coin: [4, 4], orb: 2, charge: 1 } },
+    epic: { name: 'EPIC CHEST', color: 0xffc43d, band: 0x7209b7, beam: 0xffd23f, xp: 35, loot: { coin: [6, 6], orb: 3, charge: 1, gadget: 1 } },
   };
   const r1 = (v) => Math.round(v * 10) / 10;
   CW.CHEST_HOLD = 1; // seconds of holding O (Treasure Hunter perk: a third of that)
@@ -288,7 +288,8 @@
       this.timer = 0;
       this.nextId = 1;
       this.dropTimer = 50 + Math.random() * 20;
-      if (!this.game.net.client) for (let i = 0; i < 6; i++) this.spawn(); // online: the host's chests arrive as messages
+      this.off = this.game.modeId === 'ball'; // the pitch stays clear in Mech Ball
+      if (!this.game.net.client && !this.off) for (let i = 0; i < 6; i++) this.spawn(); // online: the host's chests arrive as messages
     }
 
     roll() { const r = Math.random(); return r < 0.1 ? 'epic' : r < 0.4 ? 'rare' : 'common'; }
@@ -404,11 +405,11 @@
       this.timer += dt;
       const host = !game.net.client; // online, only the host's game stocks and opens chests
       // keep the map stocked
-      if (host && !game.isPractice() && this.timer > 40) {
+      if (host && !game.isPractice() && !this.off && this.timer > 40) {
         this.timer = 0;
         if (this.items.filter((c) => !c.opened).length < 6) this.spawn();
       }
-      if (host && !game.isPractice() && game.countdown <= 0) {
+      if (host && !game.isPractice() && !this.off && game.countdown <= 0) {
         this.dropTimer -= dt;
         if (this.dropTimer <= 0) { this.dropTimer = 60 + Math.random() * 25; this.airdrop(); }
       }

@@ -47,7 +47,8 @@ app.whenReady().then(async () => {
     for (const p of m.parts) p.cd = 0;
     m.fireWeapons(m.pos.clone().add(new THREE.Vector3(0, 0, -30)));
     const shots = g.fx.projectiles.length - before;
-    const foe = g.combatants.find((c) => c !== g.player && c.mech && c.mech.alive).mech;
+    const fc = g.combatants.find((c) => c !== g.player && c.mech && c.mech.alive), foe = fc.mech;
+    fc.superCharge = -99; foe.protect = 0; foe.shield = 0; foe.shieldMax = 0; foe.shieldDelay = 99; // (bots' own mechs may carry shields)
     const hp0 = foe.integrity();
     m.ramCd = 0; g.ram(m, foe, 25);
     return { shots, weapons: m.weapons.length, hurt: foe.integrity() < hp0 };
@@ -60,6 +61,7 @@ app.whenReady().then(async () => {
     p.owned.supers = ['orbital', 'gravity', 'overdrive']; p.owned.gadgets = ['grapple', 'sonar']; p.owned.perks = ['plating', 'overclock', 'belt'];
     g.settings.loSuper = 'orbital'; g.settings.gadget = 'grapple'; g.settings.loPerks = ['plating', 'belt'];
     g.playOffline('clash', 'canyon'); await new Promise((r) => setTimeout(r, 4500));
+    while (g.countdown > 0) await new Promise((r) => setTimeout(r, 200)); // (v1.10.1: the arena roulette comes first)
     const c = g.player, m = c.mech;
     const base = CW.PARTS.core.hp;
     const out = { lo: c.lo, hpK: m.mods.hpK, coreHp: m.core.maxHp, base, sup: g.supers.type(c), gad: g.gadgets.type(c), uses: g.gadgets.left(c) };
@@ -125,7 +127,7 @@ app.whenReady().then(async () => {
     const fm = foe.mech;
     fm.place(me.mech.pos.clone().add(new THREE.Vector3(0, 0, -18)), 0);
     fm.protect = 0; fm.vel.set(0, 0, 0);
-    foe.ai.style = 'dummy'; Object.assign(fm.input, { throttle: 0, turn: 0, fire: false, up: false, down: false }); // a dummy keeps its last input otherwise
+    foe.ai.style = 'dummy'; fm.mods.regen = false; fm.stats.heal = 0; foe.gadgetN = 0; foe.superCharge = -99; // no Shield Dome / Repair Kit of its own mid-test Object.assign(fm.input, { throttle: 0, turn: 0, fire: false, up: false, down: false }); // a dummy keeps its last input otherwise
     for (const o of g.combatants) if (o !== me && o !== foe && o.mech && o.mech.alive) { o.mech.place(me.mech.pos.clone().add(new THREE.Vector3(90, 0, 60)), 0); o.ai.style = 'dummy'; } // nobody else in the way
     const out = {};
     for (const t of ['mortar', 'tesla', 'magnet', 'harpoon']) {

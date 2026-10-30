@@ -452,7 +452,7 @@ function handle(c, data) {
       // kind 'weekly': this week's event (its mode, any arena, with its twist); kind 'ranked': 3v3 on ranked points
       const kind = m.kind === 'weekly' || m.kind === 'ranked' || m.kind === 'cup' ? m.kind : null;
       let mode = MM_FORMAT[m.mode] ? m.mode : 'clash';
-      let arena = /^[a-z]{1,16}$/.test(m.arena) ? m.arena : 'random';
+      let arena = 'random'; // v1.10.1: every match is on a random arena that fits its mode (the host's game picks it)
       let event = null;
       if (kind === 'weekly') { const w = E.week(); mode = w.mode; arena = 'random'; event = w.id; }
       let cupId = null;

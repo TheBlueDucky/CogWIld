@@ -37,7 +37,7 @@ app.whenReady().then(async () => {
   check(/rgba\(.*0\.5\)/.test(card.bg), `and see-through (${card.bg})`);
   await shot(PC, 'tut-pc-1-look');
   // looking around finishes step 1
-  await js(PC, `${G}.cam.yaw += 1.5; true`);
+  await js(PC, `${G}.cam.yaw += 0.85; ${G}.cam.pitch -= 0.45; true`); // (v1.10.1: mouse steering keeps the view within ~50° of the mech)
   await wait(500);
   check(await js(PC, `${G}.tutorial.i === 1 && /W/.test(document.getElementById('tutKeys').textContent)`), 'looking around moves on to "Drive", which shows the W key');
   PC.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'W' });

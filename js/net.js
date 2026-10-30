@@ -483,13 +483,13 @@
     }
     resolveSettings() {
       const s = this.room.settings;
-      // only arenas every player's game has (older apps lack the new ones); "any arena" = the current rotation
+      // only arenas every player's game has (older apps lack the new ones), and only those that fit the mode
       const ids = (this.room.arenas || Object.keys(CW.ARENAS)).filter((a) => CW.ARENAS[a]);
       if (!ids.length) ids.push('canyon');
-      const rot = CW.FEATURED.rotation().arenas.filter((a) => ids.includes(a));
-      const pool = rot.length ? rot : ids;
+      // v1.10.1: a random arena that fits the mode (a private room's pick only when it fits)
+      const pool = CW.FEATURED.arenasFor(s.mode, ids);
       return {
-        arena: ids.includes(s.arena) ? s.arena : pool[Math.floor(Math.random() * pool.length)],
+        arena: pool.includes(s.arena) ? s.arena : pool[Math.floor(Math.random() * pool.length)],
         tod: s.tod === 'random' || !s.tod ? ['day', 'day', 'sunset', 'night'][Math.floor(Math.random() * 4)] : s.tod,
         difficulty: s.difficulty || 'normal',
         teams: s.teams || 'split',
@@ -576,7 +576,7 @@
       g.netOpts = { arena: p.arena, tod: p.tod, seed: p.seed };
       g.setEvent(p.event);
       g.beginMatchState();
-      g.countdown = 3.5;
+      g.countdown = 3.5 + g.arenaRoll(); // the arena roulette, then the countdown
       g.teamMode = p.teamMode;
       g.teamCount = p.teamCount;
       for (const e of p.roster) this.addFromRoster(e);
@@ -665,7 +665,7 @@
       for (const c of g.combatants) if (c.owner === this.id && c.alive) s.push(this.snap(c));
       if (this.isHost && g.obj && g.obj.netState) {
         this.objT -= 1 / SEND_HZ;
-        if (this.objT <= 0) { this.objT = 0.2; this.events.push({ k: 'obj', s: g.obj.netState() }); }
+        if (this.objT <= 0) { this.objT = g.obj.netRate || 0.2; this.events.push({ k: 'obj', s: g.obj.netState() }); }
       }
       for (const h of this.hits.values()) { h.d = Math.round(h.d * 100) / 100; this.events.push(h); }
       this.hits.clear();

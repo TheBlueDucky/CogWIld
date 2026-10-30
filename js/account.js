@@ -614,7 +614,8 @@
       this.wallet = w;
       if (w.avBack) this.note(`🪙 Avatars are now simple profile pictures. The avatars you had became <b>${w.avBack | 0} coins</b>.`, [{ label: 'OK' }], 20000);
       p.coins = w.coins;
-      p.owned = { paints: w.owned.paints.slice(), trails: w.owned.trails.slice(), avatars: w.owned.avatars.slice(), finishes: (w.owned.finishes || []).slice(), wrecks: (w.owned.wrecks || []).slice() };
+      p.owned = { paints: w.owned.paints.slice(), trails: w.owned.trails.slice(), avatars: w.owned.avatars.slice(), finishes: (w.owned.finishes || []).slice(), wrecks: (w.owned.wrecks || []).slice(),
+        supers: (w.owned.supers || []).slice(), gadgets: (w.owned.gadgets || []).slice(), perks: (w.owned.perks || []).slice() }; // (v1.10.1: the loadout kinds were missing)
       if (!p.owned.trails.includes(p.trail)) p.trail = 'spark';
       if (p.finish && !p.owned.finishes.includes(p.finish)) p.finish = '';
       if (p.wreckFx && !p.owned.wrecks.includes(p.wreckFx)) p.wreckFx = '';
@@ -649,24 +650,24 @@
       // "Claim all" on the Cog Pass: one fanfare and one message for the whole batch
       if (m.pass && this.passBatch && this.passBatch.left > 1) this.passBatch.left--;
       else if (m.road || m.pass) {
-        const what = this.rewardText(Object.assign({ coins: m.reward.coins }, ...m.reward.got.map((x) => ({ [x.kind]: x.id }))));
         const batch = m.pass && this.passBatch && this.passBatch.n > 1 ? this.passBatch.n : 0;
+        const all = batch ? (this.passBatch.rewards || []).concat(m.reward) : [m.reward];
         this.passBatch = null;
-        g.audio.fanfare();
-        g.toast(batch ? `🎁 Cog Pass: ${batch} rewards claimed!` : `🎁 ${m.road ? 'Trophy Road' : 'Cog Pass'}: ${what || 'claimed'}!`);
+        // v1.10.1: a big reveal (a batch from "Claim all" shows everything together)
+        const sum = { coins: all.reduce((a, r) => a + (r.coins | 0), 0), got: [].concat(...all.map((r) => r.got || [])) };
+        g.reveal.show(m.road ? '🛤 Trophy Road' : batch ? `🎟 Cog Pass · ${batch} rewards` : '🎟 Cog Pass', g.reveal.items(sum));
         g.workshop.buildPaint();
       }
+      if (m.pass && this.passBatch && m.reward) (this.passBatch.rewards = this.passBatch.rewards || []).push(m.reward);
+      if (m.cell !== undefined) g.reveal.powerCell(m.cell, () => this.renderChips()); // v1.10.1 the Power Cell
       if (m.src === 'match' && m.pts && g.state === 'results') $('resPass').textContent = `🎟 +${m.pts} Cog Pass points` + (m.evPts ? ` · ${(CW.ECON.event() || {}).icon || '⭐'} +${m.evPts} event points` : '');
       if (m.cupClaim) {
-        g.audio.fanfare();
-        g.toast(`🏆 Weekend Cup reward (#${m.rank}): ${this.rewardText(Object.assign({ coins: m.reward.coins }, ...m.reward.got.map((x) => ({ [x.kind]: x.id }))))}!`);
+        g.reveal.show(`🏆 Weekend Cup · #${m.rank}`, g.reveal.items(m.reward));
         g.workshop.buildPaint();
       }
       if (m.evStep) {
         const ev = CW.ECON.event();
-        const what = this.rewardText(Object.assign({ coins: m.reward.coins }, ...m.reward.got.map((x) => ({ [x.kind]: x.id }))));
-        g.audio.fanfare();
-        g.toast(`${ev ? ev.icon + ' ' + ev.name : '🎁 Event'}: ${what || 'claimed'}!`);
+        g.reveal.show(ev ? `${ev.icon} ${ev.name}` : '🎁 Event', g.reveal.items(m.reward));
         g.workshop.buildPaint();
       }
       this.renderChips();
@@ -873,6 +874,10 @@
       if (avatar) parts.push(`${CW.avatar(avatar.idx)} ${avatar.name} avatar`);
       const wreck = (r.wreck || r.wrecks) && CW.SHOP.wrecks.find((x) => x.id === (r.wreck || r.wrecks));
       if (wreck) parts.push(`${wreck.icon} ${wreck.name} wreck effect`);
+      for (const [one, kind, word] of [['finish', 'finishes', 'finish'], ['super', 'supers', 'super'], ['gadget', 'gadgets', 'gadget'], ['perk', 'perks', 'perk']]) {
+        const it = (r[one] || r[kind]) && CW.SHOP[kind].find((x) => x.id === (r[one] || r[kind]));
+        if (it) parts.push(`${it.icon} ${it.name} ${word}`);
+      }
       if (r.coins) parts.push(`🪙 ${r.coins}`);
       return parts.join(' + ');
     }
