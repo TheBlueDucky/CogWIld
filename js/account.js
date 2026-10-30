@@ -504,7 +504,8 @@
       for (const id of ['badgeRoad', 'badgeRoad2']) { $(id).textContent = road; $(id).classList.toggle('hidden', !road); }
       if (g.state === 'menu') g.meta.renderMenu();
     }
-    renderParty() {
+    renderParty() { CW.keepTyping($('partyBar'), () => this.drawParty()); }
+    drawParty() {
       const bar = $('partyBar');
       const p = this.party;
       bar.classList.toggle('hidden', !p);

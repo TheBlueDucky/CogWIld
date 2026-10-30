@@ -5,7 +5,7 @@ You build a mech from parts in the Workshop, then fight online (bots fill empty 
 It runs in the browser (three.js r128, no build step), as a Windows app (Electron) and an Android app (Capacitor),
 and on game portals (itch.io, CrazyGames, Poki). The online server is zero-dependency Node.js.
 
-**Live:** https://cogwild.duckdns.org (download page `/download`) · **Code:** https://github.com/TheBlueDucky/CogWIld (public; commits as theblueduckymc@gmail.com) · **Current version:** v1.10.1 · **Online protocol:** `cogwild-net-11`
+**Live:** https://cogwild.duckdns.org (download page `/download`) · **Code:** https://github.com/TheBlueDucky/CogWIld (public; commits as theblueduckymc@gmail.com) · **Current version:** v1.10.2 · **Online protocol:** `cogwild-net-11`
 The user is not a programmer: explain things in plain words, test everything yourself, and show screenshots as proof.
 
 ## How the user wants things done
@@ -166,6 +166,26 @@ The user is not a programmer: explain things in plain words, test everything you
 - **Modes/content:** 8 modes (Rush Build, Workshop Clash, KOTH, Gold Rush, Bounty Hunt, Combat Race, Survival, Boss),
   8 arenas, supers, gadgets, daily featured event, weekly events with modifiers, Ranked (100+ best trophies),
   Cog Pass (30 tiers per 4-week season), Trophy Road, 6 daily challenges, achievements.
+
+## v1.10.2 (30 Oct 2026, same NET_VERSION) — physics; the user asked to be asked before each change
+- **Walls/slopes** (entities.js physics): too steep for the mech (but < CLIFF) = climb on momentum, then `pull` downhill; a wall
+  face = `slideOff` (keep the speed along it, never a dead stop); standing on too-steep ground slides you down. `halfLen/halfWid`
+  (recompute) = the footprint: the body's outline (8 points) is pushed out of ground steeper than ~63° (`allow = r*2 + 0.8`), so
+  mechs don't go into walls. Body tilt samples the whole length/width (clamp ±1 rad).
+- **Stadium glass** (`CW.glassClamp`, world.js; panes in buildStadium, 40 m tall): mechs (any height), pilots and the ball stay on
+  the pitch / in the goal pockets. `CW.STADIUM.goalW` 16, `goalH` 11.
+- **Hitboxes** (game.js `partContact`): mechs collide part sphere vs part sphere (radius = part radius or 0.5); pilots vs parts too;
+  the ball vs the nearest part (MechBall.touch).
+- **Tumbling**: `airP/airR` + `spinP/spinR` in the air (cars/walkers: `tumbler`), small tilts right themselves (land on wheels),
+  landing over > 1.9/1.5 rad = `overT` 2 s then a hop (`rightT`), no drive/turn meanwhile. `knock(amount)` from big splash and rams.
+  Remote mechs lerp pitch/roll the short way (`wrapA`).
+- **Jump/flip**: wheels jump on Space (`upPressed`, no rotors/plane); Space again in the air = `flip(inp)` (Mech Ball any time,
+  elsewhere > 3 m up), `flipping` 0.55 s, ends upright. Air nudge 7 m/s² with throttle; air turn rate 1.3.
+- **Driving**: wheels ×1.2 acceleration, a little more drift, less turn loss at high speed. Mech Ball: dash cooldown ×0.6, ball R 4.2,
+  gravity ×0.55, bounce 0.62, flip hits ×1.7; bots jump/flip at the ball (`botJump`) and pass (`aimFor`) when blocked.
+- **Chat**: all chat boxes follow --bgLo/--bgHi (normal) or --gK/--gK2 (glass), CSS block "v1.10.2"; `CW.keepTyping(root, draw)`
+  keeps typed text / cursor / focus when `meta.renderPanel` and `account.renderParty` redraw.
+- Test: `tests/v1102-test.js`.
 
 ## v1.10.1 (30 Oct 2026, same NET_VERSION)
 - **Arenas**: no picking any more (PLAY panel, arena card): `CW.FEATURED.arenasFor(mode, have)` / `MODE_ARENAS` (featured.js, shared) =

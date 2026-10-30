@@ -120,7 +120,8 @@ app.whenReady().then(async () => {
   // wrecking an enemy: parts fly off first, then the big explosion
   await js(`(() => { const g = ${G}; const m = g.player.mech; const e = g.mechs.find((x) => x !== m && x.alive); const f = { x: -Math.sin(g.cam.yaw), z: -Math.cos(g.cam.yaw) }; e.place({ x: m.pos.x + f.x * 16, z: m.pos.z + f.z * 16 }, g.cam.yaw); e.vel.set(0, 0, 0); window.__wreck = e; g.cam.pitch = -0.15; return true; })()`);
   await ticks(10);
-  await js(`(() => { const g = ${G}; window.__wreck.destroy(g.player); return true; })()`);
+  // (bots carry Tesla Coils and Harpoons since v1.10.1: their bolts and chains are short timers too, so they hold fire here)
+  await js(`(() => { const g = ${G}; for (const c of g.combatants) if (!c.isPlayer) { c.ai.style = 'dummy'; if (c.mech) c.mech.input.fire = false; } g.fx.timers = []; g.fx.chainT = null; g.fx.projectiles.forEach((p) => g.scene.remove(p.mesh)); g.fx.projectiles = []; window.__wreck.destroy(g.player); return true; })()`);
   await ticks(6);
   const early = await js(`({ debris: ${G}.fx.debrisList.length, timers: (${G}.fx.timers || []).length })`);
   check(early.debris >= 10 && early.timers === 1, `a wrecked mech falls apart first (${early.debris} pieces flying, big explosion still to come)`);

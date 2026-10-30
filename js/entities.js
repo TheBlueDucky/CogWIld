@@ -96,6 +96,11 @@
       let r = 0;
       for (const p of alive) r = Math.max(r, Math.hypot(p.x, p.y, p.z));
       this.radius = r + 0.8;
+      // v1.10.2 the footprint (how far the body reaches forward/back and to the sides), so walls stop the body, not
+      // just its middle
+      let hx = 0, hz = 0;
+      for (const p of alive) { const pr0 = (CW.PARTS[p.t].radius || 0.5); hx = Math.max(hx, Math.abs(p.x) + pr0); hz = Math.max(hz, Math.abs(p.z) + pr0); }
+      this.halfWid = hx || 0.6; this.halfLen = hz || 0.6;
       this.shield = Math.min(this.shield || 0, this.shieldMax);
       this.shieldMesh.scale.setScalar(this.radius + 0.2);
       this.weapons = alive.filter((p) => CW.PARTS[p.t].weapon);
@@ -143,9 +148,16 @@
       // v1.10: combos/perks, Nitro (ground), Afterburner (air) and Scrap Wars upgrades
       const mm = this.mods;
       F *= mm.speedK * (inWater ? mm.waterK : !grounded ? mm.airK : 1) * (this.nitroT > 0 && grounded ? 1.9 : 1) * (this.burnerT > 0 && !grounded ? 1.8 : 1) * (1 + 0.04 * ((this.combatant && this.combatant.scrapLv) || 0)) * (this.combatant && this.combatant.carrying ? 0.8 : 1);
-      const acc = (F * inp.throttle) / this.stats.moveMass; // heavy mechs don't crawl (CW.moveMass)
+      if (this.overT > 0 || this.rightT > 0) F = 0; // on its back / getting up: the wheels spin in the air
+      const snap = grounded && !inWater && this.wheels > 0 ? 1.2 : 1; // v1.10.2: snappier driving
+      const acc = (F * inp.throttle * snap) / this.stats.moveMass; // heavy mechs don't crawl (CW.moveMass)
       this.vel.x += fx * acc * dt;
       this.vel.z += fz * acc * dt;
+      // v1.10.2 a little control in the air (cars and walkers): nudge the way you steer
+      if (!grounded && !inWater && this.rotors === 0 && !this.isPlane && (this.wheels + this.legs) > 0) {
+        this.vel.x += fx * inp.throttle * 7 * dt;
+        this.vel.z += fz * inp.throttle * 7 * dt;
+      }
 
       let fwd = this.vel.x * fx + this.vel.z * fz;
       const sideX = this.vel.x - fx * fwd, sideZ = this.vel.z - fz * fwd;
@@ -156,7 +168,7 @@
         this.vel.x -= fx * b; this.vel.z -= fz * b; fwd -= b;
       }
       // tires grip, but slide a little when you turn hard at speed
-      const slide = 1 + Math.abs(this.steer || 0) * Math.max(0, Math.abs(fwd) - 18) * 0.04;
+      const slide = 1 + Math.abs(this.steer || 0) * Math.max(0, Math.abs(fwd) - 14) * 0.05; // (v1.10.2: a little drift in hard turns)
       const sideK = dashing ? 0.6 : grounded && !inWater ? 8 / slide : inWater ? 2.5 : 1.2;
       const sk = Math.exp(-sideK * dt);
       const drag = dashing ? 0.35 : inWater ? CW.DRAG.water : grounded ? CW.DRAG.land : CW.DRAG.air;
@@ -170,7 +182,8 @@
       const canSteer =
         (grounded && (this.drive > 0 || this.swim > 0)) || (inWater && (this.swim > 0 || this.drive > 0)) ||
         (!grounded && !inWater && (this.rotors > 0 || this.wings > 0)) || this.thrust > 0;
-      let turnRate = (canSteer ? 2.5 : 0.5) * (0.5 + 0.5 * pr);
+      // (v1.10.2: cars and walkers can turn a bit in the air too; not while they're on their back)
+      let turnRate = (canSteer ? 2.5 : !grounded && !inWater ? 1.3 : 0.5) * (0.5 + 0.5 * pr) * (this.overT > 0 || this.rightT > 0 ? 0 : 1);
       // the player's A/D steer like a car's wheel: it turns in smoothly (small taps = small corrections)
       // and snaps straight the moment you let go, so the mech (and your view) stops turning right there.
       // Bots and auto-steer set the wheel directly.
@@ -181,7 +194,7 @@
       if (grounded && !inWater && this.wheels > 0 && this.legs === 0) {
         // wheels: a car turns tighter as it gets going, a bit wider at top speed; it can still creep around when slow
         const sp = Math.abs(fwd);
-        turnRate *= clamp(0.45 + sp / 9, 0.45, 1.15) / (1 + Math.max(0, sp - 28) / 45);
+        turnRate *= clamp(0.45 + sp / 9, 0.45, 1.2) / (1 + Math.max(0, sp - 28) / 70);
         if (inp.manual && fwd < -1) dir = -1; // backing up: the steering works like a real car's
       }
       const dyaw = -this.steer * turnRate * dir * dt;
@@ -210,7 +223,13 @@
         const Fz = clamp(need, 0, liftCap);
         this.vel.y += (Fz / this.mass) * dt;
       }
-      if (this.legs > 0 && grounded && !inWater && inp.upPressed && this.rotors === 0) this.vel.y = 11;
+      if (this.legs > 0 && grounded && !inWater && inp.upPressed && this.rotors === 0 && !(this.overT > 0)) this.vel.y = 11;
+      // v1.10.2 cars jump (Space), and Space again in the air flips you the way you steer (W/S/A/D): a flip is a hard hit
+      // on the ball. In Mech Ball you can always flip; elsewhere only when you're high enough (off a cliff, a big jump)
+      const tumbler = this.rotors === 0 && !this.isPlane && (this.wheels + this.legs) > 0;
+      if (grounded) this.flipUsed = false;
+      if (tumbler && this.legs === 0 && grounded && !inWater && inp.upPressed && !(this.overT > 0 || this.rightT > 0)) this.vel.y = Math.max(this.vel.y, 9);
+      else if (tumbler && !grounded && !inWater && inp.upPressed && !this.flipUsed && !(this.overT > 0) && (this.game.modeId === 'ball' || bottom - ground > 3)) this.flip(inp);
 
       // --- integrate with slope limits ---
       // arena walls: bounce back off the force field (at the top of the slopes around the arena, CW.FIELD)
@@ -230,44 +249,92 @@
           if (this.combatant.isPlayer) this.game.onWallHit();
         }
       }
+      // the way downhill at a point, and how steep it is there (from the ground around it)
+      const H = (x, z) => world.groundAt(x, z, bottom + 0.5);
+      const downAt = (x, z) => { const gx = H(x - 0.7, z) - H(x + 0.7, z), gz = H(x, z - 0.7) - H(x, z + 0.7), l = Math.hypot(gx, gz); return l > 1e-4 ? { x: gx / l, z: gz / l, s: l / 1.4 } : { x: 0, z: 0, s: 0 }; };
+      const sinOf = (t) => t / Math.sqrt(1 + t * t);
+      // bounce off a wall face and keep the speed along it (never a dead stop)
+      const slideOff = (n) => {
+        const vn = this.vel.x * n.x + this.vel.z * n.z;
+        if (vn < 0) { this.vel.x -= n.x * vn * 1.2; this.vel.z -= n.z * vn * 1.2; }
+      };
+      let maxSlope = 0.8;
       if (grounded) {
-        const ng = world.groundAt(nx, nz, bottom + 0.5);
+        const ng = H(nx, nz);
         const step = Math.hypot(nx - this.pos.x, nz - this.pos.z);
         const rise = ng - ground;
         // jets can shove a mech up steeper ground than wheels alone
         const jetPush = Math.min(0.6, ((this.thrust * pr) / this.mass) * 0.004);
-        const maxSlope = (this.legs > 0 ? 2.4 : this.bigWheels > 0 ? 1.25 : this.wheels > 0 ? 0.8 : 0.55) + jetPush;
-        // v1.9.7: ground steeper than the wheels can drive is climbed on speed alone, like a skateboard up a ramp: it
-        // slows you down, and once you're too slow you roll back. Only real cliffs (steeper than ~73°) stop you dead.
-        // Going over the top fast throws you into the air.
+        maxSlope = (this.legs > 0 ? 2.4 : this.bigWheels > 0 ? 1.25 : this.wheels > 0 ? 0.8 : 0.55) + jetPush;
         const slope = step > 1e-4 ? rise / step : rise > 0.01 ? 99 : 0;
         const hs = Math.hypot(this.vel.x, this.vel.z);
         if (rise > 0.01 && slope > maxSlope) {
-          if (slope > CLIFF || hs < 5) {
-            nx = this.pos.x; nz = this.pos.z;
-            const back = slope > CLIFF ? 0.2 : 0.5;
-            this.vel.x *= -back; this.vel.z *= -back;
+          const n = downAt(nx, nz);
+          if (slope > CLIFF) {
+            // v1.10.2 a wall face: you slide along it instead of stopping dead
+            slideOff(n);
+            nx = this.pos.x + this.vel.x * dt; nz = this.pos.z + this.vel.z * dt;
+            if (H(nx, nz) - ground > Math.max(0.3, Math.hypot(nx - this.pos.x, nz - this.pos.z) * maxSlope)) { nx = this.pos.x; nz = this.pos.z; }
             this.climbVy = 0;
           } else {
-            const sinOf = (t) => t / Math.sqrt(1 + t * t);
+            // v1.10.2 steeper than you can drive: you climb a bit on your speed (it slows you down), then gravity pulls
+            // you back down the slope (legs and big wheels get further up)
             const slow = g * (sinOf(slope) - 0.85 * sinOf(maxSlope)) * 2.4 * dt;
-            const k = Math.max(0, 1 - slow / hs);
+            const k = Math.max(0, 1 - slow / Math.max(0.5, hs));
             this.vel.x *= k; this.vel.z *= k;
+            const pull = g * Math.max(0.08, sinOf(slope) - 0.8 * sinOf(maxSlope)) * (hs < 4 ? 1.2 : 0.35) * dt;
+            this.vel.x += n.x * pull; this.vel.z += n.z * pull;
+            nx = this.pos.x + this.vel.x * dt; nz = this.pos.z + this.vel.z * dt;
             this.climbVy = rise / dt;
           }
         } else {
           if ((this.climbVy || 0) > 7 && rise < step * 0.3) this.vel.y = Math.max(this.vel.y, Math.min(16, this.climbVy * 0.6));
           this.climbVy = rise > 0.01 && step > 1e-4 ? rise / dt : 0;
         }
-      }
-      // a wall face (ground much higher than your feet) stops you, even in a hop or a bump:
-      // without this, the ground check below would lift you straight onto the top of the wall
-      if (nx !== this.pos.x || nz !== this.pos.z) {
-        const wall = world.groundAt(nx, nz, bottom + 0.5);
-        if (wall > bottom + Math.max(0.9, Math.hypot(nx - this.pos.x, nz - this.pos.z) * CLIFF) && wall > ground + 0.6) {
-          nx = this.pos.x; nz = this.pos.z;
-          this.vel.x *= -0.2; this.vel.z *= -0.2;
+        // standing on ground too steep to grip: you slide down it (no getting stuck halfway up)
+        const here = downAt(this.pos.x, this.pos.z);
+        if (here.s > maxSlope * 1.05) {
+          const pull = g * (sinOf(here.s) - sinOf(maxSlope)) * 1.3 * dt;
+          this.vel.x += here.x * pull; this.vel.z += here.z * pull;
         }
+      }
+      // v1.10.2 a wall face right under the middle of the mech stops it (you slide along it)
+      if (nx !== this.pos.x || nz !== this.pos.z) {
+        const ml = Math.hypot(nx - this.pos.x, nz - this.pos.z);
+        const wall = H(nx, nz);
+        if (wall > bottom + Math.max(0.9, ml * CLIFF) && wall > ground + 0.6) {
+          slideOff(downAt(nx, nz));
+          nx = this.pos.x + this.vel.x * dt * 0.5; nz = this.pos.z + this.vel.z * dt * 0.5;
+          if (H(nx, nz) > bottom + 0.9) { nx = this.pos.x; nz = this.pos.z; }
+        }
+      }
+      // v1.10.2 the body's outline (front, back, sides and corners): ground that rises more than this mech can take under
+      // it (a wall, a mesa, a building) pushes the body back out and you slide along it. Before, only the middle was
+      // checked, so the front half of a mech went into walls
+      {
+        const hs2 = Math.hypot(this.vel.x, this.vel.z), L = this.halfLen * 0.92, Wd = this.halfWid * 0.92;
+        const outline = [[0, -L], [0, L], [Wd, 0], [-Wd, 0], [Wd * 0.8, -L * 0.8], [-Wd * 0.8, -L * 0.8], [Wd * 0.8, L * 0.8], [-Wd * 0.8, L * 0.8]];
+        for (let pass = 0; pass < 2; pass++) {
+          const gc = Math.max(H(nx, nz), bottom);
+          for (const [lx, lz] of outline) {
+            const wx = nx + cy * lx + sy * lz, wz = nz - sy * lx + cy * lz; // local (right, back) to the world
+            const r = Math.hypot(lx, lz);
+            const allow = r * 2 + 0.8; // steeper than ~63° under the body = a wall (gentler slopes you climb, or slide back down)
+            const over = H(wx, wz) - gc - allow;
+            if (over <= 0) continue;
+            const n = downAt(wx, wz);
+            if (!n.s) continue;
+            slideOff(n);
+            const push = Math.min(0.35, over / Math.max(1, n.s));
+            nx += n.x * push; nz += n.z * push;
+          }
+        }
+      }
+      // v1.10.2 the Mech Ball stadium has glass walls all round the pitch (and the goal pockets): nobody, flying or not,
+      // gets out or onto the walls
+      if (world.arena.stadium) {
+        const g1 = CW.glassClamp(nx, nz, Math.min(this.radius * 0.6, Math.max(this.halfWid, this.halfLen)), this.pos.x, this.vel, 0.35);
+        if (g1.hit) { nx = g1.x; nz = g1.z; this.glassHit(); }
       }
       // bridge railings are solid: a mech on a deck can leave only through the ends
       const br = world.onBridge(this.pos.x, this.pos.z);
@@ -297,12 +364,14 @@
       // --- body tilt ---
       let tp = 0, tr = 0;
       if (grounded && !inWater) {
-        const hf = world.groundAt(this.pos.x + fx * 1.5, this.pos.z + fz * 1.5, bottom + 1);
-        const hb = world.groundAt(this.pos.x - fx * 1.5, this.pos.z - fz * 1.5, bottom + 1);
-        const hr = world.groundAt(this.pos.x + cy * 1.5, this.pos.z - sy * 1.5, bottom + 1);
-        const hl = world.groundAt(this.pos.x - cy * 1.5, this.pos.z + sy * 1.5, bottom + 1);
-        tp = clamp(Math.atan2(hf - hb, 3), -0.6, 0.6);
-        tr = clamp(Math.atan2(hr - hl, 3), -0.6, 0.6);
+        // (v1.10.2: over the whole body, so a long mech lies on a slope instead of poking into it)
+        const dl = Math.max(1.5, this.halfLen * 0.8), dw = Math.max(1.5, this.halfWid * 0.8);
+        const hf = world.groundAt(this.pos.x + fx * dl, this.pos.z + fz * dl, bottom + 1);
+        const hb = world.groundAt(this.pos.x - fx * dl, this.pos.z - fz * dl, bottom + 1);
+        const hr = world.groundAt(this.pos.x + cy * dw, this.pos.z - sy * dw, bottom + 1);
+        const hl = world.groundAt(this.pos.x - cy * dw, this.pos.z + sy * dw, bottom + 1);
+        tp = clamp(Math.atan2(hf - hb, 2 * dl), -1, 1);
+        tr = clamp(Math.atan2(hr - hl, 2 * dw), -1, 1);
         if (this.wheels > 0) {
           tr += (this.steer || 0) * clamp(fwd / 26, -1, 1) * 0.07; // leans out of a turn
           tp += inp.throttle > 0 && fwd < 20 ? 0.025 : inp.throttle < 0 && fwd > 2 ? -0.045 : 0;
@@ -318,9 +387,51 @@
         this.flipT = Math.max(0, this.flipT - dt);
         tp = -2.6 * Math.sin(Math.PI * (1 - this.flipT)); // over on its back and down again
       }
-      const k = 1 - Math.exp(-(this.flipT > 0 ? 10 : 6) * dt);
-      this.pitch += (tp - this.pitch) * k;
-      this.roll += (tr - this.roll) * k;
+      // v1.10.2 tumbling: in the air a car or walker keeps turning with its spin (big hits, rams, flips) and slowly turns
+      // itself upright so it usually lands on its wheels. Landing upside down or on its side: it lies there ~2 s, then
+      // hops back onto its wheels by itself
+      const air = !grounded && !inWater && tumbler;
+      if (this.flipping > 0) { this.flipping -= dt; if (this.flipping <= 0) { this.spinP = this.spinR = 0; this.airP = this.airR = 0; } } // a flip ends upright
+      if (air) {
+        this.airP = (this.airP || 0) + (this.spinP || 0) * dt;
+        this.airR = (this.airR || 0) + (this.spinR || 0) * dt;
+        if (!(this.flipping > 0)) {
+          const damp = Math.exp(-1.4 * dt);
+          this.spinP = (this.spinP || 0) * damp; this.spinR = (this.spinR || 0) * damp;
+          this.airP = wrapA(this.airP); this.airR = wrapA(this.airR);
+          // land on your wheels: a small tilt rights itself in the air (a mech spinning hard, or upside down, doesn't)
+          if (Math.abs(this.spinP) + Math.abs(this.spinR) < 3) {
+            const up = Math.min(1, 1.7 * dt);
+            if (Math.abs(this.airP) < 1.6) this.airP -= this.airP * up;
+            if (Math.abs(this.airR) < 1.6) this.airR -= this.airR * up;
+          }
+        }
+      } else if (this.wasAir) {
+        const p0 = wrapA(this.airP || 0), r0 = wrapA(this.airR || 0);
+        if ((Math.abs(p0) > 1.9 || Math.abs(r0) > 1.5) && !inWater) {
+          this.overT = 2; this.overP = p0; this.overR = r0;
+          this.game.fx.burst(this.pos, { n: 14, color: 'smoke', speed: 5, life: 0.7, size: 0.6 });
+          if (this.combatant.isPlayer) this.game.toast('🙃 Flipped over! Getting back up…');
+        }
+        this.airP = this.airR = this.spinP = this.spinR = 0;
+      }
+      this.wasAir = air;
+      let direct = air;
+      if (this.overT > 0) {
+        this.overT -= dt;
+        tp = this.overP; tr = this.overR; direct = true;
+        if (this.overT <= 0) { this.rightT = 0.6; this.vel.y = Math.max(this.vel.y, 7); }
+      } else if (this.rightT > 0) {
+        this.rightT -= dt;
+        const k0 = Math.max(0, this.rightT / 0.6);
+        tp = tp * (1 - k0) + this.overP * k0; tr = tr * (1 - k0) + this.overR * k0; direct = true;
+      } else if (air) { tp += this.airP; tr += this.airR; }
+      if (direct) { this.pitch = tp; this.roll = tr; }
+      else {
+        const k = 1 - Math.exp(-(this.flipT > 0 ? 10 : 6) * dt);
+        this.pitch += wrapA(tp - this.pitch) * k;
+        this.roll += wrapA(tr - this.roll) * k;
+      }
 
       // --- lava burns whatever is dipped in it ---
       const harm = CW.LIQUID_HARM[world.arena.liquid];
@@ -347,8 +458,8 @@
         this.vel.copy(n.vel);
         const k = 1 - Math.exp(-16 * dt);
         this.yaw += wrapA(n.yaw - this.yaw) * k;
-        this.pitch += (n.pitch - this.pitch) * k;
-        this.roll += (n.roll - this.roll) * k;
+        this.pitch += wrapA(n.pitch - this.pitch) * k; // (the short way round: flips and tumbles)
+        this.roll += wrapA(n.roll - this.roll) * k;
       }
       const fwd = -this.vel.x * Math.sin(this.yaw) - this.vel.z * Math.cos(this.yaw);
       this.fwdSpeed = fwd;
@@ -507,6 +618,35 @@
       }
     }
 
+    // v1.10.2 a flip in the air, the way you steer (forward by default): a quick spin and a push that way
+    flip(inp) {
+      const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
+      const f = inp.throttle > 0.1 ? 1 : inp.throttle < -0.1 ? -1 : 0;
+      const side = inp.manual ? Math.sign(inp.turn || 0) : 0;
+      const lz = f || (side ? 0 : 1), lx = side;
+      const l = Math.hypot(lx, lz) || 1;
+      const wx = (-sy * lz + cy * lx) / l, wz = (-cy * lz - sy * lx) / l;
+      this.vel.x += wx * 13; this.vel.z += wz * 13;
+      this.vel.y = Math.max(this.vel.y, 3);
+      this.flipping = 0.55; this.flipUsed = true;
+      const turn = (Math.PI * 2) / 0.55;
+      if (lz && !lx) this.spinP = -lz * turn; else this.spinR = -lx * turn;
+      this.game.fx.burst(this.pos, { n: 10, color: this.game.trailMat(this.combatant), speed: 5, life: 0.4, size: 0.4 });
+      if (this.combatant.isPlayer) { this.game.audio.whoosh(); this.game.cam.fovKick = 10; }
+    }
+    // a spin from a big hit (explosions, rams, pulls): it can send a car tumbling
+    knock(amount) {
+      if (this.remote || this.rotors > 0 || this.isPlane) return;
+      const a = Math.min(7, amount);
+      this.spinR = (this.spinR || 0) + (Math.random() < 0.5 ? -1 : 1) * a;
+      this.spinP = (this.spinP || 0) + (Math.random() - 0.5) * a * 0.6;
+    }
+    glassHit() {
+      if (this.glassFx && this.game.time - this.glassFx < 0.3) return;
+      this.glassFx = this.game.time;
+      this.game.fx.burst(this.pos, { n: 12, color: this.game.fx.colorKey(0x9be7ff), speed: 7, life: 0.4, size: 0.3 });
+      if (this.combatant.isPlayer) this.game.onWallHit();
+    }
     // dir: 1 = forward, -1 = back, 2/-2 = sidestep right/left (legs only)
     dash(dir) {
       if (!this.alive || this.dashCd > 0) return false;
@@ -519,7 +659,7 @@
       this.vel.x += dx * P;
       this.vel.z += dz * P;
       if (this.medium === 'land') this.vel.y = Math.max(this.vel.y, 3);
-      this.dashCd = (this.legs > 0 ? s.dashCd * 0.75 : s.dashCd) * this.mods.dashK;
+      this.dashCd = (this.legs > 0 ? s.dashCd * 0.75 : s.dashCd) * this.mods.dashK * (this.game.modeId === 'ball' ? 0.6 : 1); // (v1.10.2: quicker in Mech Ball)
       this.dashMax = this.dashCd;
       this.dashTime = 0.35;
       this.game.onDash(this);
@@ -634,6 +774,8 @@
         const d = p.wp.distanceTo(point);
         if (d < radius) { this.hit(p, dmg * (1 - (d / radius) * 0.6), who); any = true; }
       }
+      // (v1.10.2: a big blast can send a car tumbling, and lifts it a little)
+      if (any && dmg >= 18 && !this.remote) { this.knock(dmg * 0.08); if (this.medium === 'land') this.vel.y += Math.min(4, dmg * 0.05); }
       return any;
     }
 
@@ -792,7 +934,7 @@
       }
       if (inp.jump && (this.grounded || inWater)) this.vel.y = inWater ? 6 : 8.5;
       const lim = CW.FIELD - 1;
-      const nx = clamp(this.pos.x + this.vel.x * dt, -lim, lim), nz = clamp(this.pos.z + this.vel.z * dt, -lim, lim);
+      let nx = clamp(this.pos.x + this.vel.x * dt, -lim, lim), nz = clamp(this.pos.z + this.vel.z * dt, -lim, lim);
       // cliffs are walls on foot too: ground that rises much faster than you walk (or above your knees) stops you,
       // instead of lifting you up the mountain in a moment
       // (the ground is checked half a meter ahead, whatever your speed, so you can't creep up a wall in tiny steps)
@@ -803,6 +945,7 @@
         const ax = this.pos.x + ((nx - this.pos.x) / step) * 0.5, az = this.pos.z + ((nz - this.pos.z) / step) * 0.5;
         wall = world.groundAt(ax, az, this.pos.y + 0.8) - here > 0.5; // steeper than 45°
       }
+      if (!wall && world.arena.stadium) { const g1 = CW.glassClamp(nx, nz, 0.5, this.pos.x, this.vel, 0.2); nx = g1.x; nz = g1.z; } // the stadium's glass
       if (wall) { this.vel.x = 0; this.vel.z = 0; }
       else { this.pos.x = nx; this.pos.z = nz; }
       this.pos.y += this.vel.y * dt;

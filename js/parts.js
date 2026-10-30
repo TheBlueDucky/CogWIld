@@ -2,7 +2,7 @@
 (function () {
   const CW = (window.CW = window.CW || {});
 
-  CW.VERSION = 'v1.10.1';
+  CW.VERSION = 'v1.10.2';
   // escape text before it goes into innerHTML (mech/player names can come from pasted save codes)
   // "3h 12m" / "5d 4h" / "12m" until something ends
   CW.timeLeft = (ms) => { const m = Math.max(1, Math.ceil(ms / 60000)); return m >= 2880 ? `${Math.floor(m / 1440)}d ${Math.floor((m % 1440) / 60)}h` : m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; };
@@ -1102,6 +1102,21 @@
 
   CW.PAINTS = [0x3a86ff, 0xff006e, 0xfb5607, 0x8338ec, 0x06d6a0, 0xffbe0b, 0x00b4d8, 0xe63946, 0x6c757d, 0xf1f3f5];
 
+  // v1.10.2: redraw a box (innerHTML) without losing what's being typed in it: the text, the cursor and the focus of
+  // every input / text area with an id come back (the party card and menu panels redraw when something changes)
+  CW.keepTyping = (root, draw) => {
+    const keep = [];
+    if (root) for (const el of root.querySelectorAll('input[id]:not([type=checkbox]):not([type=range]):not([type=file]), textarea[id]')) {
+      if (el.value || document.activeElement === el) keep.push({ id: el.id, v: el.value, f: document.activeElement === el, a: el.selectionStart, b: el.selectionEnd });
+    }
+    draw();
+    for (const k of keep) {
+      const el = document.getElementById(k.id);
+      if (!el || !root.contains(el)) continue;
+      if (k.v && !el.value) el.value = k.v;
+      if (k.f) { el.focus(); try { el.setSelectionRange(k.a, k.b); } catch (e) { /* some input types have no cursor */ } }
+    }
+  };
   CW.cloneBp = (bp) => {
     const out = { name: bp.name, parts: bp.parts.map(CW.cleanPart) };
     if (bp.color) out.color = bp.color;

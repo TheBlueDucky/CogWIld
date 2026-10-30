@@ -286,7 +286,18 @@
 
   // ---------- Arena 12: Mech Ball Stadium (v1.10.1: a flat pitch, walls, a goal pocket at each end, stands) ----------
   // The pitch is x -104..104, z -66..66 at height 4. The goals are pockets 26 m wide and 12 m deep behind each end line.
-  const ST = CW.STADIUM = { L: 104, W: 66, goalW: 13, goalD: 12, y: 4 };
+  const ST = CW.STADIUM = { L: 104, W: 66, goalW: 16, goalD: 12, goalH: 11, y: 4 }; // (v1.10.2: wider, taller goals)
+  // v1.10.2 the glass walls round the pitch (and inside the goal pockets): keeps a thing of size r on the pitch, whatever
+  // its height. fromX = where it was (inside a goal pocket the pocket's sides are the walls); vel bounces back (× e)
+  CW.glassClamp = (x, z, r, fromX, vel, e) => {
+    let hit = false;
+    const inPocket = Math.abs(fromX) > ST.L;
+    const limZ = (inPocket ? ST.goalW : ST.W) - r;
+    if (Math.abs(z) > limZ) { z = Math.sign(z) * limZ; if (vel && vel.z * z > 0) vel.z = -vel.z * e; hit = true; }
+    const limX = (Math.abs(z) < ST.goalW - r ? ST.L + ST.goalD : ST.L) - r;
+    if (Math.abs(x) > limX) { x = Math.sign(x) * limX; if (vel && vel.x * x > 0) vel.x = -vel.x * e; hit = true; }
+    return { x, z, hit };
+  };
   function stadiumHeight(x, z) {
     const ax = Math.abs(x), az = Math.abs(z);
     if (ax <= ST.L + ST.goalD && az <= ST.goalW) return ST.y; // the goal pockets
@@ -1581,9 +1592,29 @@
 
     // A spot is safe to spawn on when it's dry, fairly flat, not on a bridge, away from the walls,
     // and there is no liquid (water / lava / toxic) anywhere close by.
-    // the stadium's floodlight towers in the corners
+    // the stadium's floodlight towers in the corners, and its glass walls (v1.10.2: see-through, all round the pitch)
     buildStadium() {
       const ST = CW.STADIUM;
+      const glass = new THREE.MeshBasicMaterial({ color: 0x9be7ff, transparent: true, opacity: 0.06, side: THREE.DoubleSide, depthWrite: false });
+      const edge = new THREE.MeshBasicMaterial({ color: 0x9be7ff, transparent: true, opacity: 0.35, depthWrite: false });
+      const GH = 40;
+      const pane = (x1, z1, x2, z2) => {
+        const len = Math.hypot(x2 - x1, z2 - z1);
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(len, GH), glass);
+        m.position.set((x1 + x2) / 2, ST.y + GH / 2, (z1 + z2) / 2);
+        m.rotation.y = Math.atan2(-(z2 - z1), x2 - x1);
+        const top = new THREE.Mesh(new THREE.BoxGeometry(len, 0.25, 0.25), edge);
+        top.position.set(0, GH / 2, 0);
+        m.add(top);
+        this.scene.add(m);
+      };
+      const L = ST.L, W = ST.W, gw = ST.goalW, gd = ST.goalD;
+      pane(-L, W, L, W); pane(-L, -W, L, -W);
+      for (const sx of [-1, 1]) {
+        pane(sx * L, gw, sx * L, W); pane(sx * L, -gw, sx * L, -W);
+        pane(sx * L, gw, sx * (L + gd), gw); pane(sx * L, -gw, sx * (L + gd), -gw);
+        pane(sx * (L + gd), -gw, sx * (L + gd), gw);
+      }
       for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
         const x = sx * (ST.L + 14), z = sz * (ST.W + 14), y = CW.terrainHeight(x, z);
         const g = new THREE.Group();

@@ -56,7 +56,7 @@ app.whenReady().then(async () => {
     // dropped: it lands on the pitch and settles
     o.pos.set(0, 30, 0); o.vel.set(0, 0, 0); o.freeze = 0;
     for (const c of g.combatants) c.mech.place(new THREE.Vector3(60, 0, 50 * (c.team ? 1 : -1)), 0);
-    await new Promise((r) => setTimeout(r, 6000));
+    await new Promise((r) => setTimeout(r, 9000)); // (v1.10.2: a floatier, bouncier ball takes longer to settle)
     out.rest = Math.round((o.pos.y - ST.y) * 10) / 10;
     // thrown at the side wall: it bounces back and stays in
     o.pos.set(0, ST.y + 3.2, ST.W - 15); o.vel.set(0, 0, 40);
@@ -78,7 +78,7 @@ app.whenReady().then(async () => {
     return out;
   })()`);
   check(ball.arena === 'stadium' && ball.pitch === 4 && ball.wall > 12 && ball.pocket === 4, `the stadium: flat pitch, walls round it, goal pockets (${JSON.stringify(ball)})`);
-  check(ball.rest >= 3 && ball.rest < 3.6, `a dropped ball settles on the pitch (${ball.rest} above it)`);
+  check(ball.rest >= 4 && ball.rest < 4.6, `a dropped ball settles on the pitch (${ball.rest} above it, the ball is 4.2 m round)`);
   check(ball.bounced, 'the ball bounces off the wall and stays on the pitch');
   check(ball.goal === 1 && ball.backInMiddle, `a shot into the goal counts once and the ball goes back to the middle (${ball.goal})`);
   check(ball.pushed > 10, `a mech driving into the ball knocks it away (${ball.pushed} m/s)`);

@@ -751,7 +751,7 @@
   // A giant ball on the Mech Ball Stadium's pitch (v1.10.1) and a real goal at each end (posts, crossbar, net).
   // Push it, ram it, dash into it or shoot it into the other team's goal. The host's game runs the ball (the others
   // run the same physics too, so it moves smoothly, and follow the host's ball). First to 5 goals.
-  const BALL_R = 3.2;
+  const BALL_R = 4.2; // (v1.10.2: bigger, floatier, bouncier: easier to hit and to score)
   class MechBall extends Objective {
     start() {
       const g = this.game, ST = CW.STADIUM;
@@ -792,7 +792,7 @@
       const grp = new THREE.Group();
       const ST = CW.STADIUM;
       if (this.stadium) {
-        const sx = t === 0 ? -1 : 1, H = 9;
+        const sx = t === 0 ? -1 : 1, H = ST.goalH;
         const white = CW.mat(0xf1faee, { metalness: 0.3 });
         for (const sz of [-1, 1]) { const post = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, H, 12), white); post.position.set(sx * ST.L, ST.y + H / 2, sz * ST.goalW); grp.add(post); }
         const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, ST.goalW * 2, 12), white);
@@ -822,7 +822,7 @@
     // the ball is in team t's goal
     goalIn(t) {
       const ST = CW.STADIUM, p = this.pos;
-      if (this.stadium) return (t === 0 ? p.x < -(ST.L + 1) : p.x > ST.L + 1) && Math.abs(p.z) < ST.goalW && p.y < ST.y + 9;
+      if (this.stadium) return (t === 0 ? p.x < -(ST.L + 1) : p.x > ST.L + 1) && Math.abs(p.z) < ST.goalW && p.y < ST.y + ST.goalH;
       return flatDist(p, this.goals[t]) < 8 && p.y - this.goals[t].y < 12;
     }
     // a shot that touches the ball pushes it (and stops there)
@@ -845,7 +845,7 @@
     }
     physics(dt) {
       const g = this.game, w = g.world, ST = CW.STADIUM;
-      const grav = CW.GRAV * 0.8 * ((g.mods && g.mods.grav) || 1) * (CW.arena.grav || 1);
+      const grav = CW.GRAV * 0.55 * ((g.mods && g.mods.grav) || 1) * (CW.arena.grav || 1);
       const hAt = (x, z, y) => w.groundAt(x, z, y);
       const steps = Math.min(6, Math.max(1, Math.ceil((this.vel.length() * dt) / 0.8)));
       const h = dt / steps;
@@ -864,7 +864,7 @@
         const gy = hAt(this.pos.x, this.pos.z, this.pos.y);
         if (this.pos.y - BALL_R < gy) {
           this.pos.y = gy + BALL_R;
-          this.vel.y = this.vel.y < -3 ? -this.vel.y * 0.5 : Math.max(0, this.vel.y);
+          this.vel.y = this.vel.y < -3 ? -this.vel.y * 0.62 : Math.max(0, this.vel.y);
           // rolling: a little friction, and it rolls down slopes
           const f = Math.exp(-0.45 * h);
           this.vel.x *= f; this.vel.z *= f;
@@ -876,12 +876,18 @@
           for (const sx of [-1, 1]) {
             for (const sz of [-1, 1]) {
               const d = new V3(this.pos.x - sx * ST.L, 0, this.pos.z - sz * ST.goalW), l = d.length();
-              if (l < BALL_R + 0.5 && this.pos.y < ST.y + 9.5 && l > 1e-3) { d.divideScalar(l); this.pos.addScaledVector(d, BALL_R + 0.5 - l); this.bounce(d, 0.6); }
+              if (l < BALL_R + 0.5 && this.pos.y < ST.y + ST.goalH + 0.5 && l > 1e-3) { d.divideScalar(l); this.pos.addScaledVector(d, BALL_R + 0.5 - l); this.bounce(d, 0.6); }
             }
-            const bar = new V3(this.pos.x - sx * ST.L, this.pos.y - (ST.y + 9), 0), bl = bar.length();
+            const bar = new V3(this.pos.x - sx * ST.L, this.pos.y - (ST.y + ST.goalH), 0), bl = bar.length();
             if (Math.abs(this.pos.z) < ST.goalW && bl < BALL_R + 0.5 && bl > 1e-3) { bar.divideScalar(bl); this.pos.addScaledVector(bar, BALL_R + 0.5 - bl); this.bounce(bar, 0.6); }
           }
         }
+      }
+      if (this.stadium) { // v1.10.2 the glass walls: the ball always stays on the pitch (or in a goal)
+        const g1 = CW.glassClamp(this.pos.x, this.pos.z, BALL_R, this.pos.x, this.vel, 0.75);
+        this.pos.x = g1.x; this.pos.z = g1.z;
+        const top = g.world.groundAt(this.pos.x, this.pos.z, this.pos.y) + BALL_R;
+        if (this.pos.y < top) this.pos.y = top;
       }
       if (this.pos.y < CW.WATER_Y + BALL_R * 0.4) { this.vel.y += 40 * dt; this.vel.multiplyScalar(Math.exp(-1.5 * dt)); } // it floats
       this.vel.multiplyScalar(Math.exp(-0.06 * dt)); // air
@@ -889,25 +895,41 @@
       for (const ax of ['x', 'z']) if (Math.abs(this.pos[ax]) > H) { this.pos[ax] = Math.sign(this.pos[ax]) * H; this.vel[ax] *= -0.6; }
       if (this.vel.length() > 65) this.vel.setLength(65);
     }
-    // mechs push it: a bounce off the mech (its speed counts), so a dash or a ram sends it flying
+    // mechs push it: a bounce off the part of the mech that touches it (v1.10.2: each part counts, not one big ball round
+    // the mech), and the mech's speed counts, so a dash, a ram or a flip sends it flying
     touch() {
       const g = this.game;
       for (const m of g.mechs) {
-        if (!m.alive) continue;
-        const r = m.radius * 0.72, d = this.pos.clone().sub(m.pos), dist = d.length();
-        if (dist > BALL_R + r || dist < 1e-3) continue;
-        const n = d.divideScalar(dist);
-        if (n.y < -0.2) n.y = -0.2; // under a mech: it squeezes out sideways, not into the ground
+        if (!m.alive || m.pos.distanceTo(this.pos) > m.radius + BALL_R) continue;
+        let best = null, bd = Infinity;
+        for (const p of m.parts) {
+          if (!p.alive) continue;
+          const d = p.wp.distanceTo(this.pos) - (BALL_R + (CW.PARTS[p.t].radius || 0.55));
+          if (d < bd) { bd = d; best = p; }
+        }
+        if (!best || bd > 0) continue;
+        const n = this.pos.clone().sub(best.wp);
+        if (n.lengthSq() < 1e-6) n.copy(this.pos).sub(m.pos);
+        if (n.y < -0.3) n.y = -0.3; // under a mech: it squeezes out sideways, not into the ground
         n.normalize();
-        this.pos.copy(m.pos).addScaledVector(n, BALL_R + r);
+        this.pos.addScaledVector(n, -bd);
         const vrel = this.vel.clone().sub(m.vel), vn = vrel.dot(n);
-        if (vn < 0) this.vel.addScaledVector(n, -1.55 * vn);
-        this.vel.addScaledVector(n, 2.5);
+        const flip = m.flipping > 0 ? 1.7 : 1; // a flip is a real shot
+        if (vn < 0) this.vel.addScaledVector(n, -1.6 * vn * flip);
+        this.vel.addScaledVector(n, 3 * flip);
         const sp = Math.hypot(m.vel.x, m.vel.z);
-        this.vel.y = Math.max(this.vel.y, Math.min(9, sp * 0.18));
-        if (g.net.owns(m.combatant)) m.vel.addScaledVector(n, Math.min(0, vn) * 0.06); // a hard hit slows the mech a little
+        this.vel.y = Math.max(this.vel.y, Math.min(11, sp * 0.2 * flip));
+        if (g.net.owns(m.combatant)) m.vel.addScaledVector(n, Math.min(0, vn) * 0.05);
         this.lastTouch = m.combatant;
       }
+    }
+    // bots jump at a ball in the air close to them, and flip into it
+    botJump(c) {
+      const m = c.mech;
+      if (!m || !m.alive) return false;
+      const d = flatDist(m.pos, this.pos), above = this.pos.y - m.pos.y;
+      if (m.medium === 'land') return d < 9 && above > 3 && above < 10 && Math.random() < 0.08;
+      return m.medium === 'air' && d < 7 && Math.random() < 0.2; // the flip
     }
     update(dt) {
       const g = this.game;
@@ -997,7 +1019,19 @@
       const their = this.goals[1 - c.team], mine = this.goals[c.team];
       const mates = this.game.combatants.filter((o) => o.team === c.team && o.alive && !o.human).sort((x, y) => x.netId - y.netId);
       if (mates.length > 1 && mates[0] === c && flatDist(this.pos, mine) > 55) return mine.clone().lerp(this.pos, 0.3);
-      const dir = this.pos.clone().sub(their).setY(0).normalize();
+      // v1.10.2 passing: when the way to their goal is blocked by an enemy and a team-mate further up is free, push the
+      // ball to the team-mate instead (a little ahead of them)
+      let aim = their;
+      const enemies = this.game.combatants.filter((o) => o.team !== c.team && o.alive && this.body(o));
+      const blocked = flatDist(this.pos, their) > 35 && enemies.some((o) => { const q = this.body(o).pos, ab = their.clone().sub(this.pos).setY(0), t = Math.max(0, Math.min(1, q.clone().sub(this.pos).setY(0).dot(ab) / ab.lengthSq())); return flatDist(this.pos.clone().addScaledVector(ab, t), q) < 10; });
+      if (blocked) {
+        const mate = this.game.combatants.filter((o) => o !== c && o.team === c.team && o.alive && this.body(o)).map((o) => this.body(o))
+          .filter((mb) => flatDist(mb.pos, their) < flatDist(this.pos, their) - 20 && !enemies.some((o) => flatDist(this.body(o).pos, mb.pos) < 12))
+          .sort((x, y) => flatDist(x.pos, their) - flatDist(y.pos, their))[0];
+        if (mate) aim = mate.pos.clone().add(mate.vel.clone().setY(0).multiplyScalar(0.6));
+      }
+      this.aimFor = aim;
+      const dir = this.pos.clone().sub(aim).setY(0).normalize();
       const behind = this.pos.clone().addScaledVector(dir, BALL_R + 7);
       const lined = b.pos.clone().sub(this.pos).setY(0).normalize().dot(dir) > 0.55;
       return lined || flatDist(b.pos, this.pos) < 8 ? this.pos.clone().addScaledVector(dir, -4) : behind;

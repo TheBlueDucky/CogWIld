@@ -269,19 +269,21 @@ async function main() {
 
   console.log('matchmaking');
   const m1 = await player(), m2 = await player(), m3 = await player();
-  m1.send({ t: 'quick', arena: 'canyon' });
+  m1.send({ t: 'quick', mode: 'bounty', arena: 'canyon' }); // (its own mode: players left from earlier checks search Workshop Clash)
   const r1 = await m1.next('room');
-  m2.send({ t: 'quick', arena: 'isles' });
+  m2.send({ t: 'quick', mode: 'bounty', arena: 'isles' });
   const r2 = await m2.next('room');
   check(r1.room.settings.arena === 'random' && r2.room.code === r1.room.code, 'PLAY ignores an asked-for arena: one queue per mode, the arena is random (v1.10.1)');
-  m3.send({ t: 'quick', arena: 'random' });
+  m3.send({ t: 'quick', mode: 'bounty', arena: 'random' });
   const r3 = await m3.next('room');
   check(r3.room.players.length >= 2, '"any arena" joins a search that is already running');
   const lone = m1; // (v1.10.1: one queue, so all three are in it)
   const filled = await lone.next('room', (m) => m.room.bots.length > 0, 6000);
-  check(filled.room.bots.length === 8 - filled.room.players.length, `after the search, bots fill every empty seat (${filled.room.bots.length} bots)`);
-  const host = [m1, m2, m3].find((p) => p.id === filled.room.hostId) || m1; // the server picks a random host
-  check(!!(await host.next('autostart', null, 3000).catch(() => null)), 'the host is told to start right away');
+  check(filled.room.bots.length === filled.room.seats - filled.room.players.length, `after the search, bots fill every empty seat (${filled.room.bots.length} bots)`);
+  // the server picks a random host, which is told to start (one of the three, whichever it is)
+  let told = false;
+  for (let i = 0; i < 30 && !told; i++) { told = [m1, m2, m3].some((p) => p.got.some((x) => x.t === 'autostart')); if (!told) await wait(100); }
+  check(told, 'the host is told to start right away');
 
   console.log('new arenas and older games');
   const ALLA = require('../js/featured.js').ARENAS;

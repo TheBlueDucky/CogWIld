@@ -1741,6 +1741,7 @@
           else if (m.pos.y > wantY + 6) inp.down = true;
         }
         if (m.legs > 0 && m.medium === 'land' && Math.random() < dt * 0.3) inp.upPressed = true;
+        if (this.obj && this.obj.botJump && this.obj.botJump(c)) { inp.upPressed = true; if (m.medium === 'air') inp.throttle = 1; } // v1.10.2 Mech Ball: jump and flip at the ball
         // dashing: rammers charge in, others close gaps or dodge sideways
         if (ai.style === 'rammer') {
           inp.throttle = 1;
@@ -3072,6 +3073,7 @@
       const n = b.pos.clone().sub(a.pos).setY(0).normalize();
       b.vel.addScaledVector(n, speed * 0.8);
       b.vel.y += 4;
+      b.knock(speed * 0.15); // (v1.10.2: a hard ram can roll it over)
       this.fx.burst(contact, { n: 14, color: 'spark', speed: 12, life: 0.5, size: 0.25, grav: 15 });
       this.audio.ram();
       if (a.combatant.isPlayer) {
@@ -3090,10 +3092,12 @@
           const a = ms[i], b = ms[j];
           const dx = b.pos.x - a.pos.x, dy = b.pos.y - a.pos.y, dz = b.pos.z - a.pos.z;
           const d = Math.hypot(dx, dy, dz);
-          const min = (a.radius + b.radius) * 0.7;
-          if (d > 0.01 && d < min) {
-            const push = (min - d) / 2;
-            const nx = dx / d, nz = dz / d;
+          // v1.10.2 hitboxes are the mechs' own parts: two mechs touch only where their parts really touch (before, each
+          // mech was one big ball, so passing near a wide mech's corner stopped you)
+          const hit = d < a.radius + b.radius ? this.partContact(a, b) : null;
+          if (hit) {
+            const push = hit.depth / 2;
+            const nx = hit.nx, nz = hit.nz;
             // closing speed along the contact normal
             const closing = (a.vel.x - b.vel.x) * nx + (a.vel.z - b.vel.z) * nz;
             if (closing > 5 && !CW.sameTeam(a.combatant, b.combatant)) {
@@ -3113,19 +3117,41 @@
             a.vel.multiplyScalar(0.95); b.vel.multiplyScalar(0.95);
           }
         }
+      // pilots on foot bump into the mech's parts too (not a big ball round it)
       for (const p of this.pilots) {
         if (!p.alive) continue;
         for (const m of ms) {
-          if (p.onMech === m) continue; // standing on it, not inside it
-          const dx = p.pos.x - m.pos.x, dz = p.pos.z - m.pos.z;
-          const d = Math.hypot(dx, dz);
-          const min = m.radius * 0.75;
-          if (d < min && p.pos.y < m.pos.y + m.radius && p.pos.y > m.pos.y - m.baseOff - 1 && d > 0.01) {
-            p.pos.x = m.pos.x + (dx / d) * min;
-            p.pos.z = m.pos.z + (dz / d) * min;
+          if (p.onMech === m || p.pos.distanceTo(m.pos) > m.radius + 1.5) continue; // standing on it, not inside it
+          for (const q of m.parts) {
+            if (!q.alive) continue;
+            const dx = p.pos.x - q.wp.x, dz = p.pos.z - q.wp.z, dy = p.pos.y + 0.9 - q.wp.y;
+            const R = 0.45 + (CW.PARTS[q.t].radius || 0.5), d = Math.hypot(dx, dz);
+            if (d < R && Math.abs(dy) < 1.4 && d > 0.01) { p.pos.x = q.wp.x + (dx / d) * R; p.pos.z = q.wp.z + (dz / d) * R; }
           }
         }
       }
+    }
+    // where two mechs' parts overlap: the deepest overlap and the way to push them apart (on the ground plane), or null
+    partContact(a, b) {
+      const pa = a.parts.filter((p) => p.alive && p.wp.distanceTo(b.pos) < b.radius + 1.2);
+      if (!pa.length) return null;
+      const pb = b.parts.filter((p) => p.alive && p.wp.distanceTo(a.pos) < a.radius + 1.2);
+      let depth = 0, sx = 0, sz = 0;
+      for (const p of pa) {
+        const rp = CW.PARTS[p.t].radius || 0.5;
+        for (const q of pb) {
+          const dx = q.wp.x - p.wp.x, dy = q.wp.y - p.wp.y, dz = q.wp.z - p.wp.z, R = rp + (CW.PARTS[q.t].radius || 0.5);
+          const d2 = dx * dx + dy * dy + dz * dz;
+          if (d2 >= R * R) continue;
+          const o = R - Math.sqrt(d2), h = Math.hypot(dx, dz) || 1e-3;
+          if (o > depth) depth = o;
+          sx += (dx / h) * o; sz += (dz / h) * o;
+        }
+      }
+      if (!depth) return null;
+      let l = Math.hypot(sx, sz);
+      if (l < 1e-4) { sx = b.pos.x - a.pos.x; sz = b.pos.z - a.pos.z; l = Math.hypot(sx, sz) || 1; }
+      return { depth, nx: sx / l, nz: sz / l };
     }
   }
 

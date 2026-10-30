@@ -2028,6 +2028,20 @@
   .compact .rv-ico { font-size: 70px; } .compact .rv-label { font-size: 28px; } .compact .pc-body { width: 80px; height: 120px; } .compact .rv-swatch { width: 80px; height: 80px; }
   /* the Power Cell card on the results screen */
   .res-chest.cellbox .rc-icon { filter: drop-shadow(0 0 10px #5ce1ff); }
+  /* v1.10.2: every chat (the chat panel, its boxes, the party card's box, the room box, club chat) follows the Background
+     opacity / Glass look strength slider like the menu buttons. Full-screen chat on phones keeps at least 60% to stay readable */
+  html:not(.glass) body #chat { background: rgba(14, 20, 42, calc(.55 * var(--bgLo, 1) + .4 * var(--bgHi, 0))) !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+    border-color: rgba(255, 255, 255, calc(.12 * var(--bgLo, 1))) !important; box-shadow: none !important; }
+  html:not(.glass) :is(#chat .chat-form input, .pc-form input, .lb-form input, #panel .club-chat, #chat .chat-q, #chat .chat-friend) { background: rgba(0, 0, 0, calc(.22 * var(--bgLo, 1) + .4 * var(--bgHi, 0))) !important; }
+  html.glass body #chat { background: linear-gradient(155deg, rgba(255, 255, 255, calc(.2 * var(--gK2, 1))), rgba(255, 255, 255, calc(.06 * var(--gK2, 1))) 52%, rgba(255, 255, 255, calc(.11 * var(--gK2, 1)))) !important;
+    border-color: rgba(255, 255, 255, calc(.3 * var(--gK, 1))) !important; box-shadow: inset 0 1px 0 rgba(255, 255, 255, calc(.4 * var(--gK, 1))) !important;
+    backdrop-filter: blur(calc(18px * var(--gK, 1))) saturate(calc(100% + 60% * var(--gK, 1))) !important; -webkit-backdrop-filter: blur(calc(18px * var(--gK, 1))) saturate(calc(100% + 60% * var(--gK, 1))) !important; }
+  html.glass :is(#chat .chat-form input, .pc-form input, .lb-form input, #panel .club-chat, #chat .chat-q, #chat .chat-friend) { background: rgba(0, 0, 0, calc(.22 * var(--gK2, 1))) !important; }
+  #chat .chat-line, #chat .chat-empty, #chat .chat-tab, #chat .chat-friend, .pc-log { text-shadow: 0 1px 3px rgba(0, 0, 0, .85); }
+  html body.talk-full #chat, html body.talk-portrait #chat { background: rgba(12, 18, 40, max(.6, calc(.55 * var(--bgLo, 1) + .4 * var(--bgHi, 0)))) !important; }
+  /* v1.10.2: with the see-through chat docked on the left (PC), the menu pieces under it still show through it, but clicks go
+     to the chat, not to them */
+  body.talk-dock #menu :is(.lobby-side.left, .lb-left, #acctChip, .name-chip) { pointer-events: none; }
 </style>
 </head>
 <body>
@@ -2495,40 +2509,40 @@
 </div>
 
 <!-- three.js: from the CDN, or the local copy in js/vendor/ when offline (desktop build / no internet) -->
-<script src="js/vendor/three.min.js?v=44"></script>
-<script src="js/economy.js?v=44"></script>
-<script src="js/parts.js?v=44"></script>
-<script src="js/loadout.js?v=44"></script>
-<script src="js/botmechs.js?v=44"></script>
-<script src="js/bugs.js?v=44"></script>
-<script src="js/i18n.js?v=44"></script>
-<script src="js/platform.js?v=44"></script>
-<script src="js/featured.js?v=44"></script>
-<script src="js/world.js?v=44"></script>
-<script src="js/entities.js?v=44"></script>
-<script src="js/meta.js?v=44"></script>
-<script src="js/extras.js?v=44"></script>
-<script src="js/modes.js?v=44"></script>
-<script src="js/tutorial.js?v=44"></script>
-<script src="js/clips.js?v=44"></script>
-<script src="js/gamepad.js?v=44"></script>
-<script src="js/workshop.js?v=44"></script>
-<script src="js/config.js?v=44"></script>
-<script src="js/net.js?v=44"></script>
-<script src="js/account.js?v=44"></script>
-<script src="js/touch.js?v=44"></script>
-<script src="js/supers.js?v=44"></script>
-<script src="js/gadgets.js?v=44"></script>
-<script src="js/hazards.js?v=44"></script>
-<script src="js/pings.js?v=44"></script>
-<script src="js/reveal.js?v=44"></script>
-<script src="js/replay.js?v=44"></script>
-<script src="js/gallery.js?v=44"></script>
-<script src="js/pics.js?v=44"></script>
-<script src="js/talk.js?v=44"></script>
-<script src="js/voice.js?v=44"></script>
-<script src="js/calls.js?v=44"></script>
-<script src="js/game.js?v=44"></script>
-<script src="js/desktop.js?v=44"></script>
+<script src="js/vendor/three.min.js?v=45"></script>
+<script src="js/economy.js?v=45"></script>
+<script src="js/parts.js?v=45"></script>
+<script src="js/loadout.js?v=45"></script>
+<script src="js/botmechs.js?v=45"></script>
+<script src="js/bugs.js?v=45"></script>
+<script src="js/i18n.js?v=45"></script>
+<script src="js/platform.js?v=45"></script>
+<script src="js/featured.js?v=45"></script>
+<script src="js/world.js?v=45"></script>
+<script src="js/entities.js?v=45"></script>
+<script src="js/meta.js?v=45"></script>
+<script src="js/extras.js?v=45"></script>
+<script src="js/modes.js?v=45"></script>
+<script src="js/tutorial.js?v=45"></script>
+<script src="js/clips.js?v=45"></script>
+<script src="js/gamepad.js?v=45"></script>
+<script src="js/workshop.js?v=45"></script>
+<script src="js/config.js?v=45"></script>
+<script src="js/net.js?v=45"></script>
+<script src="js/account.js?v=45"></script>
+<script src="js/touch.js?v=45"></script>
+<script src="js/supers.js?v=45"></script>
+<script src="js/gadgets.js?v=45"></script>
+<script src="js/hazards.js?v=45"></script>
+<script src="js/pings.js?v=45"></script>
+<script src="js/reveal.js?v=45"></script>
+<script src="js/replay.js?v=45"></script>
+<script src="js/gallery.js?v=45"></script>
+<script src="js/pics.js?v=45"></script>
+<script src="js/talk.js?v=45"></script>
+<script src="js/voice.js?v=45"></script>
+<script src="js/calls.js?v=45"></script>
+<script src="js/game.js?v=45"></script>
+<script src="js/desktop.js?v=45"></script>
 </body>
 </html>

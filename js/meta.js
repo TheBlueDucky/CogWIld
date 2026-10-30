@@ -354,7 +354,8 @@
       setTimeout(() => $('confirmOk').focus(), 30);
     }
 
-    renderPanel() {
+    renderPanel() { CW.keepTyping($('panelBody'), () => this.drawPanel()); }
+    drawPanel() {
       const p = this.game.profile;
       const body = $('panelBody');
       const k = this.panel;
@@ -718,6 +719,12 @@
     // What's new (Settings › Change logs, and the 📰 News button on phones)
     newsHtml() {
       return `<ul class="news">
+          <li><b>v1.10.2</b>: 🏎 <b>Better physics</b>: drive at a wall and you slide along it (no more dead stops), a slope too steep for you lets you up a bit and then slides you back down, and mechs don't go into walls any more.
+            🧱 Hitboxes are your mech's real parts, so a mech next to you only bumps you where it actually touches.
+            🙃 Mechs can tumble and roll: big blasts and rams can flip you over, and you get back up by yourself after ~2 s. Small tilts in the air right themselves so you land on your wheels, and you can steer a little in the air.
+            🦘 Space on wheels jumps; Space again in the air flips you the way you steer (W/S/A/D). In Mech Ball you can always flip; elsewhere only when you're high enough.
+            ⚽ Mech Ball: glass walls all round the pitch (nobody and no ball gets onto the walls), a bigger floatier ball, bigger goals, a quicker dash, flips that hit the ball hard, and bots that pass.
+            🚗 Snappier driving with a little drift. 💬 Every chat follows Background opacity / Glass look strength, and what you type is never lost when the party card or a menu updates.</li>
           <li><b>v1.10.1</b>: 🎲 <b>Random arenas</b>: every match picks an arena that fits its mode, with an arena roulette before the countdown (no more picking).
             🏟 <b>Mech Ball Stadium</b>: Mech Ball now has its own flat pitch with real goals (posts, crossbar, net) and walls. The ball bounces, rolls and gets knocked around much better.
             🖱 <b>Mouse steering</b>: your mech turns to where you look (Settings › Controls to switch it off).
@@ -837,7 +844,7 @@
           <div><h3>🛟 Fair play</h3><p>You spawn on safe ground with a 3.5 s shield (shooting ends it). Stuck in a ditch or liquid? Press <b>F</b> to hop to safe ground (12 s cooldown).</p></div>
           <div><h3>🧰 Chests & lava</h3><p>Next to a <b>chest</b>, hold <b>O</b> (🎁 on phones) for a second: loot bursts out (coins, power-ups, super cells, gadget refills), grab it before others do. Gold beams = supply drops. Boost pads (arrows) and jump pads (rings) launch you; red circles on the ground = something is about to hit there! On Volcano Rift, <b>lava burns</b> whatever touches it, so use the bridges or fly.</p></div>
           <div><h3>🛡 Survival</h3><p>Endless waves of bots. Your mech is rebuilt between waves. Beat your best wave!</p></div>
-          <div><h3>🧰 Supers & gadgets</h3><p>Deal damage to fill your <b>super</b> (X / right-click / ⭐). Your <b>gadget</b> (G / 🧰) has 3 uses a match with a short cooldown. Pick your super, gadget and 2 <b>perks</b> in the PLAY panel's Loadout; more are in the Shop. Tap <b>Z</b> to ping, hold it for the ping wheel. Hitting an enemy's <b>core</b> does 40% more.</p></div>
+          <div><h3>🧰 Supers & gadgets</h3><p>Deal damage to fill your <b>super</b> (X / right-click / ⭐). Your <b>gadget</b> (G / 🧰) has 3 uses a match with a short cooldown. Pick your super, gadget and 2 <b>perks</b> in the PLAY panel's Loadout; more are in the Shop. Tap <b>Z</b> to ping, hold it for the ping wheel. On wheels, <b>Space</b> jumps and Space again in the air flips you. Hitting an enemy's <b>core</b> does 40% more.</p></div>
           <div><h3>🎟 Cog Pass, clubs, Ranked</h3><p>Every match earns <b>Cog Pass</b> points for free rewards. Join a <b>club</b> to team up. At ${E.RANKED.unlockAt} trophies <b>Ranked</b> opens: 3v3 for ranked points that reset each season.</p></div>
           <div><h3>💰 Progress</h3><p>Matches give XP and coins. Daily challenges and the daily reward give more. Spend coins in the Shop on supers, gadgets, perks, paints and dash trails.</p></div>
           <div><h3>⚡ Sudden death</h3><p>After 4 minutes all cores overheat, so no match lasts forever.</p></div>
