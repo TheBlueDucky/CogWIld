@@ -1,13 +1,17 @@
-// Cogwild — match replays. Every match (not the tutorial or practice) is recorded about 10 times a second: where
-// each mech and pilot is, where it aims and whether it shoots, which parts are broken, wrecks, supers, gadgets and
-// the kill feed. The last 12 are kept on this device (⭐ keeps one for good). Watch them from the results screen or
-// 🎬 Replays in the menu: play/pause, 0.25×–4× speed, a timeline to jump anywhere (wrecks are marked), and a camera
-// that follows any mech, orbits it (drag) or flies freely (WASD + drag). Replays can be saved as a file and opened.
+// Cogwild — match replays. With Settings › Display › "Save my match replays" on (v1.10.3: off by default), every match (not
+// the tutorial or practice) is recorded about 10 times a second: where each mech and pilot is, where it aims and whether it
+// shoots, which parts are broken, wrecks, supers, gadgets and the kill feed. They stay on this device for 2 weeks (⭐ keeps one
+// for good). Watch them from the results screen or 🎬 Replays in the menu: play/pause, 0.25×–4× speed, a timeline to jump
+// anywhere (wrecks are marked), and a camera that follows any mech, orbits it (drag) or flies freely (WASD + drag).
+// v1.10.3: 💾 turns a replay into an MP4 video (it plays once while it's recorded); "Load replay" plays an MP4 (or an older
+// .cwreplay file in the 3D viewer).
 (function () {
   const CW = window.CW;
   const V3 = THREE.Vector3;
   const $ = (id) => document.getElementById(id);
-  const HZ = 10, MAX_SECS = 900, KEEP = 12, KEEP_STARRED = 40, FORMAT = 1;
+  const HZ = 10, MAX_SECS = 900, KEEP = 100, KEEP_DAYS = 14, KEEP_STARRED = 40, FORMAT = 1;
+  // the video types to make, best first (Chrome / the apps make MP4; a browser that can't makes WebM)
+  const VIDEO_TYPES = ['video/mp4;codecs=avc1.42E01F', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'];
   const r1 = (v) => Math.round(v * 10) / 10, r2 = (v) => Math.round(v * 100) / 100;
   const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
   const SPEEDS = [0.25, 0.5, 1, 2, 4];
@@ -42,9 +46,8 @@
     async del(id) { await this.run('meta', 'readwrite', (s) => s.delete(id)); await this.run('data', 'readwrite', (s) => s.delete(id)); },
   };
 
-  // a replay as a file you can keep or send (.cwreplay)
-  const replayName = (x) => `cogwild-${x.mode}-${x.arena}-${new Date(x.at).toISOString().slice(0, 16).replace(/[:T]/g, '-')}.cwreplay`;
-  const replayBlob = (x, data) => new Blob([JSON.stringify({ cogwildReplay: FORMAT, meta: x, data })], { type: 'application/json' });
+  // a replay's video file name (.mp4, or .webm where MP4 can't be made)
+  const replayName = (x, ext) => `cogwild-${x.mode}-${x.arena}-${new Date(x.at || Date.now()).toISOString().slice(0, 16).replace(/[:T]/g, '-')}${ext}`;
 
   // ======================= RECORDING =======================
   class Recorder {
@@ -89,7 +92,7 @@
     // every match frame (the game's tick)
     tick(dt) {
       const g = this.game;
-      if (g.isPractice() || g.tutorial.active) return;
+      if (!g.settings.replays || g.isPractice() || g.tutorial.active) return; // v1.10.3: only when "Save my match replays" is on
       if (!this.rec) this.begin();
       const r = this.rec;
       r.t += dt;
@@ -132,16 +135,14 @@
       };
       const data = { v: FORMAT, mode: r.mode, format: r.format, arena: r.arena, tod: r.tod, at: r.at, roster: r.roster, frames: r.frames, events: r.events };
       const saved = DB.put(meta, data).then(() => this.prune()).then(() => meta.id).catch((e) => { console.warn('replay not saved', e); return null; });
-      // the desktop app also keeps every replay as a file in Documents\Cogwild\Replays (v1.9.8)
-      if (CW.deviceFolders) CW.saveFile('replays', replayName(meta), replayBlob(meta, data)).catch((e) => console.warn('replay file not saved', e));
       g.lastReplay = saved;
       return saved;
     }
-    // keep the newest unstarred ones and every starred one (up to a limit)
+    // unstarred replays go after 2 weeks (and past 100); starred ones stay (up to a limit)
     async prune() {
-      const list = (await DB.list()).sort((a, b) => b.at - a.at);
+      const list = (await DB.list()).sort((a, b) => b.at - a.at), old = Date.now() - KEEP_DAYS * 86400000;
       const plain = list.filter((x) => !x.star), starred = list.filter((x) => x.star);
-      for (const x of plain.slice(KEEP).concat(starred.slice(KEEP_STARRED))) await DB.del(x.id);
+      for (const x of plain.filter((y, i) => i >= KEEP || y.at < old).concat(starred.slice(KEEP_STARRED))) await DB.del(x.id);
     }
   }
 
@@ -152,6 +153,7 @@
       this.recorder = new Recorder(game);
       this.on = false;
       this.bindUi();
+      setTimeout(() => this.recorder.prune().catch(() => {}), 8000); // 2-week-old replays go even if no match is played
     }
 
     // ---- the 🎬 Replays menu ----
@@ -161,6 +163,7 @@
       let list = [];
       try { list = (await DB.list()).sort((a, b) => b.at - a.at); } catch (e) { body.innerHTML = '<div class="small">Replays can\'t be saved in this browser (private mode?).</div>'; return; }
       const files = !window.Capacitor; // the Android app can't save or open files from here
+      const canVideo = files && !!(window.MediaRecorder && HTMLCanvasElement.prototype.captureStream);
       const rows = list.map((x) => {
         const m = CW.MODES[x.mode] || { icon: '🎮', name: x.mode }, a = CW.ARENAS[x.arena] || { icon: '🗺', name: x.arena };
         const when = new Date(x.at);
@@ -169,14 +172,18 @@
           <div class="rp-info"><b>${esc(m.name)} · ${a.icon} ${esc(a.name)}</b><small>${when.toLocaleDateString()} ${when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · ${fmt(x.secs)} · ${esc(x.result)}${x.online ? ' · 🌐 online' : ''}</small></div>
           <button class="ws-btn on" data-watch="${x.id}">▶ Watch</button>
           <button class="ws-btn" data-star="${x.id}" aria-label="${x.star ? 'Stop keeping it' : 'Keep it for good'}">${x.star ? '⭐' : '☆'}</button>
-          ${files ? `<button class="ws-btn" data-file="${x.id}" aria-label="Save as a file">💾</button>` : ''}
+          ${canVideo ? `<button class="ws-btn" data-file="${x.id}" aria-label="Save as an MP4 video">💾</button>` : ''}
           <button class="ws-btn" data-del="${x.id}" aria-label="Delete">🗑</button>
         </div>`;
       }).join('');
       const dev = CW.deviceFolders;
-      body.innerHTML = `<div class="small"><span>Your last ${KEEP} matches are kept on this device.</span> <span>${files ? (dev ? '☆ keeps one for good, 💾 saves it as a file you can send to a friend. Every match is also saved in your Replays folder.' : '☆ keeps one for good, 💾 saves it as a file you can send to a friend (in your Downloads).') : '☆ keeps one for good.'}</span></div>
-        <div class="rp-list">${rows || '<div class="small" style="padding:18px 4px">No replays yet: play a match and it shows up here.</div>'}</div>
-        ${files ? `<div class="other-play rp-files"><button class="ws-btn line" id="rpOpenFile">📂 Open a replay file</button>${dev ? '<button class="ws-btn line" id="rpFolder">🗂 Open the Replays folder</button>' : ''}<input type="file" id="rpFileIn" accept=".cwreplay,.json" class="hidden"></div>` : ''}`;
+      const on = !!g.settings.replays;
+      body.innerHTML = `<div class="small">${on ? `<span>Your matches are kept on this device for 2 weeks.</span> <span>${canVideo ? `☆ keeps one for good, 💾 turns it into an MP4 video (it plays once while it's made)${dev ? ', saved in your Replays folder' : ', saved in your Downloads'}.` : '☆ keeps one for good.'}</span>`
+        : '<span>Saving replays is off.</span> <span>Turn on "Save my match replays" in Settings › Display to keep your matches here for 2 weeks.</span>'}</div>
+        ${on ? '' : '<div class="rp-files"><button class="ws-btn line" id="rpTurnOn">Turn on saving replays</button></div>'}
+        <div class="rp-list">${rows || `<div class="small" style="padding:18px 4px">${on ? 'No replays yet: play a match and it shows up here.' : 'No replays.'}</div>`}</div>
+        ${files ? `<div class="other-play rp-files"><button class="ws-btn line" id="rpOpenFile">📂 Load replay</button>${dev ? '<button class="ws-btn line" id="rpFolder">🗂 Open folder</button>' : ''}<input type="file" id="rpFileIn" accept=".mp4,.webm,.cwreplay,.json,video/mp4,video/webm" class="hidden"></div>` : ''}`;
+      if ($('rpTurnOn')) $('rpTurnOn').onclick = () => { g.settings.replays = true; g.meta.apply(); this.panel(body); };
       body.querySelectorAll('[data-watch]').forEach((b) => (b.onclick = () => this.watch(b.dataset.watch)));
       body.querySelectorAll('[data-star]').forEach((b) => (b.onclick = async () => {
         const x = list.find((y) => y.id === b.dataset.star);
@@ -191,18 +198,15 @@
         await DB.del(b.dataset.del);
         this.panel(body);
       }));
-      body.querySelectorAll('[data-file]').forEach((b) => (b.onclick = async () => {
-        const rec = await DB.get(b.dataset.file), x = list.find((y) => y.id === b.dataset.file);
-        if (!rec) return;
-        const r = await CW.saveFile('replays', replayName(x), replayBlob(x, rec.data)).catch(() => null);
-        g.toast(!r ? "Couldn't save the replay file" : r.where ? '💾 Saved in your Replays folder' : '💾 Saved in your Downloads');
-      }));
+      body.querySelectorAll('[data-file]').forEach((b) => (b.onclick = () => this.makeVideo(b.dataset.file)));
       if ($('rpFolder')) $('rpFolder').onclick = () => CW.openFolder('replays');
       if (files) {
         $('rpOpenFile').onclick = () => $('rpFileIn').click();
         $('rpFileIn').onchange = async (e) => {
           const f = e.target.files && e.target.files[0];
+          e.target.value = '';
           if (!f) return;
+          if (/\.(mp4|webm)$/i.test(f.name) || /^video\//.test(f.type)) return this.playVideo(f); // an MP4 video
           try {
             const j = JSON.parse(await f.text());
             if (!j || j.cogwildReplay !== FORMAT || !j.data || !Array.isArray(j.data.frames) || !CW.ARENAS[j.data.arena]) throw new Error('bad');
@@ -303,6 +307,7 @@
     close(quiet) {
       const g = this.game;
       if (!this.on) return;
+      if (this.exp) { this.exp.cancelled = true; try { this.exp.mr.stop(); } catch (e) { this.expDone(); } }
       this.on = false;
       for (const m of this.mechs || []) {
         g.scene.remove(m.grp, m.pil, m.tag);
@@ -348,6 +353,11 @@
         this.apply(false, dt * this.speed);
       }
       this.updateCamera(dt);
+      // making a video: the bar shows how far it is; at the end the video is saved
+      if (this.exp) {
+        $('rpMakeT').textContent = `${fmt(this.t)} / ${fmt(this.dur)}`;
+        if (this.t >= this.dur && this.exp.mr.state === 'recording') this.exp.mr.stop();
+      }
       // the timeline follows (not while it's being dragged)
       if (!this.dragging) $('rpSeek').value = Math.round((this.t / this.dur) * 1000);
       $('rpTime').textContent = `${fmt(this.t)} / ${fmt(this.dur)}`;
@@ -516,6 +526,104 @@
       $('rpWho').textContent = m ? m.e.n : '';
       $('rpWho').style.color = m ? '#' + (m.e.col | 0).toString(16).padStart(6, '0') : '';
     }
+    // ---- 💾 a replay as an MP4 video (v1.10.3): it plays once from the start, following you, while the picture is recorded ----
+    async makeVideo(id) {
+      const g = this.game;
+      if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) return g.toast("This browser can't make videos");
+      let rec, x;
+      try { rec = await DB.get(id); x = (await DB.list()).find((y) => y.id === id) || {}; } catch (e) { /* below */ }
+      if (!rec || !rec.data) return g.toast('That replay is gone');
+      this.play(rec.data, x);
+      if (!this.on) return;
+      const mime = VIDEO_TYPES.find((t) => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) || '';
+      const cv = document.createElement('canvas');
+      cv.width = 1280; cv.height = 720;
+      let mr;
+      try { mr = new MediaRecorder(cv.captureStream(30), mime ? { mimeType: mime, videoBitsPerSecond: 5000000 } : undefined); } catch (e) { this.close(); return g.toast("Couldn't make the video"); }
+      const exp = { mr, cv, ctx: cv.getContext('2d'), chunks: [], x, mime: mr.mimeType || mime, last: 0 };
+      mr.ondataavailable = (e) => { if (e.data && e.data.size) exp.chunks.push(e.data); };
+      mr.onstop = () => this.expDone();
+      this.exp = exp;
+      this.speed = 1;
+      this.camMode = 'follow';
+      this.seek(this.d.frames[0][0], true);
+      this.playing = true;
+      this.renderUi();
+      $('replayUi').classList.add('rp-hidden');
+      let bar = $('rpMakeBar');
+      if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'rpMakeBar';
+        bar.innerHTML = '<span>🎬 <span>Making the video…</span> <b id="rpMakeT"></b></span><button class="ws-btn" id="rpMakeStop">Cancel</button>';
+        $('app').appendChild(bar);
+        $('rpMakeStop').onclick = () => this.close();
+      }
+      bar.classList.remove('hidden');
+      mr.start(1000);
+    }
+    // each drawn frame (game.afterRender): the 3D view, cover-fitted into 1280×720, ~30 times a second
+    expFrame() {
+      const e = this.exp, now = performance.now();
+      if (!e || e.mr.state !== 'recording' || now - e.last < 33) return;
+      e.last = now;
+      const src = this.game.renderer.domElement, W = e.cv.width, H = e.cv.height, ctx = e.ctx;
+      const sa = src.width / src.height, da = W / H;
+      let sw = src.width, sh = src.height, sx = 0, sy = 0;
+      if (sa > da) { sw = sh * da; sx = (src.width - sw) / 2; } else { sh = sw / da; sy = (src.height - sh) / 2; }
+      ctx.drawImage(src, sx, sy, sw, sh, 0, 0, W, H);
+      ctx.font = 'bold 26px "Lilita One", sans-serif';
+      ctx.textAlign = 'right';
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      ctx.strokeText('COGWILD', W - 18, H - 18);
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.fillText('COGWILD', W - 18, H - 18);
+    }
+    expDone() {
+      const e = this.exp, g = this.game;
+      if (!e) return;
+      this.exp = null;
+      if ($('rpMakeBar')) $('rpMakeBar').classList.add('hidden');
+      if (this.on) { this.close(true); g.showMenu(); }
+      if (e.cancelled) g.toast('Video not saved');
+      else {
+        const type = (e.mime || 'video/webm').split(';')[0], ext = /mp4/.test(type) ? '.mp4' : '.webm';
+        CW.saveFile('replays', replayName(e.x, ext), new Blob(e.chunks, { type }))
+          .then((r) => g.toast(r.where ? '💾 Video saved in your Replays folder' : '💾 Video saved in your Downloads'))
+          .catch(() => g.toast("Couldn't save the video"));
+      }
+      g.meta.openPanel('replays');
+    }
+    // ---- Load replay: an MP4 / WebM video plays in a simple player ----
+    playVideo(file) {
+      let box = $('rpVideo');
+      if (!box) {
+        box = document.createElement('div');
+        box.id = 'rpVideo';
+        box.className = 'hidden';
+        box.innerHTML = '<video controls playsinline></video><div class="rpv-bar"><span id="rpvName"></span><button class="ws-btn" id="rpvClose">✕ <span>Close</span></button></div>';
+        $('app').appendChild(box);
+        $('rpvClose').onclick = () => this.closeVideo();
+      }
+      const v = box.querySelector('video');
+      if (this.vUrl) URL.revokeObjectURL(this.vUrl);
+      this.vUrl = URL.createObjectURL(file);
+      v.src = this.vUrl;
+      $('rpvName').textContent = file.name;
+      box.classList.remove('hidden');
+      v.play().catch(() => {});
+    }
+    closeVideo() {
+      const box = $('rpVideo');
+      if (!box || box.classList.contains('hidden')) return false;
+      const v = box.querySelector('video');
+      v.pause();
+      v.removeAttribute('src');
+      v.load();
+      if (this.vUrl) { URL.revokeObjectURL(this.vUrl); this.vUrl = null; }
+      box.classList.add('hidden');
+      return true;
+    }
     toggle() {
       if (this.t >= this.dur) { this.seek(0); this.playing = true; } else this.playing = !this.playing;
       this.renderUi();
@@ -536,7 +644,7 @@
       sk.oninput = () => { this.dragging = true; this.seek((sk.value / 1000) * this.dur); };
       sk.onchange = () => { this.dragging = false; };
       window.addEventListener('keydown', (e) => {
-        if (!this.on || g.state !== 'replay' || /INPUT|TEXTAREA/.test((document.activeElement || {}).tagName || '') && document.activeElement !== sk) return;
+        if (!this.on || this.exp || g.state !== 'replay' || /INPUT|TEXTAREA/.test((document.activeElement || {}).tagName || '') && document.activeElement !== sk) return;
         const k = e.code;
         if (k === 'Space' && this.camMode !== 'free') { e.preventDefault(); this.toggle(); }
         else if (k === 'ArrowLeft') { e.preventDefault(); this.seek(this.t - 5); }

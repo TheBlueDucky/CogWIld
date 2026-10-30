@@ -102,9 +102,9 @@ function fetchPic(url) {
 function check(ok, what) { console.log(`${ok ? '  ok  ' : ' FAIL '} ${what}`); if (!ok) failed++; }
 
 // a player: a socket plus a log of everything it received
-function player() {
+function player(cookie) {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`ws://127.0.0.1:${PORT}/ws`);
+    const ws = new WebSocket(`ws://127.0.0.1:${PORT}/ws`, cookie ? { headers: { Cookie: cookie } } : undefined);
     const p = { ws, got: [], id: 0, cursor: 0 };
     p.send = (m) => ws.send(JSON.stringify(m));
     // resolves with the next unread message of type t (or one matching fn); reading moves the cursor past it
@@ -156,6 +156,37 @@ async function main() {
   const relog = await a3.next('acctOk');
   check(relog.save && relog.save.data.profile.coins === 99 && relog.me.lv === 3, 'save comes back on the next login (level from the server XP)');
   const A = a3; // Alice's live session from here on
+
+  console.log('logins and the website cookie (v1.10.3)');
+  {
+    const c1 = await player();
+    c1.send({ t: 'acctRegister', name: 'Cookie_1', pass: 'hunter22' });
+    const t1 = (await c1.next('acctOk')).token;
+    c1.send({ t: 'acctLogout' });
+    await c1.next('acctOut');
+    const c2 = await player();
+    c2.send({ t: 'acctAuth', token: t1 });
+    check(/log in again/.test((await c2.next('acctOut')).reason || ''), 'logging out frees that login on the server too');
+    c2.send({ t: 'acctLogin', name: 'Cookie_1', pass: 'hunter22' });
+    const t2 = (await c2.next('acctOk')).token;
+    const sess = (body) => new Promise((res) => {
+      const data = JSON.stringify(body);
+      const req = require('http').request({ host: '127.0.0.1', port: PORT, path: '/session', method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } }, (r) => { r.resume(); r.on('end', () => res(String((r.headers['set-cookie'] || [])[0] || ''))); });
+      req.on('error', () => res(''));
+      req.end(data);
+    });
+    const ck = await sess({ token: t2 });
+    check(ck.startsWith('cw_s=' + t2) && /HttpOnly/.test(ck) && /Max-Age=31536000/.test(ck), 'the website gets a login cookie (HttpOnly, a year)');
+    check(/Max-Age=0/.test(await sess({ token: 'f'.repeat(64) })), 'a made-up login gets no cookie');
+    check(/Max-Age=0/.test(await sess({ out: 1 })), 'logging out clears the cookie');
+    const c3 = await player('cw_s=' + t2);
+    c3.send({ t: 'acctAuth', cookie: 1 });
+    check((await c3.next('acctOk')).me.name === 'Cookie_1', 'the cookie logs the website in');
+    const c4 = await player('cw_s=' + 'e'.repeat(64));
+    c4.send({ t: 'acctAuth', cookie: 1 });
+    check(!(await c4.next('acctOut', null, 800).catch(() => null)), 'an old cookie just leaves you a guest (no "log in again")');
+    for (const c of [c1, c2, c3, c4]) c.ws.close();
+  }
 
   console.log('friends');
   A.send({ t: 'friendAdd', name: 'bob' });

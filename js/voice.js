@@ -404,7 +404,7 @@
       for (const id of ['btnVoice', 'hudVoice']) {
         const b = $(id);
         if (!b) continue;
-        b.firstChild.textContent = state === 'muted' || state === 'deaf' ? '🔇' : '🎤';
+        b.firstChild.textContent = '🎤'; // v1.10.3: muted = the same icon with a red line through it (CSS .vc-btn[data-vc=muted])
         b.dataset.vc = state;
         b.classList.toggle('talking', !!this.meTalking && state === 'live');
         b.classList.toggle('hidden', hide);
@@ -412,7 +412,7 @@
       for (const id of ['btnDeaf', 'hudDeaf']) {
         const b = $(id);
         if (!b) continue;
-        b.firstChild.textContent = this.deaf ? '🔕' : '🎧';
+        b.firstChild.textContent = '🎧';
         b.dataset.vc = on ? (this.deaf ? 'deaf' : 'on') : 'off';
         b.classList.toggle('hidden', hide);
       }

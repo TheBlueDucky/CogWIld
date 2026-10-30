@@ -615,7 +615,25 @@ const POSTS = {
   '/support/who': (m) => { const w = support.who(m.s); return w ? [200, w] : [401, { msg: 'Not signed in' }]; },
   '/support/send': (m, ip) => { const why = support.send(m, ip); return why ? [400, { msg: why }] : [200, { ok: true }]; },
 };
+// v1.10.3 the website remembers who's logged in with a cookie (like any website), next to the game's own saved login: the game
+// posts its login token here after logging in ({ token }) or { out: 1 } when logging out. The cookie is HttpOnly (page scripts
+// can't read it) and only comes back with this site's own requests: the WebSocket's upgrade request carries it, and
+// { t: 'acctAuth', cookie: 1 } logs in with it
+function sessionPost(req, res) {
+  let body = '';
+  req.on('data', (d) => { body += d; if (body.length > 1024) req.destroy(); });
+  req.on('end', () => {
+    let m = {};
+    try { m = JSON.parse(body) || {}; } catch (e) { /* empty: same as out */ }
+    const ok = !m.out && accounts.tokenOk(m.token);
+    const cookie = ok ? `cw_s=${m.token}; Path=/; Max-Age=31536000; HttpOnly; Secure; SameSite=Lax` : 'cw_s=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax';
+    res.writeHead(200, Object.assign({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'Set-Cookie': cookie }, SECURITY));
+    res.end(JSON.stringify({ ok }));
+  });
+}
+const cookieTok = (req) => { const x = /(?:^|;\s*)cw_s=([0-9a-f]{64})(?:;|$)/.exec(String(req.headers.cookie || '')); return x ? x[1] : null; };
 const server = http.createServer((req, res) => {
+  if (req.method === 'POST' && (req.url || '').split('?')[0] === '/session') return sessionPost(req, res);
   const post = req.method === 'POST' && POSTS[(req.url || '').split('?')[0]];
   if (post) return postJson(req, res, post);
   serveStatic(req, res);
@@ -636,7 +654,7 @@ server.on('upgrade', (req, sock) => {
   sock.write(['HTTP/1.1 101 Switching Protocols', 'Upgrade: websocket', 'Connection: Upgrade', `Sec-WebSocket-Accept: ${acceptKey(req.headers['sec-websocket-key'])}`, '', ''].join('\r\n'));
   sock.setNoDelay(true);
   const ws = new Socket(sock);
-  const c = { id: nextId++, ws, ip, name: 'Pilot', room: null, ready: false, bp: null, tokens: RATE * 2, bytes: BYTE_RATE * 4, last: Date.now() };
+  const c = { id: nextId++, ws, ip, name: 'Pilot', room: null, ready: false, bp: null, tokens: RATE * 2, bytes: BYTE_RATE * 4, last: Date.now(), cookieTok: cookieTok(req) };
   ws.lastPong = Date.now();
   clients.set(c.id, c);
   ws.send({ t: 'welcome', id: c.id, ver: NET_VERSION, login: accounts.loginOptions() });

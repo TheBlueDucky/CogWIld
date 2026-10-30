@@ -11,7 +11,7 @@
       bar = document.createElement('div');
       bar.id = 'titleBar';
       bar.setAttribute('translate', 'no');
-      bar.innerHTML = '<img src="img/icon-192.png" alt="" draggable="false"><span>Cogwild</span>';
+      bar.innerHTML = `<img src="img/icon-192.png" alt="" draggable="false"><span>Cogwild</span><small>${CW.VERSION || ''}</small>`; // v1.10.3: thin, Windows' font, the version
       document.body.insertBefore(bar, document.body.firstChild);
     }
     const root = document.documentElement;

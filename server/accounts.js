@@ -28,7 +28,10 @@ const CLUB_RE = /^[A-Za-z0-9][A-Za-z0-9 _-]{1,18}[A-Za-z0-9]$/;
 const PARTY_MAX = 4;
 const MAX_SAVE = 200 * 1024; // bytes of cloud save per player
 const AVATARS = E.AVATAR_COUNT; // the default profile pictures (v1.9.5; the client draws them: CW.avatar), all free
-const TOKENS_KEPT = 20; // logins that stay valid at once (phone, PC, website, Store app…; was 5, which logged phones out)
+// logins that stay valid at once (phone, PC, website, Store app…; was 5, which logged phones out). v1.10.3: 40, and the one
+// used least recently goes first (each use moves it to the end; logging out frees its place): before, the oldest login went,
+// even on a device used every day, so the website asked to log in again
+const TOKENS_KEPT = 40;
 // shorter Quick Matches don't move trophies (no farming by quitting early)
 const QUICK_MIN_SECS = parseFloat(process.env.TROPHY_MIN_SECS || '40');
 // new accounts per network per hour (tests on your own PC can raise it)
@@ -167,6 +170,7 @@ class Accounts {
     // keep: that device stays logged in for next time (it only stops playing as you right now)
     if (old && old !== c) { this.detach(old); this.send(old, { t: 'acctOut', reason: 'You logged in somewhere else', keep: 1 }); }
     c.user = k;
+    c.tokHash = token ? sha(String(token)) : null; // which login this device uses (logging out frees it)
     const u = this.db.users[k];
     c.name = u.name;
     u.seen = Date.now();
@@ -460,13 +464,22 @@ class Accounts {
     if (!u || !u.hash || !same(hash, u.hash)) { this.failed(c, id); return this.err(c, id.includes('@') ? 'Wrong email or password' : 'Wrong username or password'); }
     this.attach(c, key(u.name), this.addToken(key(u.name)));
   }
+  // m.token: the login the game saved; m.cookie: the website's cookie (v1.10.3, read from the WebSocket's upgrade request).
+  // A missing or old cookie just leaves the player a guest (no "log in again")
   auth(c, m) {
-    const k = this.byToken.get(sha(String(m.token || '')));
-    if (!k || !this.db.users[k]) return this.send(c, { t: 'acctOut', reason: 'Please log in again' });
-    this.attach(c, k, String(m.token));
+    const token = m.cookie ? c.cookieTok : String(m.token || '');
+    const h = sha(String(token || '')), k = token && this.byToken.get(h);
+    if (!k || !this.db.users[k]) return m.cookie ? undefined : this.send(c, { t: 'acctOut', reason: 'Please log in again' });
+    const u = this.db.users[k];
+    if (u.tokens && u.tokens[u.tokens.length - 1] !== h) { u.tokens = u.tokens.filter((t) => t !== h).concat(h); this.dirty(); } // used now: last to go
+    this.attach(c, k, String(token));
   }
-  // tokens are per device: the client forgets its own (other devices stay logged in)
+  // a login token (64 hex) that is still valid
+  tokenOk(token) { return /^[0-9a-f]{64}$/.test(String(token || '')) && !!this.byToken.get(sha(String(token))); }
+  // tokens are per device: the client forgets its own (other devices stay logged in); v1.10.3: the server forgets it too
   logout(c) {
+    const k = c.user, u = k && this.db.users[k];
+    if (u && c.tokHash && u.tokens) { u.tokens = u.tokens.filter((t) => t !== c.tokHash); this.byToken.delete(c.tokHash); this.dirty(); }
     this.detach(c);
     this.send(c, { t: 'acctOut' });
   }

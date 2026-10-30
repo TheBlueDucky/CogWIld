@@ -37,7 +37,7 @@
   ];
 
   const DEFAULT_SETTINGS = {
-    graphics: 'auto', showFps: false, tutorialDone: false, clips: true, arena: 'random', timeOfDay: 'random', difficulty: 'normal', music: true, sens: 1, fov: 80, invertY: false, camMode: 'first', autoSteer: false, shake: true, dmgNumbers: true, volume: 0.6,
+    graphics: 'auto', showFps: false, tutorialDone: false, clips: true, replays: false, theme: '', arena: 'random', timeOfDay: 'random', difficulty: 'normal', music: true, sens: 1, fov: 80, invertY: false, camMode: 'first', autoSteer: false, shake: true, dmgNumbers: true, volume: 0.6,
     musicVol: 1, keys: {}, touch: 'auto', touchSize: 1, vibrate: true, aimAssist: true, friendOnline: true, otherChat: true,
     // chat and voice chat (js/talk.js, js/voice.js); voice: undefined until the game has asked
     chatNotes: true, vcHear: 'game', vcMode: 'open', vcVol: 1, vcMic: '', vcOut: '',
@@ -53,6 +53,8 @@
     { id: 'open', label: 'Open a chest (hold)', def: 'KeyO' }, { id: 'ping', label: 'Ping (hold for the ping wheel)', def: 'KeyZ' },
     { id: 'camera', label: 'Switch camera', def: 'KeyV' }, { id: 'scores', label: 'Scoreboard', def: 'Tab' }, { id: 'clip', label: 'Save clip', def: 'F8' },
   ];
+  // v1.10.3 Settings › Display › Theme: [id, name, swatch from, swatch to] (index.html CSS "v1.10.3": html[data-theme])
+  CW.THEMES = [['', 'Default', '#1a2342', '#121a33'], ['midnight', 'Midnight', '#121c40', '#03040b'], ['graphite', 'Graphite', '#2c2e34', '#09090b'], ['ocean', 'Deep ocean', '#0e2c52', '#031e24'], ['dusk', 'Dusk', '#1a2250', '#140826']];
   CW.keyName = (code) => {
     if (!code) return '—';
     if (code.startsWith('Arrow')) return { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' }[code] || code;
@@ -244,6 +246,8 @@
         this.game.account.net.send({ t: 'buy', kind, id: it.id });
         this.closeConfirm();
       };
+      $('confirmNo').textContent = 'Cancel';
+      $('confirmNo').onclick = () => this.closeConfirm();
       $('confirm').classList.remove('hidden');
       setTimeout(() => !$('confirmOk').disabled && $('confirmOk').focus(), 30);
     }
@@ -307,6 +311,10 @@
 
     // ---------------- panels ----------------
     openPanel(kind) {
+      // v1.10.3: leaving your profile with a picture change not saved yet asks first
+      if (this.leavingProfile(kind, () => this.openPanel(kind))) return;
+      const ppm = document.querySelector('#panel .pp-menu');
+      if (ppm) ppm.remove();
       this.panel = kind;
       $('panel').classList.remove('hidden');
       // the Shop, Cog Pass and Settings are whole screens of their own
@@ -321,7 +329,16 @@
       $('panelTitle').textContent = titles[kind];
       this.renderPanel();
     }
-    closePanel() {
+    // the profile's picture change isn't saved: Save / Don't save first (ask = a player closing it: ✕, Esc, a click outside)
+    leavingProfile(kind, then) {
+      const a = this.game.account;
+      if (this.panel !== 'profile' || kind === 'profile' || !a || !a.pfDraft || $('panel').classList.contains('hidden')) return false;
+      this.ask('Save your profile changes?', "Your new profile picture isn't saved yet.", 'Save', () => { a.saveProfileDraft(); then(); }, '', { label: "Don't save", fn: () => { a.pfDraft = null; then(); } });
+      return true;
+    }
+    closePanel(ask) {
+      if (ask && this.leavingProfile(null, () => this.closePanel())) return;
+      if (this.panel === 'profile' && this.game.account) { this.game.account.pfDraft = null; this.game.account.pfMenu = false; }
       if (this.panel === 'gallery') { this.game.gallery.closeDetail(); this.game.gallery.closeShare(); }
       $('panel').classList.add('hidden');
       this.renderMenu();
@@ -341,7 +358,7 @@
       return `<div class="pf-stats">${rows.map(([a, b]) => `<div><b>${b}</b><span>${a}</span></div>`).join('')}</div>`;
     }
     // a yes/no question in the same pop-up as "Buy it?" (fn runs on yes)
-    ask(title, desc, ok, fn, look) {
+    ask(title, desc, ok, fn, look, no) {
       $('confirmLook').innerHTML = look || '';
       $('confirmTitle').textContent = title;
       $('confirmKind').textContent = '';
@@ -350,6 +367,9 @@
       $('confirmOk').textContent = ok || 'OK';
       $('confirmOk').disabled = false;
       $('confirmOk').onclick = () => { this.closeConfirm(); fn(); };
+      // no: { label, fn } a second answer instead of plain Cancel (v1.10.3)
+      $('confirmNo').textContent = no ? no.label : 'Cancel';
+      $('confirmNo').onclick = () => { this.closeConfirm(); if (no) no.fn(); };
       $('confirm').classList.remove('hidden');
       setTimeout(() => $('confirmOk').focus(), 30);
     }
@@ -437,7 +457,11 @@
       } else if (k === 'settings') {
         const s = this.settings;
         const acct = this.game.account;
-        const keyRows = CW.KEY_ACTIONS.map((a) => `<div class="set-row key-row"><span>${a.label}</span><button class="ws-btn key-btn" data-key="${a.id}">${CW.keyName((s.keys || {})[a.id] || a.def)}</button></div>`).join('');
+        // v1.10.3: ↺ puts one key back to its default (shown while it's changed)
+        const keyRows = CW.KEY_ACTIONS.map((a) => {
+          const now = (s.keys || {})[a.id] || a.def;
+          return `<div class="set-row key-row"><span>${a.label}</span><span class="key-pair"><button class="ws-btn key-btn" data-key="${a.id}">${CW.keyName(now)}</button><button class="set-btn key-reset ${now === a.def ? 'is-def' : ''}" data-keyreset="${a.id}" aria-label="Back to ${CW.keyName(a.def)}">↺ ${CW.keyName(a.def)}</button></span></div>`;
+        }).join('');
         const talk = this.game.talk, voice = this.game.voice;
         const voiceNote = CW.PORTAL ? 'Voice chat is not available on this website. Play on cogwild.duckdns.org or in the app to use it.'
           : !voice.supported ? "This browser can't do voice chat."
@@ -464,12 +488,14 @@
           <div class="set-row"><span>Fullscreen</span><button class="set-btn" id="setFull">⛶ Toggle fullscreen</button></div>
           <div class="set-row"><span>${s.glass ? 'Glass look strength' : 'Background opacity'} <b id="setHudBoxV"></b><small>${s.glass ? 'Blur and glass on the menu buttons and the boxes in matches. 0% = see-through' : 'Menu buttons and the boxes in matches. 0% = see-through, 100% = solid'}</small></span><span class="key-pair"><input type="range" id="setHudBox" min="0" max="1" step="0.05"><button class="set-btn" id="setHudBoxReset">Reset</button></span></div>
           <label class="set-row chk"><input type="checkbox" id="setGlass"><span>Glass Look</span></label>
+          <div class="set-row"><span>Theme<small>The background of the menus, full screens and pop-ups</small></span><span class="theme-pick">${CW.THEMES.map(([id, name, a, b]) => `<button class="${(s.theme || '') === id ? 'on' : ''}" data-theme="${id}"><i style="background:linear-gradient(160deg, ${a}, ${b})"></i>${name}</button>`).join('')}</span></div>
           <label class="set-row chk"><input type="checkbox" id="setShake"><span>Screen shake</span></label>
           <label class="set-row chk"><input type="checkbox" id="setDmg"><span>Floating damage numbers</span></label>
           <label class="set-row chk"><input type="checkbox" id="setFps"><span>Show FPS counter</span></label>
           <label class="set-row"><span>Frame rate limit<small>${desk ? 'VSync matches your screen. Turning VSync on or off restarts the app' : "VSync matches your screen. Browsers can't draw faster than your screen (the desktop app can)"}</small></span><select id="setFpsCap"><option value="vsync">VSync: match my screen</option>${CW.FPS_CAPS.map((n) => `<option value="${n}">${n} FPS</option>`).join('')}<option value="off">Unlimited</option></select></label>
           <label class="set-row chk"><input type="checkbox" id="setClips"><span>Clip recorder: press <b>F8</b> in a match to save the last 10–20 seconds as a video (uses a little extra CPU)</span></label>
-          ${CW.deviceFolders ? '<div class="set-row"><span>Your clips<small>Saved in Documents › Cogwild › Clips</small></span><button class="set-btn" id="setClipsDir">🗂 Open the Clips folder</button></div>' : ''}
+          ${CW.deviceFolders ? '<div class="set-row"><span>Your clips<small>Saved in Documents › Cogwild › Clips</small></span><button class="set-btn" id="setClipsDir">🗂 Open folder</button></div>' : ''}
+          <label class="set-row chk"><input type="checkbox" id="setReplays"><span>Save my match replays<small>Off: no replays are kept. On: each match is kept on this device for 2 weeks, then deleted by itself (⭐ keeps one for good). 🎬 Replays › 💾 turns one into an MP4 video</small></span></label>
           </section><section class="set-sec" data-sec="controls"><h3>${I.pad} Controls</h3>
           <label class="set-row"><span>Look sensitivity (mouse, stick, touch) <b id="setSensV"></b></span><input type="range" id="setSens" min="0.3" max="2.5" step="0.05"></label>
           <label class="set-row chk"><input type="checkbox" id="setInvert"><span>Invert look up/down</span></label>
@@ -543,6 +569,20 @@
         $('setTouch').value = s.touch;
         $('setTouch').onchange = (e) => { s.touch = e.target.value; this.apply(); };
         $('setKeysReset').onclick = () => { s.keys = {}; this.apply(); this.renderPanel(); };
+        // one key back to its default; if another action had that key, it gets this one's key instead (like a swap)
+        body.querySelectorAll('[data-keyreset]').forEach((b) => (b.onclick = () => {
+          const act = CW.KEY_ACTIONS.find((a) => a.id === b.dataset.keyreset);
+          s.keys = Object.assign({}, s.keys);
+          const bound = (id) => s.keys[id] || CW.KEY_ACTIONS.find((a) => a.id === id).def;
+          const old = bound(act.id);
+          const clash = CW.KEY_ACTIONS.find((a) => a.id !== act.id && bound(a.id) === act.def);
+          if (clash) s.keys[clash.id] = old;
+          delete s.keys[act.id];
+          for (const a of CW.KEY_ACTIONS) if (s.keys[a.id] === a.def) delete s.keys[a.id];
+          if (clash) this.game.toast(`${CW.keyName(act.def)} was "${clash.label}": that one is now ${CW.keyName(old)}`);
+          this.apply();
+          this.renderPanel();
+        }));
         body.querySelectorAll('[data-key]').forEach((b) => (b.onclick = () => this.listenKey(b)));
         $('setGfx').value = s.graphics;
         $('setGfx').onchange = (e) => { s.graphics = e.target.value; this.apply(); };
@@ -589,6 +629,8 @@
         bindChk('setChatStay', 'chatStay');
         // the glass look, and the box behind the health bar (its default follows the look; Reset goes back to it)
         bindChk('setGlass', 'glass');
+        bindChk('setReplays', 'replays');
+        body.querySelectorAll('[data-theme]').forEach((b) => (b.onclick = () => { s.theme = b.dataset.theme; this.apply(); this.renderPanel(); }));
         $('setGlass').addEventListener('change', () => this.renderPanel());
         const hudBox = () => (s.hudBox == null ? CW.hudBoxDefault(s) : s.hudBox);
         const showBox = () => { $('setHudBox').value = hudBox(); $('setHudBoxV').textContent = Math.round(hudBox() * 100) + '%'; $('setHudBoxReset').disabled = s.hudBox == null; };
@@ -719,6 +761,11 @@
     // What's new (Settings › Change logs, and the 📰 News button on phones)
     newsHtml() {
       return `<ul class="news">
+          <li><b>v1.10.3</b>: 🚁 Heavier mechs fly: rotors and wings lift 50% more, so armored builds take off without dropping armor.
+            🎬 Replays: off by default (Settings › Display › Save my match replays); when on, matches stay 2 weeks. 💾 turns a replay into an MP4 video, and Load replay plays MP4s.
+            👥 Friends and Clubs: names in gray-blue with a line on hover, plain buttons, and the profile banner's blue fade behind them. A friend's profile shows their club and since when they play under the name, Message under it, and the title "✓ Friends ▾" removes or blocks them.
+            👤 Your profile: click your picture to upload or remove it; changes wait for Save. 🎨 Themes in Settings › Display: Midnight, Graphite, Deep ocean, Dusk.
+            ⌨ ↺ puts one key back to its default. 🎤 Muted / deafened = the same icons with a red line. The chat's top line in the glass look is gone, the menu opens out of its corners, the desktop app's title bar is thin, the party card is slimmer on PCs (it no longer covers Replays), and the website remembers your login.</li>
           <li><b>v1.10.2</b>: 🏎 <b>Better physics</b>: drive at a wall and you slide along it (no more dead stops), a slope too steep for you lets you up a bit and then slides you back down, and mechs don't go into walls any more.
             🧱 Hitboxes are your mech's real parts, so a mech next to you only bumps you where it actually touches.
             🙃 Mechs can tumble and roll: big blasts and rams can flip you over, and you get back up by yourself after ~2 s. Small tilts in the air right themselves so you land on your wheels, and you can steer a little in the air.
@@ -1019,9 +1066,9 @@
       $('btnRanks').onclick = () => g.meta.openPanel('ranks');
       $('coinChip').onclick = () => g.meta.openPanel('shop');
       $('pName').onchange = (e) => { g.profile.name = e.target.value.trim().slice(0, 16); g.saveProfile(); };
-      $('panelClose').onclick = () => g.meta.closePanel();
+      $('panelClose').onclick = () => g.meta.closePanel(true);
       // tap/click outside the panel closes it, like most games and apps
-      CW.tapOutside($('panel'), () => g.meta.closePanel());
+      CW.tapOutside($('panel'), () => g.meta.closePanel(true));
     }
 
     // colors available in the Workshop paint section (free + bought)

@@ -57,7 +57,7 @@ app.whenReady().then(async () => {
   // a mech from another player keeps its look (online)
   const safe = await js(`(() => { const bp = ${G}.net.safeBp(CW.cloneBp(CW.PRESETS.find((p) => p.id === 'coupe'))); return bp.parts.filter((p) => p.s).map((p) => p.s + (p.r | 0)).sort().join(','); })()`);
   check(safe === 'curve0,curve2,edge2', `a mech from another player keeps its shapes and turns (${safe})`);
-  check(await js(`CW.ROTOR_LIFT === 14 && CW.WING_LIFT === 1`), 'rotors and wings lift more (armored mechs can fly)');
+  check(await js(`CW.ROTOR_LIFT >= 14 && CW.WING_LIFT >= 1`), 'rotors and wings lift more (armored mechs can fly)');
 
   // ---- Esc cancels a search ----
   await js(`${G}.net.matchmake('clash', 'random'); true`);

@@ -131,7 +131,7 @@ app.whenReady().then(async () => {
   await js(`${G}.meta.openPanel('replays'); true`);
   await wait(900);
   const rp = await js(`(() => { const b = document.getElementById('rpOpenFile'); return { line: b && b.classList.contains('line'), bg: b && getComputedStyle(b).backgroundColor, folder: !!document.getElementById('rpFolder'), dev: CW.deviceFolders }; })()`);
-  check(rp.line && rp.bg === 'rgba(0, 0, 0, 0)' && !rp.folder && !rp.dev, `Replays in a browser: "Open a replay file" has only a line, no folder button (${JSON.stringify(rp)})`);
+  check(rp.line && rp.bg === 'rgba(0, 0, 0, 0)' && !rp.folder && !rp.dev, `Replays in a browser: "Load replay" has only a line, no folder button (${JSON.stringify(rp)})`);
   await js(`${G}.meta.closePanel(); true`);
 
   // ---- the desktop app: files and VSync ----
@@ -161,11 +161,11 @@ app.whenReady().then(async () => {
   check(dv.dev && fs.existsSync(clipFile) && fs.readFileSync(clipFile).length === 3 && dv.clip.where === clipFile, `the app saves a clip into its Clips folder (${dv.clip.where})`);
   check(dv.bad === 'refused' && dv.badKind === 'refused', `…and refuses other files or folders (${dv.bad}, ${dv.badKind})`);
   check(dv.folderBtn && dv.clipsBtn && opened.length === 1 && opened[0] === path.join(tmp, 'Replays'), `📂 buttons: Replays folder (opened ${opened.join(', ')}), Clips folder in Settings`);
-  // a finished match's replay goes into the Replays folder by itself
-  await js(`(async () => { const g = ${G}; g.playOffline('clash', 'canyon'); await new Promise((r) => setTimeout(r, 3000)); const rec = g.replays.recorder; if (rec.rec) { const f = rec.rec.frames; while (f.length < 200) f.push(f[f.length - 1] || [0]); } await rec.finish('Test'); g.showMenu(); return true; })()`, dwin);
+  // v1.10.3: a finished match no longer drops a .cwreplay file in the Replays folder by itself (💾 makes an MP4 there instead)
+  await js(`(async () => { const g = ${G}; g.playOffline('clash', 'canyon'); await new Promise((r) => setTimeout(r, 3000)); const rec = g.replays.recorder; if (rec.rec) { const f = rec.rec.frames; while (f.length < 200) f.push(f[f.length - 1] || [0]); } g.settings.replays = true; await rec.finish('Test'); g.showMenu(); return true; })()`, dwin);
   await wait(1500);
   const rfiles = fs.existsSync(path.join(tmp, 'Replays')) ? fs.readdirSync(path.join(tmp, 'Replays')) : [];
-  check(rfiles.some((f) => /^cogwild-clash-canyon-.*\.cwreplay$/.test(f)), `every match's replay is saved as a file too (${rfiles.join(', ')})`);
+  check(!rfiles.some((f) => /\.cwreplay$/.test(f)), `matches don't drop replay files in the folder by themselves any more (${rfiles.join(', ') || 'none'})`);
   // VSync: the app hears the choice at the start; switching asks, then restarts
   const v0 = vs.slice();
   await js(`${G}.meta.setTab = 'display'; ${G}.meta.openPanel('settings'); true`, dwin);

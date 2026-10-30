@@ -22,16 +22,22 @@ app.whenReady().then(async () => {
     await wait(4500);
     // a party of 4 with chat lines (the tallest party card)
     await js(`(() => { const a = ${G}.account; a.me = a.me || { name: 'Me', av: 1, tro: 0 }; a.party = { leader: 'Me', members: [{ name: 'Me', av: 1, on: true }, { name: 'Ann', av: 2, on: true }, { name: 'Ben', av: 3, on: true }, { name: 'Cat', av: 4, on: true }], log: [{ f: 'Ann', t: 'hi' }, { f: 'Ben', t: 'ready?' }, { f: 'Cat', t: 'go' }] }; a.renderParty(); return true; })()`);
-    await wait(600);
+    await wait(900); // (the menu's opening animation is over)
     const res = await js(`(() => {
       document.getElementById('firstRun').classList.add('hidden');
-      const z = parseFloat(getComputedStyle(document.getElementById('menu')).zoom) || 1; // the menu is CSS-zoomed
+      // (getBoundingClientRect is already in window pixels, CSS zoom included: v1.10.3 fixed the test zooming them twice)
       const out = {};
-      for (const id of ['btnReplays', 'btnHowto', 'btnGallery', 'btnNews', 'btnShop', 'btnFriends', 'btnPass', 'partyBar']) {
+      const ids = [...document.querySelectorAll('#menu .lobby-side .side-btn')].map((b) => b.id).concat(['btnPass', 'partyBar']);
+      for (const id of ids) {
         const el = document.getElementById(id);
         if (!el || el.offsetParent === null) { out[id] = 'hidden'; continue; }
-        const r = el.getBoundingClientRect(), hit = document.elementFromPoint((r.left + r.width / 2) * z, (r.top + r.height / 2) * z);
-        out[id] = el.contains(hit) ? 'ok' : (hit ? (hit.id || hit.className || hit.tagName) : 'none');
+        const r = el.getBoundingClientRect();
+        // its middle and (v1.10.3) a spot near its bottom edge, where the party card used to lie over Replays
+        for (const [fx, fy] of [[0.5, 0.5], [0.5, 0.9]]) {
+          const hit = document.elementFromPoint(r.left + r.width * fx, r.top + r.height * fy);
+          if (!el.contains(hit)) { out[id] = hit ? (hit.id || hit.className || hit.tagName) : 'none'; break; }
+          out[id] = 'ok';
+        }
       }
       // the party card must not lie over any side button
       const pr = document.getElementById('partyBar').getBoundingClientRect();

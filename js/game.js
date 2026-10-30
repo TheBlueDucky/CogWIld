@@ -204,7 +204,7 @@
       this.tutorial = new CW.Tutorial(this);
       this.clips = new CW.Clips(this);
       this.gamepad = new CW.Gamepad(this);
-      this.afterRender = () => { if (this.state === 'match') this.clips.frame(); };
+      this.afterRender = () => { if (this.state === 'match') this.clips.frame(); else if (this.state === 'replay' && this.replays.exp) this.replays.expFrame(); };
       this.music = new CW.Music(this.audio);
       this.workshop = new CW.Workshop(this);
       this.netSeq = 0;
@@ -282,6 +282,8 @@
       // old full box, 0 = no box; 50% unless you moved it, more with the glass look)
       const s = this.settings, root = document.documentElement;
       root.classList.toggle('glass', !!s.glass);
+      // v1.10.3 the theme: the windows' background (CSS html[data-theme])
+      if (s.theme && CW.THEMES && CW.THEMES.some((t) => t[0] === s.theme)) root.dataset.theme = s.theme; else delete root.dataset.theme;
       // v1.9.10 the slider (index.html CSS "v1.9.10"). Normal look: 0 = no background at all, the default = the usual look,
       // 1 = solid (--bgLo / --bgHi). Glass look: how strong the glass is (--gK = value / default; the white tint uses --gK2)
       const bg = Math.max(0, Math.min(1, s.hudBox ?? CW.hudBoxDefault(s))), def = CW.hudBoxDefault(s), k = bg / def;
@@ -780,6 +782,7 @@
     closeTop() {
       const open = (id) => $(id) && !$(id).classList.contains('hidden');
       if (open('vcAsk')) return this.voice.closeAsk();
+      if (this.replays && this.replays.closeVideo()) return true; // the MP4 player (Load replay)
       if (this.state === 'replay' && !open('panel') && !this.talk.isOpen) { this.replays.close(); return true; }
       if (CW.closePicCrop && CW.closePicCrop()) return true;
       if (open('confirm')) { this.meta.closeConfirm(); return true; }
@@ -787,7 +790,7 @@
       if (open('acct')) { if (!this.account.loginRequired()) $('acct').classList.add('hidden'); return true; }
       if (this.talk.isOpen) { this.talk.close(); return true; }
       if (open('panel') && this.meta.panel === 'gallery' && this.gallery.closeTop()) return true;
-      if (open('panel')) { this.meta.closePanel(); return true; }
+      if (open('panel')) { this.meta.closePanel(true); return true; }
       if (this.state === 'picker' || this.state === 'online' || this.state === 'modes') { this.showMenu(); return true; }
       // searching for a match: Esc cancels it (v1.9.4)
       if (this.state === 'lobby' && open('search')) { this.net.cancelSearch(); return true; }
@@ -2318,6 +2321,7 @@
       // the replay of this match (🎬 Replay on this screen)
       const rTitle = $('resTitle').textContent;
       this.lastReplay = this.replays.recorder.finish(`${rTitle.charAt(0) + rTitle.slice(1).toLowerCase()} · #${p.place} of ${nTeams}`);
+      $('resReplay').classList.toggle('hidden', !this.settings.replays); // v1.10.3: only when saving replays is on
       $('resStats').innerHTML = `
         <div><b>${p.wrecks}</b><span>Mechs wrecked</span></div>
         <div><b>${p.kills}</b><span>Eliminations</span></div>

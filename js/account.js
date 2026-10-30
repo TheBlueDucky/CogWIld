@@ -92,6 +92,7 @@
     onWelcome(m) {
       this.loginOpts = (m && m.login) || {};
       if (this.session) return this.net.send({ t: 'acctAuth', token: this.session.token });
+      if (this.cookieSite()) this.net.send({ t: 'acctAuth', cookie: 1 }); // v1.10.3 the website's cookie (nothing happens without one)
       if (this.gSecret && this.view === 'gwait') this.net.send({ t: 'googleStart', s: this.gSecret }); // reconnected while signing in with Google
       this.helloGuest();
       // anyone can play as a guest; a friendly reminder says what an account adds
@@ -225,6 +226,7 @@
       this.retry = 0;
       this.session = { token: m.token, name: m.me.name };
       keep('cogwild.session', this.session);
+      this.rememberCookie(m.token);
       g.profile.name = m.me.name;
       this.net.name = m.me.name;
       $('acct').classList.add('hidden');
@@ -277,10 +279,18 @@
       clearTimeout(this.pushT);
       this.net.send({ t: 'save', data: { profile: g.profile, blueprints: g.blueprints, current: g.currentBp }, lv: g.level() });
     }
+    // v1.10.3: on the website (served by the game's own server, not an app or a game portal) the login is also kept as a
+    // cookie, so the site remembers you like any website does, even if its saved data is cleared
+    cookieSite() { return !CW.SERVER_URL && /^https?:$/.test(location.protocol) && !CW.PORTAL && !window.CogwildDesktop && !window.Capacitor; }
+    rememberCookie(token) {
+      if (!this.cookieSite() || !window.fetch) return;
+      fetch('/session', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(token ? { token } : { out: 1 }) }).catch(() => {});
+    }
     logout() {
       const g = this.game;
       const finish = () => {
         this.net.send({ t: 'acctLogout' });
+        this.rememberCookie(null);
         this.session = null;
         keep('cogwild.session', null);
         // this device goes back to a fresh guest (your progress stays in the account), settings stay
@@ -984,9 +994,11 @@
     heroHtml(p, opts = {}) {
       const t = CW.tier(p.tro), rk = p.rp != null ? CW.ECON.RANKED.rank(p.rp) : null;
       const tag = (label, value) => `<span class="pf-tag"><small>${label}</small><b>${value}</b></span>`;
-      return `<div class="pf-hero ${opts.cls || ''}"><div class="pf-pic ${opts.status || ''}">${CW.face(p)}${opts.edit ? '<button class="pf-edit" id="pfPicEdit" aria-label="Change your picture">📷</button>' : ''}</div>
-        <div class="pf-id"><div class="pf-name">${esc(p.name)}</div>${opts.sub ? `<div class="pf-sub">${opts.sub}</div>` : ''}
-        ${opts.tags === false ? '' : `<div class="pf-tags">${tag('Trophies', `${t.icon} ${p.tro}`)}${tag('Best', p.best)}${tag('Level', p.lv || 1)}${rk ? tag('Ranked', `${rk.icon} ${rk.name}`) : ''}</div>`}</div>${opts.acts || ''}</div>`;
+      // v1.10.3: on your own profile the picture itself is the button (a small menu: upload a new one / remove it)
+      const pic = opts.edit ? `<div class="pf-pic can-edit ${opts.status || ''}" id="pfPicBtn" role="button" tabindex="0" aria-label="Change your picture">${opts.face || CW.face(p)}</div>` : `<div class="pf-pic ${opts.status || ''}">${opts.face || CW.face(p)}</div>`;
+      return `<div class="pf-hero ${opts.cls || ''}">${pic}
+        <div class="pf-id"><div class="pf-name">${esc(p.name)}</div>${opts.sub ? `<div class="pf-sub">${opts.sub}</div>` : ''}${opts.facts ? `<div class="pf-facts">${opts.facts}</div>` : ''}
+        ${opts.tags === false ? '' : `<div class="pf-tags">${tag('Trophies', `${t.icon} ${p.tro}`)}${tag('Best', p.best)}${tag('Level', p.lv || 1)}${rk ? tag('Ranked', `${rk.icon} ${rk.name}`) : ''}</div>`}${opts.under || ''}</div>${opts.acts || ''}</div>`;
     }
     profilePanel(body) {
       const g = this.game;
@@ -997,30 +1009,49 @@
       }
       const me = this.me;
       const kids = this.game.talk.mode === 'quick';
-      const own = me.pv && !kids;
-      body.innerHTML = this.heroHtml(me, { edit: !kids, sub: me.club ? `🛡 ${esc(me.club)}` : '' }) + `
+      // v1.10.3: picture changes are a draft (pfDraft { av, pic: base64 | null = remove }) until you press Save
+      const d = this.pfDraft || {};
+      const av = d.av !== undefined ? d.av : me.av | 0;
+      const own = !kids && (d.pic !== undefined ? !!d.pic : !!me.pv);
+      const ownFace = d.pic ? `<img class="pfp" src="data:image/jpeg;base64,${d.pic}" alt="" draggable="false">` : CW.face(me);
+      const face = own ? ownFace : CW.avatar(av);
+      const menu = kids ? '' : `<div class="pf-picmenu ${this.pfMenu ? '' : 'hidden'}" id="pfPicMenu"><button class="set-btn" id="pfUpload">📷 ${own ? 'Upload a new picture' : 'Upload your own picture'}</button>${own ? '<button class="set-btn" id="pfRemove">✕ Remove it (use a preset)</button>' : ''}</div>`;
+      const dirty = !!this.pfDraft;
+      body.innerHTML = `<div class="pf-wrap">${this.heroHtml(me, { edit: !kids, face, sub: me.club ? `🛡 ${esc(me.club)}` : '' })}${menu}</div>` + `
         <h3>Profile picture</h3>
         <div class="pf-pics">
-          ${kids ? '' : `<button class="pf-pick own ${own ? 'on' : ''}" id="pfOwn" aria-label="${own ? 'Your own picture' : 'Use your own picture'}">${own ? CW.face(me) : '<span class="pf-add">＋</span>'}</button>`}
-          ${CW.AVATARS.map((a, i) => `<button class="pf-pick ${!own && (me.av | 0) % CW.AVATARS.length === i ? 'on' : ''}" data-av="${i}" aria-label="Default picture ${i + 1}">${a}</button>`).join('')}
+          ${own ? `<button class="pf-pick own on" id="pfOwn" aria-label="Your own picture">${ownFace}</button>` : ''}
+          ${CW.AVATARS.map((a, i) => `<button class="pf-pick ${!own && av % CW.AVATARS.length === i ? 'on' : ''}" data-av="${i}" aria-label="Default picture ${i + 1}">${a}</button>`).join('')}
         </div>
-        <div class="pf-pic-note">${kids ? 'Own pictures are off with Quick chat only (Settings › Chat).'
-          : own ? '<button class="set-btn" id="pfChange">Change your picture</button><button class="set-btn" id="pfRemove">Remove it</button>' : 'Pick a picture, or ＋ to use your own (square, shown as a circle).'}</div>
+        <div class="pf-pic-note">${kids ? '<span>Own pictures are off with Quick chat only (Settings › Chat).</span>' : ''}<button class="set-btn" id="pfAccount">⚙ Account settings</button></div>
         <h3>Stats</h3>${g.meta.statsHtml()}
-        <div class="pf-foot"><button class="set-btn" id="pfAccount">⚙ Account settings</button></div>`;
-      const upload = () => CW.pickPicture((data) => this.net.send({ t: 'picSet', kind: 'u', data }));
-      // a default picture; if you use your own, it asks first (picking one removes your own picture)
-      body.querySelectorAll('[data-av]').forEach((b) => (b.onclick = () => {
-        const av = +b.dataset.av;
-        if (!own) return this.net.send({ t: 'profileSet', av });
-        g.meta.ask('Use this picture?', 'Your own picture will be removed.', 'Use it', () => { this.net.send({ t: 'profileSet', av }); this.net.send({ t: 'picSet', kind: 'u', data: null }); }, CW.avatar(av));
-      }));
-      // your own picture: clicking it never removes it (that's what "Remove it" is for)
-      if ($('pfOwn')) $('pfOwn').onclick = () => { if (!own) upload(); };
-      if ($('pfPicEdit')) $('pfPicEdit').onclick = upload;
-      if ($('pfChange')) $('pfChange').onclick = upload;
-      if ($('pfRemove')) $('pfRemove').onclick = () => g.meta.ask('Remove your picture?', 'Your default picture shows instead.', 'Remove', () => this.net.send({ t: 'picSet', kind: 'u', data: null }), CW.avatar(me.av));
+        <div class="pf-foot">${dirty ? '<span class="pf-unsaved">Not saved yet</span>' : ''}${dirty ? '<button class="set-btn" id="pfUndo">Undo</button>' : ''}<button class="set-btn go" id="pfSave" ${dirty ? '' : 'disabled'}>Save</button></div>`;
+      const set = (ch) => { this.pfDraft = Object.assign({}, this.pfDraft, ch); this.pfMenu = false; this.rerender(); };
+      // a preset: also drops your own picture (only once you press Save)
+      body.querySelectorAll('[data-av]').forEach((b) => (b.onclick = () => set(Object.assign({ av: +b.dataset.av }, own ? { pic: null } : {}))));
+      const menuOpen = (open) => { this.pfMenu = open; if ($('pfPicMenu')) $('pfPicMenu').classList.toggle('hidden', !open); };
+      if ($('pfPicBtn')) {
+        $('pfPicBtn').onclick = (e) => { e.stopPropagation(); menuOpen(!this.pfMenu); };
+        $('pfPicBtn').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('pfPicBtn').click(); } };
+        $('pfUpload').onclick = (e) => { e.stopPropagation(); menuOpen(false); CW.pickPicture((data) => data && set({ pic: data })); };
+        if ($('pfRemove')) $('pfRemove').onclick = (e) => { e.stopPropagation(); set({ pic: null }); };
+        body.onclick = (e) => { if (this.pfMenu && !e.target.closest('#pfPicMenu')) menuOpen(false); };
+      }
+      if ($('pfOwn')) $('pfOwn').onclick = () => menuOpen(true);
       $('pfAccount').onclick = () => { g.meta.setTab = 'account'; g.meta.openPanel('settings'); };
+      $('pfSave').onclick = () => this.saveProfileDraft();
+      if ($('pfUndo')) $('pfUndo').onclick = () => { this.pfDraft = null; this.rerender(); };
+    }
+    // the profile's Save: send what changed (a preset, a new picture, or removing it)
+    saveProfileDraft() {
+      const d = this.pfDraft;
+      this.pfDraft = null;
+      this.pfMenu = false;
+      if (!d || !this.me) return;
+      if (d.av !== undefined && d.av !== (this.me.av | 0)) this.net.send({ t: 'profileSet', av: d.av });
+      if (d.pic !== undefined) this.net.send({ t: 'picSet', kind: 'u', data: d.pic });
+      this.game.toast('✔ Profile saved');
+      this.rerender();
     }
     // Settings › Account: who you are, email, username, password, log out, delete (minimal rows like the rest of Settings)
     accountHtml() {
@@ -1097,19 +1128,41 @@
       if (!p) { body.innerHTML = '<div class="small">Loading…</div>'; return; }
       const isFriend = this.friends.some((f) => f.name === p.name);
       const isMe = this.me && this.me.name === p.name;
-      const acts = isMe ? '' : `<div class="pf-acts">${!this.me ? '' : isFriend ? '<button class="set-btn" id="plMsg">💬 Message</button><span class="pf-friend">✓ Friends</span>' : '<button class="set-btn go" id="plAdd">＋ Add friend</button>'}</div>`;
+      // v1.10.3: Message / Add friend under the name; "Friends ▾" is the window's title (remove / block)
+      const acts = isMe || !this.me ? '' : `<div class="pf-acts">${isFriend ? '<button class="set-btn" id="plMsg">💬 Message</button>' : '<button class="set-btn go" id="plAdd">＋ Add friend</button>'}</div>`;
       const sub = `<span class="pf-online ${p.online ? 'on' : ''}"><i></i>${p.online ? 'Online' : 'Offline'}</span>${p.rank ? `<span>#${p.rank} in the world</span>` : ''}`;
       const wr = p.played ? Math.round((p.wins / p.played) * 100) + '%' : '—';
       const t = CW.tier(p.tro), rk = p.rp != null ? CW.ECON.RANKED.rank(p.rp) : null;
       const card = (label, value, extra) => `<div class="pp-card"><small>${label}</small><b>${value}</b>${extra ? `<span>${extra}</span>` : ''}</div>`;
       const since = p.created ? new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long' }) : '';
-      body.innerHTML = `<div class="pp">${this.heroHtml(p, { cls: 'pp-hero', status: p.online ? 'on' : '', sub, acts, tags: false })}
+      // their club and when they started: small, under the name
+      const facts = (p.club ? `<span><span class="pp-cf">${p.clubFace ? CW.clubFace(p.clubFace) : '🛡'}</span> ${esc(p.club)}</span>` : '') + (since ? `<span>📅 <span>Playing since</span> ${since}</span>` : '');
+      body.innerHTML = `<div class="pp">${this.heroHtml(p, { cls: 'pp-hero', status: p.online ? 'on' : '', sub, facts, under: acts, tags: false })}
         <div class="pp-cards">${card('Trophies', p.tro, `${t.icon} ${t.name} · best ${p.best}`)}${card('Level', p.lv || 1)}${card('Wins', p.wins, `${p.played} played`)}${card('Win rate', wr, rk ? `Ranked: ${rk.icon} ${rk.name}` : '')}</div>
-        <div class="pp-more">${p.club ? `<div class="pp-club"><span class="pp-cf">${p.clubFace ? CW.clubFace(p.clubFace) : '🛡'}</span><span><small>Club</small><b>${esc(p.club)}</b></span></div>` : ''}${since ? `<div class="pp-club"><span class="pp-cf">📅</span><span><small>Playing since</small><b>${since}</b></span></div>` : ''}</div>
         <div class="pf-foot left"><button class="set-btn" id="plBack">← Back</button></div></div>`;
       if ($('plAdd')) $('plAdd').onclick = () => { this.net.send({ t: 'friendAdd', name: p.name }); $('plAdd').disabled = true; $('plAdd').textContent = 'Request sent'; };
       if ($('plMsg')) $('plMsg').onclick = () => this.game.talk.openDm(p.name);
       $('plBack').onclick = () => this.game.meta.openPanel(this.backTo || 'friends');
+      // the title: "Player", or "Friends ▾" for a friend: remove them, or block them
+      const title = $('panelTitle'), box = $('panelBody').parentElement;
+      const old = box.querySelector('.pp-menu');
+      if (old) old.remove();
+      if (!isFriend || isMe) { title.textContent = '👤 Player'; return; }
+      title.innerHTML = '<button class="pp-friends" id="ppFriends" aria-label="Friends: remove or block">✓ <span>Friends</span> ▾</button>';
+      const menu = document.createElement('div');
+      menu.className = 'pp-menu hidden';
+      menu.innerHTML = `<button class="set-btn" id="ppRemove">Remove from friends</button><button class="set-btn bad" id="ppBlock">${this.game.talk.isBlocked(p.name) ? 'Unblock' : 'Block'}</button>`;
+      box.appendChild(menu);
+      const show = (on) => menu.classList.toggle('hidden', !on);
+      $('ppFriends').onclick = (e) => { e.stopPropagation(); show(menu.classList.contains('hidden')); };
+      if (!box.ppClick) box.ppClick = box.addEventListener('click', (e) => { const m = box.querySelector('.pp-menu'); if (m && !e.target.closest('.pp-menu') && !e.target.closest('#ppFriends')) m.classList.add('hidden'); }) || 1;
+      $('ppRemove').onclick = () => { show(false); this.game.meta.ask(`Remove ${p.name} from your friends?`, '', 'Remove', () => this.net.send({ t: 'friendRemove', name: p.name })); };
+      $('ppBlock').onclick = () => {
+        show(false);
+        const blocked = this.game.talk.isBlocked(p.name);
+        if (blocked) return this.net.send({ t: 'unblock', name: p.name });
+        this.game.meta.ask(`Block ${p.name}?`, "You won't see their messages or calls. You can unblock them in Settings › Chat.", 'Block', () => this.net.send({ t: 'block', name: p.name }));
+      };
     }
     showPlayer(name, back) { this.backTo = back; this.viewing = null; this.game.meta.openPanel('player'); this.net.send({ t: 'profile', name }); }
     friendsPanel(body) {

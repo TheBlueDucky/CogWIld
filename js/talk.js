@@ -317,6 +317,9 @@
         if ((+seen[tab] || 0) > this.seenTime(tab)) { this.seenAt[tab] = +seen[tab]; changed = true; }
       }
       if (changed) try { localStorage.setItem(this.seenKey(), JSON.stringify(this.seenAt)); } catch (e) { /* private window */ }
+      // v1.10.3: and what this device read further than the account knows goes up to it (read while offline, or before
+      // v1.9.9), so logging in somewhere new (a browser) doesn't show those messages as new again
+      if (this.acct.loggedIn) for (const tab of ['club', 'party']) if (this.seenTime(tab) > (+seen[tab] || 0)) this.net.send({ t: 'chatSeen', tab, at: this.seenTime(tab) });
     }
     lines(tab) {
       if (tab === 'party') return (this.acct.party && this.acct.party.log) || [];

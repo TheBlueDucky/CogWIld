@@ -22,7 +22,7 @@ app.whenReady().then(async () => {
   const shot = async (n) => fs.writeFileSync(path.join(OUT, 'replay-' + n + '.png'), (await win.webContents.capturePage()).toPNG());
   const key = async (k) => { win.webContents.sendInputEvent({ type: 'keyDown', keyCode: k }); win.webContents.sendInputEvent({ type: 'keyUp', keyCode: k }); await wait(150); };
   await win.loadURL('http://localhost:8781/');
-  await js(`localStorage.clear(); indexedDB.deleteDatabase('cogwild-replays'); localStorage.setItem('cogwild.profile', JSON.stringify({ xp: 99999999, settings: { tutorialDone: true, music: 0, sfx: 0, volume: 0, camMode: 'third', timeOfDay: 'day' } })); location.reload();`);
+  await js(`localStorage.clear(); indexedDB.deleteDatabase('cogwild-replays'); localStorage.setItem('cogwild.profile', JSON.stringify({ xp: 99999999, settings: { tutorialDone: true, replays: true, music: 0, sfx: 0, volume: 0, camMode: 'third', timeOfDay: 'day' } })); location.reload();`);
   await wait(4500);
 
   // ---- a 45 s match, sped up; then leave it (kept: long enough) ----

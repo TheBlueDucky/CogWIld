@@ -5,7 +5,7 @@ You build a mech from parts in the Workshop, then fight online (bots fill empty 
 It runs in the browser (three.js r128, no build step), as a Windows app (Electron) and an Android app (Capacitor),
 and on game portals (itch.io, CrazyGames, Poki). The online server is zero-dependency Node.js.
 
-**Live:** https://cogwild.duckdns.org (download page `/download`) · **Code:** https://github.com/TheBlueDucky/CogWIld (public; commits as theblueduckymc@gmail.com) · **Current version:** v1.10.2 · **Online protocol:** `cogwild-net-11`
+**Live:** https://cogwild.duckdns.org (download page `/download`) · **Code:** https://github.com/TheBlueDucky/CogWIld (public; commits as theblueduckymc@gmail.com) · **Current version:** v1.10.3 · **Online protocol:** `cogwild-net-11`
 The user is not a programmer: explain things in plain words, test everything yourself, and show screenshots as proof.
 
 ## How the user wants things done
@@ -166,6 +166,32 @@ The user is not a programmer: explain things in plain words, test everything you
 - **Modes/content:** 8 modes (Rush Build, Workshop Clash, KOTH, Gold Rush, Bounty Hunt, Combat Race, Survival, Boss),
   8 arenas, supers, gadgets, daily featured event, weekly events with modifiers, Ranked (100+ best trophies),
   Cog Pass (30 tiers per 4-week season), Trophy Road, 6 daily challenges, achievements.
+
+## v1.10.3 (30 Oct 2026, same NET_VERSION) — 18 fixes the user listed (they were asked about each first)
+- **Flying**: `ROTOR_LIFT` 21 (was 14), `WING_LIFT` 1.5 (was 1): ~50% heavier mechs fly.
+- **Replays**: `settings.replays` (default off; Settings › Display "Save my match replays"): `Recorder.tick` records only when on;
+  `prune` deletes unstarred ones older than 14 days (max 100). No automatic .cwreplay files any more. 💾 = `replays.makeVideo(id)`: plays
+  the replay from the start (follow cam, UI hidden, `#rpMakeBar` with Cancel) while `expFrame` (game.afterRender) copies the canvas into a
+  1280×720 MediaRecorder (MP4 `avc1` first, WebM where MP4 can't be made) → `CW.saveFile('replays', …mp4)`. "Load replay" (`#rpFileIn`):
+  MP4/WebM → `playVideo` (`#rpVideo`, Esc closes), .cwreplay → 3D viewer. Labels "Load replay" / "Open folder". Results' 🎬 Replay hidden when off.
+- **Login**: server keeps 40 tokens, least recently used goes first (`auth` moves the used one to the end), `logout` frees the device's token
+  (`c.tokHash`). Website cookie: `POST /session` {token} / {out} sets/clears `cw_s` (HttpOnly, Secure, SameSite=Lax, 1 year); the WS upgrade's
+  cookie → `c.cookieTok`; `acctAuth { cookie: 1 }` (account.js `cookieSite()`: only on the site itself, not apps/portals). Old cookie = stay guest.
+- **Chat read**: `talk.seenFrom` also sends `chatSeen` up when this device read further than the account (new browsers don't show old as new).
+- **Look** (CSS block "v1.10.3"): docked glass chat has no top/left/bottom frame or top highlight (that was the white line); friend-row
+  buttons no fill; "Add friend" `--muted2`; `.fr-name` gray-blue with an outline on hover (no underline); Friends/Clubs windows = the profile
+  banner gradient (`html:not([data-theme])`), rows see-through with a line; mute/deafen keep 🎤🎧 + red `::after` line; menu sides open from
+  their top corners (`cwOpenCorner`); `#menu` scrollbar hidden.
+- **Profiles**: someone's profile: club + "Playing since" small under the name (`opts.facts`), Message/Add under them (`opts.under`); title
+  "✓ Friends ▾" (`#ppFriends`, `.pp-menu`: Remove from friends / Block). Your profile: no 📷, the picture is `#pfPicBtn` (menu Upload / Remove),
+  changes are `account.pfDraft` until Save (`saveProfileDraft`); leaving asks (`meta.leavingProfile`, `closePanel(true)` = a player closing it;
+  `meta.ask(..., no)` = a second answer). Account settings sits under the presets.
+- **Settings**: per-key ↺ (`data-keyreset`, swaps like rebinding); `settings.theme` (`CW.THEMES`, html[data-theme] midnight/graphite/ocean/dusk:
+  windows' background only); password boxes small. Forgot-password was skipped (no email sending on the server yet).
+- **Desktop**: title bar 22 px (main.js `BAR`), Segoe UI, shows `CW.VERSION`.
+- **Party card (PC)**: slimmer (`.party-m` picture + name in a row, smaller gaps) so a full party's card ends below Replays.
+  `tests/party-click-test.js` now checks every side button's middle and bottom edge (it used to multiply by the CSS zoom twice).
+- Tests: `tests/v1103-test.js`, shots `tests/social-shots.js`; selftest "logins and the website cookie".
 
 ## v1.10.2 (30 Oct 2026, same NET_VERSION) — physics; the user asked to be asked before each change
 - **Walls/slopes** (entities.js physics): too steep for the mech (but < CLIFF) = climb on momentum, then `pull` downhill; a wall

@@ -16,7 +16,7 @@ if (conf.vsync === false) { app.commandLine.appendSwitch('disable-frame-rate-lim
 
 // the title bar (v1.9.4): no white Windows bar; the game draws a dark one of its own (js/desktop.js) and Windows/Linux
 // draw only the ─ □ ✕ buttons on top of it, in the game's colors. A Mac keeps its three buttons at the top left.
-const BAR = 32;
+const BAR = 22; // the thin title bar (v1.10.3: was 32); Windows draws smaller ─ □ ✕ buttons on it
 const MAC = process.platform === 'darwin';
 
 // what the game may use: the microphone for voice chat, fullscreen, holding the mouse and copying text. Never the

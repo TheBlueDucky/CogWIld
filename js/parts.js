@@ -2,7 +2,7 @@
 (function () {
   const CW = (window.CW = window.CW || {});
 
-  CW.VERSION = 'v1.10.2';
+  CW.VERSION = 'v1.10.3';
   // escape text before it goes into innerHTML (mech/player names can come from pasted save codes)
   // "3h 12m" / "5d 4h" / "12m" until something ends
   CW.timeLeft = (ms) => { const m = Math.max(1, Math.ceil(ms / 60000)); return m >= 2880 ? `${Math.floor(m / 1440)}d ${Math.floor((m % 1440) / 60)}h` : m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; };
@@ -51,11 +51,11 @@
   CW.CEILING = 110;
   CW.DRAG = { land: 1.55, water: 1.2, air: 0.55 }; // lower = faster top speed
   CW.GRID = { minX: -4, maxX: 4, minY: -2, maxY: 4, minZ: -4, maxZ: 4 };
-  CW.WING_LIFT = 1; // v1.9.4: was 0.7 (with ROTOR_LIFT 10): armored mechs can fly too
+  CW.WING_LIFT = 1.5; // v1.9.4: was 0.7 (with ROTOR_LIFT 10): armored mechs can fly too; v1.10.3: 1 -> 1.5 (about 50% heavier mechs fly)
   // how heavy a mech feels when speeding up and at top speed: weight above a normal mech's (20) counts less, so big
   // builds stay fun to drive (lifting off still needs the real weight)
   CW.moveMass = (m) => (m <= 20 ? m : 20 * Math.pow(m / 20, 0.55));
-  CW.ROTOR_LIFT = 14;
+  CW.ROTOR_LIFT = 21; // v1.10.3: was 14 (about 50% heavier mechs fly without dropping armor)
 
   CW.RANKS = [
     { name: 'Mono', domains: 1, level: 1, desc: '1 movement type per mech' },
