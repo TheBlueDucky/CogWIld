@@ -18,7 +18,7 @@ const FFMPEG = (() => {
   } catch (e) { /* fall through */ }
   return 'ffmpeg';
 })();
-const W = 1920, H = 1080, FPS = 60, MS = 1000 / FPS;
+const W = +(process.env.VW || 1920), H = +(process.env.VH || 1080), FPS = 60, MS = 1000 / FPS; // VW=1080 VH=1920: vertical (TikTok / Reels)
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const ROOT = path.join(__dirname, '..', '..');
 const OUT = path.join(ROOT, 'dist', 'youtube');

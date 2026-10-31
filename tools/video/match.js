@@ -20,7 +20,7 @@ const LIMIT = 60 * 420;
 app.whenReady().then(async () => {
   const win = makeWindow();
   const js = (c) => win.webContents.executeJavaScript(c, true);
-  await openGame(win);
+  await openGame(win, process.env.NOMUSIC ? { music: false } : undefined); // NOMUSIC: sound effects only (a song goes on top)
   for (const f of ['vt-page.js', 'setup-page.js', 'pilot-page.js']) await js(fs.readFileSync(path.join(__dirname, f), 'utf8'));
   await js(`__vt.enable(); for (let i = 0; i < 6; i++) __vt.step(-1, ${MS}); true`); // the clock settles on virtual time first
   // not drawn while fast-forwarding, but everything drawing does to the scene (object matrices) still happens, so the
@@ -29,6 +29,8 @@ app.whenReady().then(async () => {
   await js(`__vt.seed(${seed}); game.time = 0; true`);
   if (process.env.DBG) await js('window.__pdbg = []; true');
   const info = await js(`__setup.start('${kind}', '${mode}', '${arena}', { tod: '${tod}', format: ${JSON.stringify(process.env.FORMAT || '')} || undefined })`);
+  // short videos: only the big messages, none of the small pop-ups and lines
+  if (process.env.CLEANHUD) await js(`document.getElementById('__vidcss').textContent += '#notes, #toast, #feed, #chestHint, #flyHint { display: none !important; }'; true`);
   let f = 0, state = 'match';
   // quick steps up to frame `to` (testing: or the end of the match)
   const fast = async (to) => {

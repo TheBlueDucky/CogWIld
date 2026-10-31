@@ -31,3 +31,8 @@ Making a video:
 
 The menu tour: `npx electron menu-video.js` (a mouse pointer with real hover/click events; `--preview` = stills only).
 It logs into a test account on the local test server only.
+
+The vertical short (TikTok / Reels / Shorts): record the moments in vertical with
+`VW=1080 VH=1920 CLEANHUD=1 NOMUSIC=1 npx electron match.js <kind> <seed> <arena> <tod> --rec vA --segs ...`
+(1080x1920, no small pop-ups, no game music: a song goes on top), then `npx electron short.js` — the 1-second logo hook
+and the "DOWNLOAD NOW" text come from `short.html`, the cuts are listed in `short.js` (CUTS). Output `dist/youtube/Cogwild - Short.mp4`.

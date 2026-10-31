@@ -1,0 +1,201 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Cogwild short</title>
+<style>
+  @font-face { font-family: 'Lilita One'; src: url('../../fonts/lilita-one-latin.woff2') format('woff2'); }
+  html, body { margin: 0; background: transparent; }
+</style>
+</head>
+<body>
+<script>
+// The pieces of the vertical short (tools/video/short.js): the 1-second logo hook, the "DOWNLOAD NOW" text (on a
+// see-through background, laid over the last clip) and the edit's sound hits. Each frame is drawn for a time t and
+// handed back as a PNG, so nothing here depends on real time.
+const W = 1080, H = 1920;
+const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+const ctx = cv.getContext('2d');
+const lay = document.createElement('canvas'); lay.width = W; lay.height = H;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const k = (t, a, b) => clamp((t - a) / (b - a), 0, 1);
+const ease = { out: (x) => 1 - Math.pow(1 - x, 3), in: (x) => x * x * x, back: (x) => { const c1 = 2.2, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); } };
+let s0 = 11; const R = () => { s0 = (s0 * 16807) % 2147483647; return s0 / 2147483647; };
+const sparks = Array.from({ length: 120 }, () => ({ a: R() * 6.28, v: 900 + R() * 2200, s: 3 + R() * 7, life: 0.25 + R() * 0.5, c: R() < 0.6 ? '#ffc43d' : R() < 0.5 ? '#5ce1ff' : '#fff' }));
+const lines = Array.from({ length: 46 }, () => ({ a: R() * 6.28, w: 2 + R() * 6, r0: 300 + R() * 300, len: 300 + R() * 700, sp: 0.6 + R() * 0.8 }));
+
+function gearPath(c, r) {
+  const u = r / 25;
+  c.beginPath();
+  c.arc(0, 0, 15 * u, 0, Math.PI * 2);
+  for (let i = 0; i < 8; i++) {
+    c.save(); c.rotate((i * Math.PI) / 4);
+    const x = -4 * u, y = -25 * u, w = 8 * u, h = 12 * u, rr = 2 * u;
+    c.moveTo(x + rr, y); c.lineTo(x + w - rr, y); c.quadraticCurveTo(x + w, y, x + w, y + rr); c.lineTo(x + w, y + h); c.lineTo(x, y + h); c.lineTo(x, y + rr); c.quadraticCurveTo(x, y, x + rr, y);
+    c.restore();
+  }
+}
+function gear(c, x, y, r, rot) {
+  c.save(); c.translate(x, y); c.rotate(rot);
+  gearPath(c, r); c.fillStyle = '#ffc43d'; c.fill();
+  c.beginPath(); c.arc(0, 0, (6 / 25) * r, 0, 6.28); c.fillStyle = '#3a86ff'; c.fill();
+  c.restore();
+}
+// the wordmark for a tall screen, on two lines: C ⚙ G (gold) over W I L D (white), centred at (0, 0)
+const FS = 340;
+function lineWidths(c) {
+  c.font = `${FS}px 'Lilita One'`;
+  const gw = FS * 0.74, wc = c.measureText('C').width, wg = c.measureText('G').width;
+  return { gw, wc, wg, top: wc + gw + wg + 16 };
+}
+function gearPos(c) { const m = lineWidths(c); return { x: -m.top / 2 + m.wc + 8 + m.gw / 2, y: -FS * 0.36 - FS * 0.5 }; }
+function wordmark(c, gearRot) {
+  const m = lineWidths(c);
+  c.textAlign = 'center'; c.textBaseline = 'alphabetic';
+  const y1 = -FS * 0.5, y2 = FS * 0.5;
+  let x = -m.top / 2;
+  c.fillStyle = '#b8741a'; c.fillText('C', x + m.wc / 2, y1 + 14); c.fillStyle = '#ffc43d'; c.fillText('C', x + m.wc / 2, y1);
+  x += m.wc + 8;
+  gear(c, x + m.gw / 2, y1 - FS * 0.36, FS * 0.37, gearRot);
+  x += m.gw + 8;
+  c.fillStyle = '#b8741a'; c.fillText('G', x + m.wg / 2, y1 + 14); c.fillStyle = '#ffc43d'; c.fillText('G', x + m.wg / 2, y1);
+  c.fillStyle = '#2c63c9'; c.fillText('WILD', 0, y2 + 14); c.fillStyle = '#fff'; c.fillText('WILD', 0, y2);
+}
+
+// ---------- the hook: 1 second ----------
+// 0.00 the logo slams in with a flash, 0.12-0.62 the whole logo spins round, 0.62-1.00 a dive into the gear and a white flash
+const HOOK = 1.0;
+function hook(t) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  // the blue background with turning light rays
+  const bg = ctx.createRadialGradient(W / 2, H * 0.46, 30, W / 2, H * 0.5, H * 0.75);
+  bg.addColorStop(0, '#3b7bff'); bg.addColorStop(0.35, '#1d3f9c'); bg.addColorStop(1, '#070d24');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  ctx.save(); ctx.translate(W / 2, H * 0.46); ctx.rotate(t * 2.2); ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 14; i++) { ctx.rotate((Math.PI * 2) / 14); ctx.fillStyle = 'rgba(120,190,255,0.07)'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-90, -1600); ctx.lineTo(90, -1600); ctx.fill(); }
+  ctx.restore();
+  // speed lines rushing out
+  ctx.save(); ctx.translate(W / 2, H * 0.46); ctx.globalCompositeOperation = 'lighter';
+  for (const l of lines) {
+    const r = l.r0 + ((t * 2600 * l.sp) % 1400);
+    ctx.strokeStyle = `rgba(255,255,255,${0.10 + 0.25 * (1 - r / 1700)})`; ctx.lineWidth = l.w;
+    ctx.beginPath(); ctx.moveTo(Math.cos(l.a) * r, Math.sin(l.a) * r); ctx.lineTo(Math.cos(l.a) * (r + l.len), Math.sin(l.a) * (r + l.len)); ctx.stroke();
+  }
+  ctx.restore();
+  // the logo: slam (scale 2.3 -> 1 with a bounce), spin (a full turn round its middle), dive (zoom into the gear)
+  const slam = ease.back(k(t, 0, 0.13));
+  const spin = ease.out(k(t, 0.12, 0.62));
+  const dive = ease.in(k(t, 0.6, 0.98));
+  const L = lay.getContext('2d');
+  L.setTransform(1, 0, 0, 1, 0, 0); L.clearRect(0, 0, W, H);
+  L.translate(W / 2, H * 0.46);
+  const sc = (2.1 - 1.1 * slam) * (1 + dive * 16);
+  // dive toward the gear: it ends up in the middle of the screen as everything grows past the camera
+  const g = gearPos(L);
+  const sx = sc * Math.max(0.08, Math.abs(Math.cos(spin * Math.PI * 2))) * (Math.cos(spin * Math.PI * 2) < 0 ? -1 : 1);
+  L.translate(-g.x * sc * dive, -g.y * sc * dive);
+  L.scale(sx, sc);
+  L.shadowColor = 'rgba(0,0,0,0.5)'; L.shadowBlur = 30; L.shadowOffsetY = 18;
+  wordmark(L, t * 22);
+  // motion trail of the spin, then the logo itself
+  ctx.save();
+  if (t > 0.12 && t < 0.62) { ctx.globalAlpha = 0.25; ctx.drawImage(lay, -24, 0); ctx.drawImage(lay, 24, 0); ctx.globalAlpha = 1; }
+  ctx.drawImage(lay, 0, 0);
+  ctx.restore();
+  // impact: shockwave and sparks
+  if (t < 0.6) {
+    const e = k(t, 0.1, 0.6);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = `rgba(255,220,140,${(1 - e) * 0.9})`; ctx.lineWidth = 26 * (1 - e) + 2;
+    ctx.beginPath(); ctx.arc(W / 2, H * 0.46, 120 + ease.out(e) * 1100, 0, 6.28); ctx.stroke();
+    for (const s of sparks) { const bt = t - 0.1; if (bt < 0 || bt > s.life) continue; const d = s.v * bt; ctx.globalAlpha = 1 - bt / s.life; ctx.fillStyle = s.c; ctx.beginPath(); ctx.arc(W / 2 + Math.cos(s.a) * d, H * 0.46 + Math.sin(s.a) * d, s.s, 0, 6.28); ctx.fill(); }
+    ctx.restore();
+  }
+  // flashes: the slam at the start, white-out at the end
+  const fl = Math.max(1 - t / 0.12, k(t, 0.86, 1.0));
+  if (fl > 0) { ctx.fillStyle = `rgba(255,255,255,${fl})`; ctx.fillRect(0, 0, W, H); }
+}
+
+// ---------- "DOWNLOAD NOW": see-through, over the last clip ----------
+const CTA = 2.6;
+function textLayer(c, word, size, y, fillTop, fillBot) {
+  c.font = `${size}px 'Lilita One'`; c.textAlign = 'center'; c.textBaseline = 'middle';
+  if (c.letterSpacing !== undefined) c.letterSpacing = '3px';
+  // glow, then a hard shadow, a thick dark outline, a gold-orange fill and a shine on top
+  c.save(); c.shadowColor = 'rgba(255,150,30,0.9)'; c.shadowBlur = 60; c.fillStyle = 'rgba(255,170,40,0.6)'; c.fillText(word, 0, y); c.restore();
+  c.save(); c.fillStyle = 'rgba(5,10,35,0.85)'; c.fillText(word, 10, y + 16); c.restore();
+  c.lineJoin = 'round'; c.lineWidth = 22; c.strokeStyle = '#0b1a40'; c.strokeText(word, 0, y);
+  const gr = c.createLinearGradient(0, y - size / 2, 0, y + size / 2);
+  gr.addColorStop(0, fillTop); gr.addColorStop(1, fillBot);
+  c.fillStyle = gr; c.fillText(word, 0, y);
+  c.save(); c.globalCompositeOperation = 'source-atop'; c.fillStyle = 'rgba(255,255,255,0.28)'; c.fillRect(-W, y - size * 0.5, W * 2, size * 0.36); c.restore();
+}
+function cta(t) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H);
+  const L = lay.getContext('2d');
+  L.setTransform(1, 0, 0, 1, 0, 0); L.clearRect(0, 0, W, H);
+  // each word slams in (scale from big, a bounce), the second a beat later; then a slow breathing pulse and a light shake
+  const a1 = ease.back(k(t, 0, 0.22)), a2 = ease.back(k(t, 0.14, 0.36));
+  const pulse = 1 + Math.sin(Math.max(0, t - 0.5) * 6) * 0.025 * k(t, 0.5, 0.8);
+  const sh = Math.max(0, 1 - t / 0.45) * 14;
+  const shx = Math.sin(t * 90) * sh, shy = Math.cos(t * 70) * sh;
+  L.translate(W / 2 + shx, H * 0.44 + shy);
+  L.rotate(-0.06);
+  if (a1 > 0) { L.save(); L.scale((2.6 - 1.6 * a1) * pulse, (2.6 - 1.6 * a1) * pulse); L.globalAlpha = clamp(k(t, 0, 0.08) * 1.5, 0, 1); textLayer(L, 'DOWNLOAD', 166, -110, '#fff4b0', '#ffb21f'); L.restore(); }
+  if (a2 > 0) { L.save(); L.scale((3 - 2 * a2) * pulse, (3 - 2 * a2) * pulse); L.globalAlpha = clamp(k(t, 0.14, 0.22) * 1.5, 0, 1); textLayer(L, 'NOW', 300, 130, '#ffe066', '#ff6a1a'); L.restore(); }
+  // a split-colour edge (the "edit" look): a cyan copy left, a red copy right, faint
+  ctx.save();
+  ctx.globalAlpha = 0.35 + 0.25 * Math.max(0, 1 - t / 0.5);
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.filter = 'hue-rotate(160deg)'; ctx.drawImage(lay, -9, 0);
+  ctx.filter = 'hue-rotate(-40deg)'; ctx.drawImage(lay, 9, 0);
+  ctx.restore();
+  ctx.drawImage(lay, 0, 0);
+  // a light sweep across it
+  const sw = k(t, 0.55, 1.15);
+  if (sw > 0 && sw < 1) {
+    ctx.save(); ctx.globalCompositeOperation = 'source-atop';
+    const x = -300 + sw * (W + 600);
+    const g = ctx.createLinearGradient(x - 140, 0, x + 140, 0);
+    g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.5, 'rgba(255,255,255,0.65)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); ctx.restore();
+  }
+}
+
+window.ready = document.fonts.load(`200px 'Lilita One'`).then(() => true);
+window.LEN = { hook: HOOK, cta: CTA };
+window.frame = (kind, t) => { (kind === 'hook' ? hook : cta)(t); return cv.toDataURL('image/png').slice(22); };
+
+// ---------- the sound hits for the edit (no music: the song goes on top) ----------
+// list: [[time, kind]], kind = slam | whoosh | hit | riser | boom
+window.sfx = async (list, len) => {
+  const SR = 48000, a = new OfflineAudioContext(1, Math.ceil(len * SR), SR);
+  const out = a.createDynamicsCompressor(); out.threshold.value = -12; out.ratio.value = 4; out.connect(a.destination);
+  const nb = a.createBuffer(1, SR * 2, SR); { const d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = R() * 2 - 1; }
+  const noise = (t, dur, f0, f1, q, vol, type) => {
+    const s = a.createBufferSource(); s.buffer = nb; const f = a.createBiquadFilter(); f.type = type || 'bandpass'; f.Q.value = q;
+    f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    const g = a.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + dur * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f).connect(g).connect(out); s.start(t); s.stop(t + dur + 0.05);
+  };
+  const tone = (t, f, dur, type, vol, to) => {
+    const o = a.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, t); if (to) o.frequency.exponentialRampToValueAtTime(to, t + dur);
+    const g = a.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(out); o.start(t); o.stop(t + dur + 0.05);
+  };
+  for (const [t, kind] of list) {
+    if (kind === 'slam') { tone(t, 140, 0.7, 'sine', 0.9, 30); noise(t, 0.5, 4000, 300, 0.7, 0.7, 'lowpass'); for (const f of [523, 1187, 1846]) tone(t, f, 0.9, 'sine', 0.06); }
+    if (kind === 'whoosh') noise(t - 0.12, 0.3, 500, 5000, 1.1, 0.45);
+    if (kind === 'hit') { tone(t, 110, 0.35, 'sine', 0.6, 40); noise(t, 0.18, 6000, 800, 0.8, 0.35, 'lowpass'); }
+    if (kind === 'riser') { noise(t, 0.8, 300, 7000, 1, 0.4); tone(t, 180, 0.8, 'sawtooth', 0.05, 900); }
+    if (kind === 'boom') { tone(t, 120, 1.2, 'sine', 1, 28); noise(t, 0.9, 3000, 150, 0.6, 0.8, 'lowpass'); }
+  }
+  const buf = await a.startRendering(), d = buf.getChannelData(0), pcm = new Int16Array(d.length);
+  for (let i = 0; i < d.length; i++) pcm[i] = clamp(d[i], -1, 1) * 32767;
+  let s = ''; const u = new Uint8Array(pcm.buffer);
+  for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
+  return btoa(s);
+};
+</script>
+</body>
+</html>
