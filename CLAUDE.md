@@ -137,6 +137,7 @@ The user is not a programmer: explain things in plain words, test everything you
 | `server/mailer.js`, `server/google.js` | SMTP login codes; Google ID token checks |
 | `server/selftest.js` | ~230 server checks (fake SMTP + fake Google keys), incl. chat, voice set-up and browser Google sign-in |
 | `tests/` | muted Electron game tests + live checks, see `tests/README.md` |
+| `tools/video/` | YouTube videos (31 Oct 2026): frame-exact hidden-window recording on a virtual clock with offline-rendered game sound, seeded replayable matches, the "showcase pilot" that plays your mech, logo intros, the menu tour, the editor (ffmpeg). See `tools/video/README.md`; output in `dist/youtube/`. Never record while another heavy app or test uses the GPU (it drops to 1-3 fps) |
 | `deploy/` | `setup.sh` (installs on the VM), `setup-turn.sh` (voice relay, coturn), `upload.ps1`, `backup-offsite.sh`, `watchdog.sh`, `set-login.ps1` (email codes), `set-google.ps1` (Google client ID) |
 | `build-apps.ps1`, `build-itch.ps1` | Windows exe, Microsoft Store appx (`-StoreId/-StorePublisher`), Linux tar.gz (x64+arm64), macOS zips (Intel+Apple Silicon, unsigned, packed on Windows by `desktop/pack-unix.py` from Electron's official Mac zip), Android apk/aab (`-Upload` puts the downloads on the server); portal zips + `dist\itch\` upload folder (`-Portal all`) |
 | `desktop/make-icons.js`, `desktop/build/appxmanifest.xml` | Store tiles + Mac .icns from build/icon.png; the appx manifest template (adds internet + microphone) copied into electron-builder before building |
