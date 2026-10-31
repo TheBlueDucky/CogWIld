@@ -761,6 +761,8 @@
     // What's new (Settings › Change logs, and the 📰 News button on phones)
     newsHtml() {
       return `<ul class="news">
+          <li><b>v1.10.4</b>: 🔁 Respawn fix: in Mech Ball, Bounty Hunt, King of the Hill and every other mode with respawns, being shot down on foot no longer leaves you out for the rest of the match. You come back like after a wreck (in Boss Battle it costs a life).
+            ⚠ The Stuck / Damaged / Arena edge message sits still on the left in your theme's colors (no more pulsing and jumping), and the repair tip shows for a few seconds instead of staying up.</li>
           <li><b>v1.10.3</b>: 🚁 Heavier mechs fly: rotors and wings lift 50% more, so armored builds take off without dropping armor.
             🎬 Replays: off by default (Settings › Display › Save my match replays); when on, matches stay 2 weeks. 💾 turns a replay into an MP4 video, and Load replay plays MP4s.
             👥 Friends and Clubs: names in gray-blue with a line on hover, plain buttons, and the profile banner's blue fade behind them. A friend's profile shows their club and since when they play under the name, Message under it, and the title "✓ Friends ▾" removes or blocks them.

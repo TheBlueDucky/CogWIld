@@ -5,7 +5,7 @@ You build a mech from parts in the Workshop, then fight online (bots fill empty 
 It runs in the browser (three.js r128, no build step), as a Windows app (Electron) and an Android app (Capacitor),
 and on game portals (itch.io, CrazyGames, Poki). The online server is zero-dependency Node.js.
 
-**Live:** https://cogwild.duckdns.org (download page `/download`) · **Code:** https://github.com/TheBlueDucky/CogWIld (public; commits as theblueduckymc@gmail.com) · **Current version:** v1.10.3 · **Online protocol:** `cogwild-net-11`
+**Live:** https://cogwild.duckdns.org (download page `/download`) · **Code:** https://github.com/TheBlueDucky/CogWIld (public; commits as theblueduckymc@gmail.com) · **Current version:** v1.10.4 · **Online protocol:** `cogwild-net-11`
 The user is not a programmer: explain things in plain words, test everything yourself, and show screenshots as proof.
 
 ## How the user wants things done
@@ -167,6 +167,15 @@ The user is not a programmer: explain things in plain words, test everything you
 - **Modes/content:** 8 modes (Rush Build, Workshop Clash, KOTH, Gold Rush, Bounty Hunt, Combat Race, Survival, Boss),
   8 arenas, supers, gadgets, daily featured event, weekly events with modifiers, Ranked (100+ best trophies),
   Cog Pass (30 tiers per 4-week season), Trophy Road, 6 daily challenges, achievements.
+
+## v1.10.4 (31 Oct 2026, same NET_VERSION) — respawn fix + calmer warning box (the user was asked first)
+- **Respawn**: in `MODES[..].respawn` modes `onPilotKilled` no longer sets `c.alive = false`: a pilot killed on foot destroys its mech with
+  the killer (`c.mech.destroy(who)` → `onMechDestroyed` respawn branch: score, bounty, streak, Boss lives, the wait); already waiting
+  (mech wrecked while out of it) = keep waiting. Before, hopping out (E) and being shot = out for the rest of the match.
+- **#edgeWarn** (Stuck / Damaged / Arena edge; CSS "v1.10.4"): left side at 34% (phones 46%, under the status box), still (the old
+  `pulse` animation overwrote its `translateX(-50%)` and made it jump), the theme's colors (`--thA/--thB`, default = the Default theme),
+  thin `--muted2` line on the left, sentence case. The repair tip shows 5 s, then rests 60 s (`p.tipUntil/tipNext`), and hides when
+  an enemy is within 45 m. Test: `tests/v1104-test.js`.
 
 ## v1.10.3 (30 Oct 2026, same NET_VERSION) — 18 fixes the user listed (they were asked about each first)
 - **Flying**: `ROTOR_LIFT` 21 (was 14), `WING_LIFT` 1.5 (was 1): ~50% heavier mechs fly.

@@ -2022,6 +2022,14 @@
         this.respawns.push({ t: 2.5, fn: () => this.respawnTestPlayer() });
         return;
       }
+      // respawn modes: a pilot killed on foot counts as a wreck and comes back like one (it used to knock you out
+      // for the rest of the match); the mech's wreck does the scoring, the feed and the wait
+      const mode = MODES[this.modeId];
+      if (mode && mode.respawn && c.alive) {
+        if (c.mech && c.mech.alive) c.mech.destroy(who);
+        else if (c.respawnT === undefined) c.respawnT = mode.respawnDelay || 4;
+        return;
+      }
       const teamsBefore = this.aliveTeams().size;
       c.alive = false;
       if (c.mech && c.mech.alive) c.mech.destroy(null);
@@ -2570,9 +2578,11 @@
       // damaged and nobody close by? remind the player how repairing works
       const quiet = pmech && !this.enemiesOf(p).some((e) => e.pos.distanceTo(p.mech.pos) < 45);
       const hurt = pmech && (p.mech.integrity() < 0.6 || p.mech.parts.some((q) => !q.alive));
+      // the repair tip shows for 5 s, then rests for a minute (it used to stay up the whole time)
+      if (hurt && quiet && !this.isPractice() && this.time >= (p.tipNext || 0)) { p.tipUntil = this.time + 5; p.tipNext = this.time + 65; }
       const warn = pmech && this.stuckT > 2.5 ? (this.unstuckCd > 0 ? `⚠ Stuck? Unstuck ready in ${Math.ceil(this.unstuckCd)}s` : '⚠ Stuck? Press F to hop free')
-        : ei && ei.edge < 10 ? '⚠ ARENA EDGE: force field ahead' : ei && ei.ceiling < 12 ? '⚠ ALTITUDE LIMIT'
-          : hurt && quiet && !this.isPractice() ? '🔧 Damaged! Press E to hop out, then hold R next to your mech to repair' : '';
+        : ei && ei.edge < 10 ? '⚠ Arena edge: force field ahead' : ei && ei.ceiling < 12 ? '⚠ Altitude limit'
+          : hurt && quiet && this.time < (p.tipUntil || 0) ?'🔧 Damaged! Press E to hop out, then hold R next to your mech to repair' : '';
       $('edgeWarn').textContent = warn;
       $('edgeWarn').classList.toggle('hidden', !warn);
       $('camBadge').textContent = this.cameraLost ? '📷✖ chase view' : this.settings.camMode === 'first' ? '📷 First person (V)' : '🎥 Chase cam (V)';
