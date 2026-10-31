@@ -21,8 +21,6 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const k = (t, a, b) => clamp((t - a) / (b - a), 0, 1);
 const ease = { out: (x) => 1 - Math.pow(1 - x, 3), in: (x) => x * x * x, back: (x) => { const c1 = 2.2, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); } };
 let s0 = 11; const R = () => { s0 = (s0 * 16807) % 2147483647; return s0 / 2147483647; };
-const sparks = Array.from({ length: 120 }, () => ({ a: R() * 6.28, v: 900 + R() * 2200, s: 3 + R() * 7, life: 0.25 + R() * 0.5, c: R() < 0.6 ? '#ffc43d' : R() < 0.5 ? '#5ce1ff' : '#fff' }));
-const lines = Array.from({ length: 46 }, () => ({ a: R() * 6.28, w: 2 + R() * 6, r0: 300 + R() * 300, len: 300 + R() * 700, sp: 0.6 + R() * 0.8 }));
 
 function gearPath(c, r) {
   const u = r / 25;
@@ -62,112 +60,90 @@ function wordmark(c, gearRot) {
   c.fillStyle = '#2c63c9'; c.fillText('WILD', 0, y2 + 14); c.fillStyle = '#fff'; c.fillText('WILD', 0, y2);
 }
 
-// ---------- the hook: 1 second ----------
-// 0.00 the logo slams in with a flash, 0.12-0.62 the whole logo spins round, 0.62-1.00 a dive into the gear and a white flash
-const HOOK = 1.0;
+// ---------- the hook (see-through where the game shows) ----------
+// 0.00-0.58 only the logo on a dark navy background, spinning fast like a coin (3 turns); 0.58-0.72 it stops face-on and its
+// letters turn into windows onto the game (playing underneath); 0.72-1.20 a dive through the gear into the match
+const HOOK = 1.2, REVEAL = 0.6;
+const dust = Array.from({ length: 70 }, () => ({ x: R() * W, y: R() * H, v: 30 + R() * 90, s: 1 + R() * 2.4 }));
 function hook(t) {
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  // the blue background with turning light rays
-  const bg = ctx.createRadialGradient(W / 2, H * 0.46, 30, W / 2, H * 0.5, H * 0.75);
-  bg.addColorStop(0, '#3b7bff'); bg.addColorStop(0.35, '#1d3f9c'); bg.addColorStop(1, '#070d24');
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H);
+  // the dark background (like the long videos' intro, darker): navy fading to almost black, faint drifting dust
+  const bg = ctx.createRadialGradient(W / 2, H * 0.44, 40, W / 2, H * 0.5, H * 0.72);
+  bg.addColorStop(0, '#16224a'); bg.addColorStop(0.5, '#0b1228'); bg.addColorStop(1, '#03050c');
   ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-  ctx.save(); ctx.translate(W / 2, H * 0.46); ctx.rotate(t * 2.2); ctx.globalCompositeOperation = 'lighter';
-  for (let i = 0; i < 14; i++) { ctx.rotate((Math.PI * 2) / 14); ctx.fillStyle = 'rgba(120,190,255,0.07)'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-90, -1600); ctx.lineTo(90, -1600); ctx.fill(); }
-  ctx.restore();
-  // speed lines rushing out
-  ctx.save(); ctx.translate(W / 2, H * 0.46); ctx.globalCompositeOperation = 'lighter';
-  for (const l of lines) {
-    const r = l.r0 + ((t * 2600 * l.sp) % 1400);
-    ctx.strokeStyle = `rgba(255,255,255,${0.10 + 0.25 * (1 - r / 1700)})`; ctx.lineWidth = l.w;
-    ctx.beginPath(); ctx.moveTo(Math.cos(l.a) * r, Math.sin(l.a) * r); ctx.lineTo(Math.cos(l.a) * (r + l.len), Math.sin(l.a) * (r + l.len)); ctx.stroke();
-  }
-  ctx.restore();
-  // the logo: slam (scale 2.3 -> 1 with a bounce), spin (a full turn round its middle), dive (zoom into the gear)
-  const slam = ease.back(k(t, 0, 0.13));
-  const spin = ease.out(k(t, 0.12, 0.62));
-  const dive = ease.in(k(t, 0.6, 0.98));
+  for (const d of dust) { ctx.fillStyle = `rgba(150,190,255,${0.18 + 0.12 * Math.sin(t * 9 + d.x)})`; ctx.beginPath(); ctx.arc(d.x, (d.y - t * d.v + H) % H, d.s, 0, 6.28); ctx.fill(); }
+  // the logo: grows in fast and spins round its middle (3 turns, slowing to face-on)
+  const grow = ease.out(k(t, 0, 0.18));
+  const spin = ease.out(k(t, 0, 0.58));
+  const ang = spin * Math.PI * 6; // 3 turns (it ends face-on, not mirrored)
+  const c = Math.cos(ang);
+  const dive = ease.in(k(t, 0.72, 1.18));
+  const sc = (0.4 + 0.6 * grow) * (1 + dive * 45);
   const L = lay.getContext('2d');
   L.setTransform(1, 0, 0, 1, 0, 0); L.clearRect(0, 0, W, H);
   L.translate(W / 2, H * 0.46);
-  const sc = (2.1 - 1.1 * slam) * (1 + dive * 16);
-  // dive toward the gear: it ends up in the middle of the screen as everything grows past the camera
   const g = gearPos(L);
-  const sx = sc * Math.max(0.08, Math.abs(Math.cos(spin * Math.PI * 2))) * (Math.cos(spin * Math.PI * 2) < 0 ? -1 : 1);
   L.translate(-g.x * sc * dive, -g.y * sc * dive);
-  L.scale(sx, sc);
-  L.shadowColor = 'rgba(0,0,0,0.5)'; L.shadowBlur = 30; L.shadowOffsetY = 18;
-  wordmark(L, t * 22);
-  // motion trail of the spin, then the logo itself
-  ctx.save();
-  if (t > 0.12 && t < 0.62) { ctx.globalAlpha = 0.25; ctx.drawImage(lay, -24, 0); ctx.drawImage(lay, 24, 0); ctx.globalAlpha = 1; }
-  ctx.drawImage(lay, 0, 0);
-  ctx.restore();
-  // impact: shockwave and sparks
-  if (t < 0.6) {
-    const e = k(t, 0.1, 0.6);
-    ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    ctx.strokeStyle = `rgba(255,220,140,${(1 - e) * 0.9})`; ctx.lineWidth = 26 * (1 - e) + 2;
-    ctx.beginPath(); ctx.arc(W / 2, H * 0.46, 120 + ease.out(e) * 1100, 0, 6.28); ctx.stroke();
-    for (const s of sparks) { const bt = t - 0.1; if (bt < 0 || bt > s.life) continue; const d = s.v * bt; ctx.globalAlpha = 1 - bt / s.life; ctx.fillStyle = s.c; ctx.beginPath(); ctx.arc(W / 2 + Math.cos(s.a) * d, H * 0.46 + Math.sin(s.a) * d, s.s, 0, 6.28); ctx.fill(); }
-    ctx.restore();
+  L.scale(sc * (Math.abs(c) < 0.06 ? 0.06 * Math.sign(c || 1) : c), sc);
+  const win = t >= REVEAL; // the letters are windows from here on
+  if (!win) { L.shadowColor = 'rgba(0,0,0,0.6)'; L.shadowBlur = 40; L.shadowOffsetY = 20; }
+  wordmark(L, t * 30);
+  if (!win) {
+    // a glint on the logo as it turns, then the logo itself
+    ctx.drawImage(lay, 0, 0);
+    if (Math.abs(c) > 0.8) { ctx.save(); ctx.globalCompositeOperation = 'source-atop'; ctx.fillStyle = `rgba(255,255,255,${0.15 * Math.abs(Math.sin(ang * 2))})`; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+  } else {
+    // windows: cut the letters' shape out of the background (the game shows through), with a gold rim glowing
+    // round them for a moment
+    const rim = 1 - k(t, REVEAL, REVEAL + 0.25);
+    if (rim > 0) { ctx.save(); ctx.shadowColor = `rgba(255,196,61,${rim})`; ctx.shadowBlur = 50; ctx.globalAlpha = rim; ctx.drawImage(lay, 0, 0); ctx.restore(); }
+    ctx.save(); ctx.globalCompositeOperation = 'destination-out'; ctx.drawImage(lay, 0, 0); ctx.restore();
+    // and everything thins out at the very end of the dive
+    const fade = k(t, 1.05, 1.2);
+    if (fade > 0) { ctx.save(); ctx.globalCompositeOperation = 'destination-out'; ctx.fillStyle = `rgba(0,0,0,${fade})`; ctx.fillRect(0, 0, W, H); ctx.restore(); }
   }
-  // flashes: the slam at the start, white-out at the end
-  const fl = Math.max(1 - t / 0.12, k(t, 0.86, 1.0));
-  if (fl > 0) { ctx.fillStyle = `rgba(255,255,255,${fl})`; ctx.fillRect(0, 0, W, H); }
 }
 
-// ---------- "DOWNLOAD NOW": see-through, over the last clip ----------
-const CTA = 2.6;
-function textLayer(c, word, size, y, fillTop, fillBot) {
-  c.font = `${size}px 'Lilita One'`; c.textAlign = 'center'; c.textBaseline = 'middle';
-  if (c.letterSpacing !== undefined) c.letterSpacing = '3px';
-  // glow, then a hard shadow, a thick dark outline, a gold-orange fill and a shine on top
-  c.save(); c.shadowColor = 'rgba(255,150,30,0.9)'; c.shadowBlur = 60; c.fillStyle = 'rgba(255,170,40,0.6)'; c.fillText(word, 0, y); c.restore();
-  c.save(); c.fillStyle = 'rgba(5,10,35,0.85)'; c.fillText(word, 10, y + 16); c.restore();
-  c.lineJoin = 'round'; c.lineWidth = 22; c.strokeStyle = '#0b1a40'; c.strokeText(word, 0, y);
-  const gr = c.createLinearGradient(0, y - size / 2, 0, y + size / 2);
-  gr.addColorStop(0, fillTop); gr.addColorStop(1, fillBot);
-  c.fillStyle = gr; c.fillText(word, 0, y);
-  c.save(); c.globalCompositeOperation = 'source-atop'; c.fillStyle = 'rgba(255,255,255,0.28)'; c.fillRect(-W, y - size * 0.5, W * 2, size * 0.36); c.restore();
+// ---------- a light leak (warm and cool glows drifting across), for the transitions ----------
+const LEAK = 0.6;
+function leak(t) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H);
+  const a = Math.sin(Math.PI * k(t, 0, LEAK));
+  ctx.globalCompositeOperation = 'lighter';
+  for (const [x0, y0, r, col] of [[-200 + t * 1400, 500, 900, '255,140,40'], [W + 100 - t * 1200, 1300, 800, '80,200,255'], [W * 0.5, -200 + t * 900, 700, '255,220,150']]) {
+    const g2 = ctx.createRadialGradient(x0, y0, 0, x0, y0, r);
+    g2.addColorStop(0, `rgba(${col},${0.55 * a})`); g2.addColorStop(1, `rgba(${col},0)`);
+    ctx.fillStyle = g2; ctx.fillRect(0, 0, W, H);
+  }
+  ctx.globalCompositeOperation = 'source-over';
 }
+
+// ---------- "DOWNLOAD NOW": straight, light grey-white with a heavy soft shadow, blending into the game ----------
+const CTA = 2.6;
 function cta(t) {
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H);
-  const L = lay.getContext('2d');
-  L.setTransform(1, 0, 0, 1, 0, 0); L.clearRect(0, 0, W, H);
-  // each word slams in (scale from big, a bounce), the second a beat later; then a slow breathing pulse and a light shake
-  const a1 = ease.back(k(t, 0, 0.22)), a2 = ease.back(k(t, 0.14, 0.36));
-  const pulse = 1 + Math.sin(Math.max(0, t - 0.5) * 6) * 0.025 * k(t, 0.5, 0.8);
-  const sh = Math.max(0, 1 - t / 0.45) * 14;
-  const shx = Math.sin(t * 90) * sh, shy = Math.cos(t * 70) * sh;
-  L.translate(W / 2 + shx, H * 0.44 + shy);
-  L.rotate(-0.06);
-  if (a1 > 0) { L.save(); L.scale((2.6 - 1.6 * a1) * pulse, (2.6 - 1.6 * a1) * pulse); L.globalAlpha = clamp(k(t, 0, 0.08) * 1.5, 0, 1); textLayer(L, 'DOWNLOAD', 166, -110, '#fff4b0', '#ffb21f'); L.restore(); }
-  if (a2 > 0) { L.save(); L.scale((3 - 2 * a2) * pulse, (3 - 2 * a2) * pulse); L.globalAlpha = clamp(k(t, 0.14, 0.22) * 1.5, 0, 1); textLayer(L, 'NOW', 300, 130, '#ffe066', '#ff6a1a'); L.restore(); }
-  // a split-colour edge (the "edit" look): a cyan copy left, a red copy right, faint
-  ctx.save();
-  ctx.globalAlpha = 0.35 + 0.25 * Math.max(0, 1 - t / 0.5);
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.filter = 'hue-rotate(160deg)'; ctx.drawImage(lay, -9, 0);
-  ctx.filter = 'hue-rotate(-40deg)'; ctx.drawImage(lay, 9, 0);
-  ctx.restore();
-  ctx.drawImage(lay, 0, 0);
-  // a light sweep across it
-  const sw = k(t, 0.55, 1.15);
-  if (sw > 0 && sw < 1) {
-    ctx.save(); ctx.globalCompositeOperation = 'source-atop';
-    const x = -300 + sw * (W + 600);
-    const g = ctx.createLinearGradient(x - 140, 0, x + 140, 0);
-    g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.5, 'rgba(255,255,255,0.65)'); g.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); ctx.restore();
+  const a = ease.out(k(t, 0, 0.45));
+  const s = 1.08 - 0.08 * a;
+  ctx.translate(W / 2, H * 0.45); ctx.scale(s, s);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const [word, size, y, sp] of [['DOWNLOAD', 150, -95, 10], ['NOW', 250, 105, 18]]) {
+    ctx.font = `${size}px 'Lilita One'`;
+    if (ctx.letterSpacing !== undefined) ctx.letterSpacing = `${sp + (1 - a) * 30}px`;
+    // a wide dark shadow that sinks it into the picture, a closer one for depth, then the letters (a little see-through)
+    ctx.save(); ctx.globalAlpha = 0.75 * a; ctx.shadowColor = 'rgba(0,0,0,0.95)'; ctx.shadowBlur = 70; ctx.shadowOffsetY = 26; ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillText(word, 0, y); ctx.restore();
+    ctx.save(); ctx.globalAlpha = 0.6 * a; ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 8; ctx.fillStyle = 'rgba(20,24,34,0.6)'; ctx.fillText(word, 0, y + 4); ctx.restore();
+    const gr = ctx.createLinearGradient(0, y - size / 2, 0, y + size / 2);
+    gr.addColorStop(0, 'rgba(244,246,250,0.95)'); gr.addColorStop(1, 'rgba(186,194,208,0.92)');
+    ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = gr; ctx.fillText(word, 0, y); ctx.restore();
   }
 }
 
 window.ready = document.fonts.load(`200px 'Lilita One'`).then(() => true);
-window.LEN = { hook: HOOK, cta: CTA };
-window.frame = (kind, t) => { (kind === 'hook' ? hook : cta)(t); return cv.toDataURL('image/png').slice(22); };
+window.LEN = { hook: HOOK, cta: CTA, leak: LEAK, reveal: REVEAL };
+window.frame = (kind, t) => { ({ hook, cta, leak })[kind](t); return cv.toDataURL('image/png').slice(22); };
 
 // ---------- the sound hits for the edit (no music: the song goes on top) ----------
-// list: [[time, kind]], kind = slam | whoosh | hit | riser | boom
+// list: [[time, kind]], kind = slam | whoosh | hit | riser | boom | spin
 window.sfx = async (list, len) => {
   const SR = 48000, a = new OfflineAudioContext(1, Math.ceil(len * SR), SR);
   const out = a.createDynamicsCompressor(); out.threshold.value = -12; out.ratio.value = 4; out.connect(a.destination);
@@ -188,6 +164,8 @@ window.sfx = async (list, len) => {
     if (kind === 'whoosh') noise(t - 0.12, 0.3, 500, 5000, 1.1, 0.45);
     if (kind === 'hit') { tone(t, 110, 0.35, 'sine', 0.6, 40); noise(t, 0.18, 6000, 800, 0.8, 0.35, 'lowpass'); }
     if (kind === 'riser') { noise(t, 0.8, 300, 7000, 1, 0.4); tone(t, 180, 0.8, 'sawtooth', 0.05, 900); }
+    if (kind === 'glitch') { for (let i = 0; i < 5; i++) tone(t + i * 0.025, 300 + R() * 2200, 0.02, 'square', 0.12); noise(t, 0.12, 6000, 2000, 2, 0.25, 'highpass'); }
+    if (kind === 'spin') { for (let i = 0; i < 6; i++) noise(t + i * 0.09, 0.12, 900 + i * 300, 2600 + i * 400, 1.4, 0.22); }
     if (kind === 'boom') { tone(t, 120, 1.2, 'sine', 1, 28); noise(t, 0.9, 3000, 150, 0.6, 0.8, 'lowpass'); }
   }
   const buf = await a.startRendering(), d = buf.getChannelData(0), pcm = new Int16Array(d.length);
