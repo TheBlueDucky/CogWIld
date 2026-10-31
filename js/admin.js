@@ -70,6 +70,9 @@
           ${p.banUntil > Date.now() ? `<span class="tag bad">banned ${until(p.banUntil)}</span><button class="good" data-act="unban" data-name="${esc(p.name)}">Unban</button>` : ''}
           ${p.muteUntil > Date.now() ? `<span class="tag bad">${p.autoMuted ? 'auto-' : ''}muted ${until(p.muteUntil)}</span><button class="good" data-act="unmute" data-name="${esc(p.name)}">Unmute</button>` : ''}
           ${p.quick ? '<span class="tag">quick chat only</span>' : ''}</div>`).join('') : '<div class="card">Nobody is muted or banned.</div>';
+    } else if (tab === 'recent') {
+      v.innerHTML = '<div class="card">Loading…</div>';
+      api('recent').then((r) => { if (tab === 'recent') { v.innerHTML = recentHtml(r.list); bind(v); } }).catch((e) => { v.innerHTML = `<div class="card">${esc(e.message)}</div>`; });
     } else if (tab === 'stats') {
       v.innerHTML = '<div class="card small">Loading…</div>';
       api('stats').then((s) => { if (tab === 'stats') { v.innerHTML = statsHtml(s); bind(v); } }).catch((e) => { v.innerHTML = `<div class="card">${esc(e.message)}</div>`; });
@@ -86,10 +89,27 @@
     }
     bind(v);
   }
+  // ---- 🕹 Last players: the last 10 different players who finished a match (newest first) ----
+  const ago = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
+  function recentHtml(list) {
+    if (!list.length) return '<div class="card">Nobody has finished a match since this list started.</div>';
+    return list.map((p) => {
+      const match = `${esc(MODE[p.mode] || p.mode)} · ${p.on ? 'online' : 'vs bots'} · +${p.coins} 🪙 +${p.xp} XP · ${esc(PLAT[p.plat] || p.plat)}`;
+      const head = p.guest
+        ? `<b>Guest</b> <span class="small">#${esc(p.code)}</span>`
+        : `<b class="name" data-player="${esc(p.name)}">${esc(p.name)}</b>${p.online ? ' <span class="tag">online</span>' : ''}${p.banned ? ' <span class="tag bad">banned</span>' : ''}${p.muted ? ' <span class="tag bad">muted</span>' : ''}${p.quick ? ' <span class="tag">quick chat only</span>' : ''}${p.reports ? ` <span class="tag bad">${p.reports} open report${p.reports === 1 ? '' : 's'}</span>` : ''}`;
+      const facts = p.guest ? 'No account: progress only on their device' : [
+        `Level ${p.lv}`, `🏆 ${p.tro} (best ${p.best})`, `${p.played} played · ${p.wins} won`, `${p.coins0} 🪙`, p.club ? `Club ${esc(p.club)}` : 'No club',
+        `${p.friends} friend${p.friends === 1 ? '' : 's'}`, `Joined ${when(p.created)}`, `Last online ${p.online ? 'now' : when(p.seen)}`].join(' · ');
+      return `<div class="card"><div class="row">${head}<span class="small">finished a match ${ago(p.at)} (${when(p.at)})${p.games > 1 ? ` · ${p.games} matches lately` : ''}</span></div>
+        <div class="small">Last match: ${match}</div><div class="small">${facts}</div></div>`;
+    }).join('');
+  }
   // ---- 📈 Stats: players per day (server/stats.js) ----
   const PLAT = { web: 'Website (PC)', 'web-phone': 'Website (phone)', 'web-chromebook': 'Website (Chromebook)', windows: 'Windows app', store: 'Microsoft Store', android: 'Android app', mac: 'Mac app', linux: 'Linux app',
     itch: 'itch.io', crazygames: 'CrazyGames', poki: 'Poki', old: 'Older game versions' };
-  const MODE = { clash: 'Workshop Clash', rush: 'Rush Build', koth: 'King of the Hill', gold: 'Gold Rush', bounty: 'Bounty Hunt', race: 'Combat Race', survival: 'Survival', boss: 'Boss Battle' };
+  const MODE = { clash: 'Workshop Clash', rush: 'Rush Build', koth: 'King of the Hill', gold: 'Gold Rush', bounty: 'Bounty Hunt', race: 'Combat Race', survival: 'Survival', boss: 'Boss Battle',
+    ball: 'Mech Ball', heist: 'Core Heist', scrap: 'Scrap Wars', derby: 'Demolition Derby', ranked: 'Ranked', cup: 'Weekend Cup' };
   const pct = (x) => (x == null ? '—' : x + '%');
   const sum = (days, f) => days.reduce((s, d) => s + f(d), 0);
   const merge = (days, k) => { const o = {}; for (const d of days) for (const [n, c] of Object.entries(d[k] || {})) o[n] = (o[n] || 0) + c; return Object.entries(o).sort((a, b) => b[1] - a[1]); };

@@ -9,6 +9,7 @@ const crypto = require('crypto');
 
 const DAYS_KEPT = 400; // daily counts
 const IDS_KEPT = 35; // who played on a day (for "came back"), only this long
+const RECENT = 10; // the last players who finished a match (admin page)
 const BUGS_MAX = 300; // different errors kept
 const BUG_PER_CONN = 20, BUG_PER_IP = 100; // reports accepted per connection / per network per hour
 const PLATS = /^[a-z][a-z0-9-]{0,15}$/;
@@ -66,10 +67,18 @@ class Stats {
     this.a.dirty();
   }
   // a finished match (the game's reward report was accepted)
-  match(c, mode, online) {
+  match(c, mode, online, paid) {
     const d = this.today();
-    bump(d.modes, /^[a-z]{1,12}$/.test(mode || '') ? mode : 'other');
+    const md = /^[a-z]{1,12}$/.test(mode || '') ? mode : 'other';
+    bump(d.modes, md);
     bump(d, online ? 'online' : 'solo');
+    // the last 10 different players who finished a match (newest first), for /admin › Last players
+    const id = c.statId || (c.user ? 'u:' + c.user : 'g:' + (c.guest || '').slice(0, 8));
+    const old = (this.s.recent || []).find((r) => r.id === id);
+    const list = (this.s.recent = (this.s.recent || []).filter((r) => r !== old));
+    list.unshift({ id, at: Date.now(), user: c.user || null, plat: PLATS.test(c.plat || '') ? c.plat : 'old', mode: md, on: !!online,
+      n: (paid && paid.n) | 0, xp: (paid && paid.xp) | 0, games: (old ? old.games : 0) + 1 });
+    list.length = Math.min(list.length, RECENT);
     this.a.dirty();
   }
 

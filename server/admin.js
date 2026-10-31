@@ -9,6 +9,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const E = require('../js/economy.js');
 
 const TOKEN = process.env.ADMIN_TOKEN || '';
 const FAIL_MAX = 5, FAIL_WINDOW = 15 * 60000;
@@ -60,6 +61,7 @@ class Admin {
     try {
       if (what === 'overview') return this.json(res, 200, this.overview()), true;
       if (what === 'player') return this.json(res, 200, this.player(q.get('name'))), true;
+      if (what === 'recent') return this.json(res, 200, { list: this.recent() }), true;
       if (what === 'stats') return this.json(res, 200, this.a.stats ? this.a.stats.view() : { err: 'No stats here' }), true;
       if (what === 'bugs') return this.json(res, 200, { bugs: this.a.stats ? this.a.stats.bugList() : [] }), true;
       if (what === 'support') return this.json(res, 200, { list: this.a.support ? this.a.support.view() : [] }), true;
@@ -87,6 +89,23 @@ class Admin {
         today: this.a.stats ? this.a.stats.today().n : 0, openBugs: this.a.stats ? Object.values(this.db.bugs || {}).filter((b) => !b.done).length : 0,
         openSupport: this.a.support ? this.a.support.open() : 0 },
     };
+  }
+  // the last 10 different players who finished a match (server/stats.js), with what we know about each
+  recent() {
+    const now = Date.now();
+    return ((this.db.stats && this.db.stats.recent) || []).map((r) => {
+      const u = r.user && this.db.users[r.user];
+      const w = u && u.w;
+      const base = { at: r.at, plat: r.plat, mode: r.mode, on: r.on, coins: r.n, xp: r.xp, games: r.games, code: String(r.id || '').slice(0, 6) };
+      if (!u) return Object.assign(base, { guest: true, online: false });
+      const k = key(u.name);
+      return Object.assign(base, {
+        name: u.name, online: this.a.online.has(k), created: u.created || 0, seen: u.seen || 0, tro: u.tro | 0, best: u.best | 0, played: u.played | 0, wins: u.wins | 0,
+        lv: w ? E.levelOf(w.xp || 0) : 1, coins0: w ? w.coins | 0 : 0, club: u.club && this.db.clubs[u.club] ? this.db.clubs[u.club].name : null,
+        friends: (u.friends || []).length, quick: u.cm === 'quick', muted: (u.muteUntil || 0) > now, banned: (u.banUntil || 0) > now,
+        reports: (this.db.reports || []).filter((x) => key(x.who) === k && !x.done).length,
+      });
+    });
   }
   player(name) {
     const u = this.a.user(name);

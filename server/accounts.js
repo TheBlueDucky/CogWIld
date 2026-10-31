@@ -1119,7 +1119,7 @@ class Accounts {
         w.earn.last = now;
         w.earn.after = n; // a results crate and an ad doubling may follow this match, once
         w.earn.crate = true;
-        if (this.stats) this.stats.match(c, m.mode, !!m.on);
+        if (this.stats) this.stats.match(c, m.mode, !!m.on, { n, xp });
       }
     } else if (src === 'chest') {
       if (w.earn.crate) { n = Math.min(ask, E.EARN.chest); w.earn.crate = false; }
