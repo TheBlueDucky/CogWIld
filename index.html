@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<!-- v1.10.5: the apps (Windows, Android, itch.io) get the website's rule too: only the game's own scripts ever run, so text
+     from other players can never become code; pictures and the connection come from the game's server -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' ws: wss: https:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
 <title>Cogwild: build mechs, battle online</title>
 <meta name="description" content="Build any mech from 25 parts, then battle on land, water and sky. Free 3D game: play vs bots or online with friends, earn trophies and climb the leaderboard.">

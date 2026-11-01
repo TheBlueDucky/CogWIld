@@ -15,7 +15,7 @@ const DOM = { land: 'land', water: 'water', air: 'air' };
 class Gallery {
   constructor(a) {
     this.a = a;
-    if (!a.db.gallery) a.db.gallery = {};
+    a.db.gallery = Object.assign(Object.create(null), a.db.gallery || {}); // no prototype: a mech id like __proto__ finds nothing
     this.seq = Object.keys(a.db.gallery).length;
   }
   get db() { return this.a.db; }

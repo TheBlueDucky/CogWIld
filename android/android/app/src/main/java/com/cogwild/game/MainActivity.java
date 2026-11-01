@@ -6,6 +6,7 @@ import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
@@ -15,6 +16,8 @@ import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 
 // Cogwild: full-screen game (system bars hidden, swipe from the edge to show them) and the screen stays on.
 public class MainActivity extends BridgeActivity {
@@ -42,6 +45,19 @@ public class MainActivity extends BridgeActivity {
                 Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
                 i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 try { startActivity(i); } catch (Exception e) { /* no browser */ }
+            }
+            // v1.10.5 this phone's ID for Cogwild (Android's ANDROID_ID, the same after a reinstall), hashed so the real one
+            // never leaves the phone: the server allows 3 new accounts per device
+            @JavascriptInterface
+            public String deviceId() {
+                try {
+                    String id = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
+                    if (id == null || id.isEmpty()) return null;
+                    byte[] h = MessageDigest.getInstance("SHA-256").digest(("cogwild-device:" + id.toLowerCase()).getBytes(StandardCharsets.UTF_8));
+                    StringBuilder sb = new StringBuilder();
+                    for (byte b : h) sb.append(String.format("%02x", b));
+                    return sb.toString();
+                } catch (Exception e) { return null; }
             }
             // typing in the chat from the menu: upright, then back to sideways
             @JavascriptInterface

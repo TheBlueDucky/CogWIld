@@ -36,6 +36,10 @@ const TOKENS_KEPT = 40;
 const QUICK_MIN_SECS = parseFloat(process.env.TROPHY_MIN_SECS || '40');
 // new accounts per network per hour (tests on your own PC can raise it)
 const SIGNUPS_PER_HOUR = parseInt(process.env.SIGNUPS_PER_HOUR || '5', 10);
+// v1.10.5 new accounts one device may ever make (deleting one doesn't free its place). A device is known by the random ID the
+// game keeps, the website's cookie, and in the apps the phone's / PC's own ID (server.js 'hello'); only hashes are stored
+const ACCOUNTS_PER_DEVICE = parseInt(process.env.ACCOUNTS_PER_DEVICE || '3', 10);
+const DEVICE_FULL = `This device already made ${ACCOUNTS_PER_DEVICE} Cogwild accounts. Log in to one of them instead.`;
 
 const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
 const scrypt = (pass, salt) => new Promise((res, rej) => crypto.scrypt(pass, salt, 32, { N: 16384, r: 8, p: 1 }, (e, k) => (e ? rej(e) : res(k))));
@@ -102,6 +106,8 @@ class Accounts {
     this.db.users = Object.assign(Object.create(null), this.db.users || {});
     this.db.clubs = Object.assign(Object.create(null), this.db.clubs || {});
     this.db.guests = Object.assign(Object.create(null), this.db.guests || {});
+    this.db.devices = Object.assign(Object.create(null), this.db.devices || {}); // device hash -> accounts it made
+    this.db.cups = Object.assign(Object.create(null), this.db.cups || {});
     // club chat: saved with the rest, the last 40 lines per club, each deleted after a week (server/talk.js prune)
     this.db.clubChat = Object.assign(Object.create(null), this.db.clubChat || {});
     this.clubLog = {
@@ -124,7 +130,7 @@ class Accounts {
     this.saveT = null;
     try {
       const tmp = DB_FILE + '.tmp';
-      fs.writeFileSync(tmp, JSON.stringify(this.db));
+      fs.writeFileSync(tmp, JSON.stringify(this.db), { mode: 0o600 });
       fs.renameSync(tmp, DB_FILE);
       this.dailyBackup();
     } catch (e) { console.error('accounts: save failed', e.message); }
@@ -136,7 +142,7 @@ class Accounts {
     const dir = path.join(DATA_DIR, 'backups');
     fs.mkdirSync(dir, { recursive: true });
     const file = path.join(dir, `db-${day}.json`);
-    if (!fs.existsSync(file)) fs.copyFileSync(DB_FILE, file);
+    if (!fs.existsSync(file)) { fs.copyFileSync(DB_FILE, file); fs.chmodSync(file, 0o600); }
     this.backedUp = day;
     const old = fs.readdirSync(dir).filter((f) => /^db-\d{4}-\d\d-\d\d\.json$/.test(f)).sort().slice(0, -14);
     for (const f of old) fs.unlinkSync(path.join(dir, f));
@@ -226,6 +232,16 @@ class Accounts {
     }
     return false;
   }
+
+  // ---- devices (v1.10.5): at most ACCOUNTS_PER_DEVICE new accounts each ----
+  // dev: { ls, hw } from the game's hello (64 hex each); cookie: the website's cw_d cookie
+  setDevice(c, dev, cookie) {
+    const hex = (v) => (typeof v === 'string' && /^[0-9a-f]{64}$/.test(v) ? v : null);
+    const d = dev && typeof dev === 'object' ? dev : {};
+    c.devKeys = [['h', hex(d.hw)], ['l', hex(d.ls)], ['c', hex(cookie)]].filter(([, v]) => v).map(([k, v]) => k + ':' + sha('cogwild-device:' + v));
+  }
+  deviceFull(c) { return (c.devKeys || []).some((k) => (this.db.devices[k] | 0) >= ACCOUNTS_PER_DEVICE); }
+  deviceMade(c) { for (const k of c.devKeys || []) this.db.devices[k] = (this.db.devices[k] | 0) + 1; }
 
   // ======================= messages =======================
   // returns true when the message was an account message
@@ -384,9 +400,12 @@ class Accounts {
     }
     if (this.user(name)) return this.err(c, 'That username is taken');
     if (this.byEmail.has(email)) return this.err(c, 'That email already has an account. Log in instead.');
+    if (this.deviceFull(c)) return this.err(c, DEVICE_FULL);
     const salt = pass ? crypto.randomBytes(16).toString('hex') : null;
     const hash = pass ? (await scrypt(pass, salt)).toString('hex') : null;
     if (this.user(name) || this.byEmail.has(email)) return this.err(c, 'That username is taken');
+    if (this.deviceFull(c)) return this.err(c, DEVICE_FULL);
+    this.deviceMade(c);
     const now = Date.now();
     const k = key(name);
     const guest = c.guest && this.db.guests[c.guest];
@@ -412,6 +431,7 @@ class Accounts {
     if (this.user(name)) return this.err(c, 'That username is taken');
     const now = Date.now();
     if ((this.regByIp.get(c.ip) || []).filter((x) => now - x < 3600000).length >= SIGNUPS_PER_HOUR) return this.err(c, 'Too many new accounts from your network. Try again later.');
+    if (this.deviceFull(c)) return this.err(c, DEVICE_FULL);
     const salt = crypto.randomBytes(16).toString('hex');
     const hash = (await scrypt(pass, salt)).toString('hex');
     if (mailer.ready) { c.pendingSignup = { email, name, salt, hash }; return this.emailStart(c, { email, purpose: 'signup' }); }
@@ -421,6 +441,8 @@ class Accounts {
   createAccount(c, { email, name, salt, hash }) {
     if (this.user(name)) return this.err(c, 'That username is taken');
     if (email && this.byEmail.has(email)) return this.err(c, 'That email already has an account. Log in instead.');
+    if (this.deviceFull(c)) return this.err(c, DEVICE_FULL);
+    this.deviceMade(c);
     const now = Date.now();
     this.regByIp.set(c.ip, (this.regByIp.get(c.ip) || []).filter((x) => now - x < 3600000).concat(now));
     const k = key(name);
@@ -443,9 +465,12 @@ class Accounts {
     const now = Date.now();
     const recent = (this.regByIp.get(c.ip) || []).filter((x) => now - x < 3600000);
     if (recent.length >= SIGNUPS_PER_HOUR) return this.err(c, 'Too many new accounts from your network. Try again later.');
+    if (this.deviceFull(c)) return this.err(c, DEVICE_FULL);
     const salt = crypto.randomBytes(16).toString('hex');
     const hash = (await scrypt(pass, salt)).toString('hex');
     if (this.user(name)) return this.err(c, 'That username is taken'); // someone was faster during the hash
+    if (this.deviceFull(c)) return this.err(c, DEVICE_FULL); // two sign-ups at once from one device
+    this.deviceMade(c);
     recent.push(now);
     this.regByIp.set(c.ip, recent);
     const k = key(name);
@@ -1267,7 +1292,7 @@ class Accounts {
   // ---------------- Weekend Cup (js/economy.js CUP): db.cups[id] = { mode, players: { key: { n, pts: [], claimed } } } ----------------
   cupNow() { return E.cup(process.env.CUP_DATE ? Date.parse(process.env.CUP_DATE) : Date.now()); } // CUP_DATE: only for tests
   cupData(id, mode) {
-    if (!this.db.cups) this.db.cups = {};
+    if (!this.db.cups) this.db.cups = Object.create(null);
     if (!this.db.cups[id] && mode) {
       this.db.cups[id] = { mode, players: {} };
       for (const old of Object.keys(this.db.cups).sort().slice(0, -4)) delete this.db.cups[old]; // the last 4 weekends are kept

@@ -168,6 +168,20 @@ The user is not a programmer: explain things in plain words, test everything you
   8 arenas, supers, gadgets, daily featured event, weekly events with modifiers, Ranked (100+ best trophies),
   Cog Pass (30 tiers per 4-week season), Trophy Road, 6 daily challenges, achievements.
 
+## v1.10.5 (1 Nov 2026, same NET_VERSION) — security pass + 3 accounts per device (the user picked the options)
+- **3 accounts per device, ever** (`ACCOUNTS_PER_DEVICE`, deleting doesn't free a place; logging in always works): `accounts.setDevice`
+  keys a connection by `'l:'` the game's random `cogwild.device` (localStorage, `net.deviceIds()`), `'c:'` the website's HttpOnly
+  `cw_d` cookie (set in the WebSocket 101 answer) and `'h:'` the app's hardware ID (Android `CogwildNative.deviceId()` = sha256 of
+  ANDROID_ID; desktop `CogwildDesktop.deviceId()` = sha256 of MachineGuid / IOPlatformUUID / machine-id, sync IPC). Only
+  `sha('cogwild-device:'+id)` is stored, in `db.devices` (count per key). Checked in register, signup (before the email code),
+  createAccount and emailName. Old apps send no `dev`: only the cookie / IP limit applies to them.
+- index.html has the same CSP as a `<meta>` (the apps had none); `db.gallery` / `db.cups` have no prototype; db.json and backups are 0600
+  (`UMask=0077` + `chmod 700 data` in setup.sh). Test: `tests/device-limit-test.js`. Privacy page lists the device code.
+- Oracle (done live 2026-11-01): MCSManager 23333/24444, File Browser 8080 (now `-a 127.0.0.1`) and Crafty 8443 closed in the OCI
+  security list (now 10 rules) and ufw, Docker's 8443 dropped from outside in `DOCKER-USER` (/etc/ufw/after.rules); the panels work only
+  through `Desktop\Open server panels.bat` (SSH tunnel). sshd drop-in 00-hardening.conf (no root, AllowUsers ubuntu, no X11,
+  MaxAuthTries 3), fail2ban sshd jail, rpcbind masked, packages upgraded.
+
 ## v1.10.4 (31 Oct 2026, same NET_VERSION) — respawn fix + calmer warning box (the user was asked first)
 - **Respawn**: in `MODES[..].respawn` modes `onPilotKilled` no longer sets `c.alive = false`: a pilot killed on foot destroys its mech with
   the killer (`c.mech.destroy(who)` → `onMechDestroyed` respawn branch: score, bounty, streak, Boss lives, the wait); already waiting

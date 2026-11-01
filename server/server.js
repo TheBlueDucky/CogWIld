@@ -434,6 +434,7 @@ function handle(c, data) {
       c.arenas = Array.isArray(m.arenas) ? m.arenas.filter((a) => typeof a === 'string' && /^[a-z]{1,16}$/.test(a)).slice(0, 40) : FEATURED.CLASSIC;
       // what the game runs on (website, app, phone…), for the daily stats
       c.plat = typeof m.plat === 'string' && /^[a-z][a-z0-9-]{0,15}$/.test(m.plat) ? m.plat : 'old';
+      accounts.setDevice(c, m.dev, c.devCookie); // which device this is (3 new accounts per device)
       if (m.ver !== NET_VERSION) c.ws.send({ t: 'err', msg: 'Your game is out of date. Refresh the page to update.', fatal: true });
       break;
     // logged-in players always show their username
@@ -632,6 +633,9 @@ function sessionPost(req, res) {
   });
 }
 const cookieTok = (req) => { const x = /(?:^|;\s*)cw_s=([0-9a-f]{64})(?:;|$)/.exec(String(req.headers.cookie || '')); return x ? x[1] : null; };
+// v1.10.5 the website's device cookie (a random ID, set with the first connection): one more way to know a device for the
+// 3-accounts-per-device rule, kept when the page's own storage is cleared
+const cookieDev = (req) => { const x = /(?:^|;\s*)cw_d=([0-9a-f]{64})(?:;|$)/.exec(String(req.headers.cookie || '')); return x ? x[1] : null; };
 const server = http.createServer((req, res) => {
   if (req.method === 'POST' && (req.url || '').split('?')[0] === '/session') return sessionPost(req, res);
   const post = req.method === 'POST' && POSTS[(req.url || '').split('?')[0]];
@@ -651,12 +655,15 @@ server.on('upgrade', (req, sock) => {
     return sock.destroy();
   }
   perIp.set(ip, (perIp.get(ip) || 0) + 1);
-  sock.write(['HTTP/1.1 101 Switching Protocols', 'Upgrade: websocket', 'Connection: Upgrade', `Sec-WebSocket-Accept: ${acceptKey(req.headers['sec-websocket-key'])}`, '', ''].join('\r\n'));
+  let devCookie = cookieDev(req);
+  const setDev = devCookie ? [] : [`Set-Cookie: cw_d=${(devCookie = crypto.randomBytes(32).toString('hex'))}; Path=/; Max-Age=315360000; HttpOnly; Secure; SameSite=Lax`];
+  sock.write(['HTTP/1.1 101 Switching Protocols', 'Upgrade: websocket', 'Connection: Upgrade', `Sec-WebSocket-Accept: ${acceptKey(req.headers['sec-websocket-key'])}`, ...setDev, '', ''].join('\r\n'));
   sock.setNoDelay(true);
   const ws = new Socket(sock);
-  const c = { id: nextId++, ws, ip, name: 'Pilot', room: null, ready: false, bp: null, tokens: RATE * 2, bytes: BYTE_RATE * 4, last: Date.now(), cookieTok: cookieTok(req) };
+  const c = { id: nextId++, ws, ip, name: 'Pilot', room: null, ready: false, bp: null, tokens: RATE * 2, bytes: BYTE_RATE * 4, last: Date.now(), cookieTok: cookieTok(req), devCookie };
   ws.lastPong = Date.now();
   clients.set(c.id, c);
+  accounts.setDevice(c, null, devCookie);
   ws.send({ t: 'welcome', id: c.id, ver: NET_VERSION, login: accounts.loginOptions() });
   ws.onmessage = (data) => {
     // token-bucket rate limit: spammy clients get messages dropped, then disconnected

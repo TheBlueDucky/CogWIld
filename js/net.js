@@ -55,6 +55,18 @@
       return (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
     }
     canConnect() { return !!CW.SERVER_URL || location.protocol === 'http:' || location.protocol === 'https:'; }
+    // v1.10.5 which device this is (the server allows 3 new accounts per device): a random ID the game keeps, and in the apps
+    // the phone's / PC's own ID (already hashed by the app), which stays the same after a reinstall
+    deviceIds() {
+      const hex = (v) => (typeof v === 'string' && /^[0-9a-f]{64}$/.test(v) ? v : null);
+      let ls = null, hw = null;
+      try {
+        ls = hex(localStorage.getItem('cogwild.device'));
+        if (!ls) { ls = Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, '0')).join(''); localStorage.setItem('cogwild.device', ls); }
+      } catch (e) { /* no storage (private window) */ }
+      try { hw = hex(window.CogwildNative && CogwildNative.deviceId ? CogwildNative.deviceId() : window.CogwildDesktop && CogwildDesktop.deviceId ? CogwildDesktop.deviceId() : null); } catch (e) { /* older app */ }
+      return { ls, hw };
+    }
 
     // ======================= connection =======================
     connect() {
@@ -65,7 +77,7 @@
         try { ws = new WebSocket(this.url()); } catch (e) { this.setStatus('offline'); reject(e); return; }
         this.ws = ws;
         const timeout = setTimeout(() => ws.close(), 9000);
-        ws.onopen = () => this.send({ t: 'hello', name: this.name || (this.name = this.myName()), ver: NET_VERSION, arenas: Object.keys(CW.ARENAS), plat: CW.platName ? CW.platName() : undefined });
+        ws.onopen = () => this.send({ t: 'hello', name: this.name || (this.name = this.myName()), ver: NET_VERSION, arenas: Object.keys(CW.ARENAS), plat: CW.platName ? CW.platName() : undefined, dev: this.deviceIds() });
         ws.onmessage = (e) => {
           let m;
           try { m = JSON.parse(e.data); } catch (err) { return; }

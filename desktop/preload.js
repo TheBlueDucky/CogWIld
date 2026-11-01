@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('CogwildDesktop', {
   fullscreen: () => ipcRenderer.send('fullscreen'), // Settings › Toggle fullscreen (same as F11)
   vsync: (on) => ipcRenderer.send('vsync', !!on), // used from the next start
   restart: () => ipcRenderer.send('restart'),
+  deviceId: () => ipcRenderer.sendSync('deviceId'), // v1.10.5 this PC's hashed ID (3 new accounts per device)
   // kind: 'clips' | 'replays'; resolves to where the file went
   saveFile: (kind, name, bytes) => ipcRenderer.invoke('saveFile', String(kind), String(name), bytes),
   openFolder: (kind) => ipcRenderer.invoke('openFolder', String(kind)),

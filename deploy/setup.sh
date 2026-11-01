@@ -62,6 +62,8 @@ for f in auth.html support.html privacy.html terms.html credits.html download.ht
 # accounts live in $APP/data (kept across updates, backed up daily into data/backups); app downloads in $APP/downloads
 mkdir -p "$APP/data" "$APP/downloads"
 chown -R cogwild:cogwild "$APP"
+# the accounts file has password hashes and emails: only the game may read it (v1.10.5)
+chmod 700 "$APP/data"
 
 # ---- 4. Domain ----
 if [ -z "$DOMAIN" ] && [ -f "$APP/.domain" ]; then DOMAIN="$(cat "$APP/.domain")"; fi
@@ -93,6 +95,7 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
+UMask=0077
 LimitNOFILE=65536
 
 [Install]

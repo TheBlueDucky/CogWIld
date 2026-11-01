@@ -70,6 +70,24 @@ function createWindow() {
 }
 
 // the game says what you're doing (js/desktop.js → preload.js); Discord shows it
+// v1.10.5 this PC's own ID (Windows MachineGuid, the Mac's hardware UUID, Linux machine-id), hashed so the real one never
+// leaves the PC: the server allows 3 new accounts per device, and this one survives a reinstall
+let deviceId;
+ipcMain.on('deviceId', (e) => {
+  if (deviceId === undefined) {
+    deviceId = null;
+    try {
+      const { execFileSync } = require('child_process');
+      const run = (cmd, args) => execFileSync(cmd, args, { encoding: 'utf8', timeout: 3000, windowsHide: true });
+      let raw = '';
+      if (process.platform === 'win32') raw = (/MachineGuid\s+REG_SZ\s+(\S+)/.exec(run('reg', ['query', 'HKLM\\SOFTWARE\\Microsoft\\Cryptography', '/v', 'MachineGuid'])) || [])[1] || '';
+      else if (process.platform === 'darwin') raw = (/"IOPlatformUUID" = "([^"]+)"/.exec(run('ioreg', ['-rd1', '-c', 'IOPlatformExpertDevice'])) || [])[1] || '';
+      else for (const f of ['/etc/machine-id', '/var/lib/dbus/machine-id']) { try { raw = fs.readFileSync(f, 'utf8').trim(); if (raw) break; } catch (err) { /* next */ } }
+      if (raw) deviceId = require('crypto').createHash('sha256').update('cogwild-device:' + raw.toLowerCase()).digest('hex');
+    } catch (err) { /* no ID: the game's own one still counts */ }
+  }
+  e.returnValue = deviceId;
+});
 ipcMain.on('presence', (e, info) => discord.set(info));
 // Settings › Toggle fullscreen: the same fullscreen as F11, whichever way it was turned on
 ipcMain.on('fullscreen', (e) => {
