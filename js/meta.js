@@ -761,6 +761,7 @@
     // What's new (Settings › Change logs, and the 📰 News button on phones)
     newsHtml() {
       return `<ul class="news">
+          <li><b>v1.10.5</b>: 🛡 Safer accounts: each device can make up to 3 accounts, so nobody can make lots of accounts to spam or to report players unfairly (logging in to your accounts always works). The apps also got the website's protection against harmful code.</li>
           <li><b>v1.10.4</b>: 🔁 Respawn fix: in Mech Ball, Bounty Hunt, King of the Hill and every other mode with respawns, being shot down on foot no longer leaves you out for the rest of the match. You come back like after a wreck (in Boss Battle it costs a life).
             ⚠ The Stuck / Damaged / Arena edge message sits still on the left in your theme's colors (no more pulsing and jumping), and the repair tip shows for a few seconds instead of staying up.</li>
           <li><b>v1.10.3</b>: 🚁 Heavier mechs fly: rotors and wings lift 50% more, so armored builds take off without dropping armor.
